@@ -1,0 +1,125 @@
+---
+globs: audio_agent/**/*.py
+alwaysApply: false
+---
+
+# Audio_Agent project rules
+
+## Project goal
+This project builds an extensible audio agent framework based on LangGraph.
+
+Current project priorities:
+- Build the framework skeleton first
+- Keep the architecture simple, explicit, and extensible
+- Do not implement real audio models or real tool internals unless explicitly requested
+- Prefer interfaces, schemas, stubs, and orchestration logic over premature model integration
+
+## Core architecture
+Assume the system follows this high-level flow:
+1. A LALM-style frontend takes `(audio, question)` and produces structured initial evidence
+2. A text LLM acts as planner/reasoner
+3. The planner decides whether to answer, call a tool, or fail
+4. Tool outputs are fused into structured evidence
+5. The loop continues until answer or explicit failure
+
+When adding code, preserve clean separation between:
+- frontend
+- planner
+- tools
+- tool registry
+- evidence fusion
+- graph nodes
+- routing
+- state/schema definitions
+
+## LangGraph requirements
+- Prefer LangGraph Graph API over high-level wrappers
+- Model the workflow with explicit nodes and routing
+- Keep graph logic easy to inspect and modify
+- Make it easy to later insert deterministic router nodes, benchmark-based tool selection nodes, or subgraphs
+- Do not force everything into a ReAct-style abstraction if a plain graph node is cleaner
+
+## Fail-fast policy
+This project follows strict fail-fast principles:
+- Validate assumptions early
+- Raise explicit errors immediately on invalid state
+- Never silently ignore malformed inputs or outputs
+- Never silently repair invalid state
+- Do not hide failures behind broad exception handling
+- Prefer custom exceptions with informative messages
+- Do not return `None` when a structured object is expected
+- Avoid silent fallback behavior unless explicitly requested
+
+## State and schema design
+- Use typed structured schemas for important inputs/outputs
+- Prefer Pydantic v2 models or typed dataclasses
+- Keep state explicit and inspectable
+- Do not use loosely typed nested dicts when a schema is appropriate
+- Favor small, well-named models for:
+  - agent state
+  - frontend output
+  - planner decision
+  - tool request
+  - tool result
+  - evidence item
+  - final answer
+
+## Tool design
+- Tools may later be local models or remote/API-backed tools
+- The rest of the system should not depend on whether a tool is local or remote
+- Use a clear tool interface with:
+  - metadata/spec
+  - validated request schema
+  - validated response schema
+- Use a registry to manage tools
+- Reject duplicate tool names
+- Raise explicit errors on unknown tools
+- Do not implement real tool internals unless explicitly requested
+
+## Planner design
+- The planner should only decide the next action
+- Use explicit planner actions such as:
+  - ANSWER
+  - CALL_TOOL
+  - FAIL
+- Planner outputs must be validated strictly
+- If planner action is CALL_TOOL, a valid tool name must be provided
+- If planner action is ANSWER, a non-empty draft/final answer must be provided
+
+## Code style
+- Python 3.11+
+- Type hints everywhere
+- Small readable modules
+- Small functions where helpful
+- Concise docstrings
+- Constructor injection over hidden globals
+- Avoid clever abstractions
+- Prefer explicitness over compactness
+- Prefer readability over framework magic
+
+## Dependency policy
+- Keep dependencies minimal
+- Do not add a package unless it is clearly needed
+- Prefer standard library where practical
+- When introducing a new dependency, keep usage localized and justified
+
+## File editing rules
+When modifying code:
+- Preserve existing public interfaces unless change is necessary
+- If changing an interface, update all dependent code in the same edit
+- Keep imports clean
+- Do not leave dead code
+- Do not leave placeholder TODOs for core logic if a clear stub/interface can be written now
+
+## Testing
+- Add or update lightweight tests for important behavior changes
+- Prefer smoke tests and validation tests for framework code
+- Test fail-fast behavior where reasonable
+
+## Output expectations
+When generating code:
+- Make the code runnable
+- Keep the architecture coherent
+- Include only the needed amount of abstraction
+- If simplifying something, state the simplification clearly
+- Optimize for maintainability and future extension

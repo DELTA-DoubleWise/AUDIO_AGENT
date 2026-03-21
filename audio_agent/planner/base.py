@@ -1,0 +1,110 @@
+"""
+Abstract base class for planner modules.
+
+The planner is the "brain" of the agent, deciding what action to take
+based on accumulated evidence and available tools.
+"""
+
+from abc import ABC, abstractmethod
+
+from audio_agent.core.state import AgentState
+from audio_agent.core.schemas import InitialPlan, PlannerDecision, ToolSpec
+from audio_agent.core.errors import PlannerError
+
+
+class BasePlanner(ABC):
+    """
+    Abstract base class for planners.
+    
+    Planner has two phases:
+    - plan(question): produce an initial approach from question only
+    - decide(state, tools): produce concrete action decision
+    
+    Concrete implementations might use:
+    - Local LLMs
+    - Remote API-based LLMs (OpenAI, Anthropic, etc.)
+    - Rule-based planners for testing
+    """
+    
+    @property
+    @abstractmethod
+    def name(self) -> str:
+        """Return the name of this planner for logging and identification."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def plan(self, question: str) -> InitialPlan:
+        """
+        Build an initial plan using question only.
+
+        Args:
+            question: User question
+
+        Returns:
+            InitialPlan
+
+        Raises:
+            PlannerError: If question is invalid or planning fails
+        """
+        raise NotImplementedError
+    
+    @abstractmethod
+    def decide(
+        self,
+        state: AgentState,
+        available_tools: list[ToolSpec],
+    ) -> PlannerDecision:
+        """
+        Make a decision based on current state and available tools.
+        
+        Args:
+            state: Current agent state with evidence and history
+            available_tools: List of tool specifications the planner can choose from
+        
+        Returns:
+            PlannerDecision indicating next action
+        
+        Raises:
+            PlannerError: If decision cannot be made or state is invalid
+        """
+        raise NotImplementedError
+    
+    def validate_state(self, state: AgentState) -> None:
+        """
+        Validate that state has required fields for action decision.
+        
+        Raises:
+            PlannerError: If state is invalid for planning
+        """
+        if not state.get("question"):
+            raise PlannerError(
+                "Cannot decide without a question",
+                details={"state_keys": list(state.keys())}
+            )
+        if state.get("initial_frontend_output") is None:
+            raise PlannerError(
+                "Cannot decide without frontend output",
+                details={"question": state.get("question")}
+            )
+        if state.get("initial_plan") is None:
+            raise PlannerError(
+                "Cannot decide without initial plan",
+                details={"question": state.get("question")}
+            )
+
+    def validate_question(self, question: str) -> str:
+        """
+        Validate question input for initial planning phase.
+
+        Returns:
+            Stripped question string.
+        """
+        if question is None or not isinstance(question, str):
+            raise PlannerError(
+                "Question must be a non-empty string for initial planning",
+                details={"question_type": type(question).__name__ if question is not None else "None"},
+            )
+        stripped = question.strip()
+        if not stripped:
+            raise PlannerError("Question must be a non-empty string for initial planning")
+        return stripped

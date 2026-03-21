@@ -1,0 +1,131 @@
+"""
+Agent state definition for LangGraph.
+
+This module defines the central state object that flows through the graph.
+Uses TypedDict for LangGraph compatibility with Pydantic models as field types.
+"""
+
+from typing import TypedDict, Annotated
+from operator import add
+
+from audio_agent.core.schemas import (
+    FrontendOutput,
+    InitialPlan,
+    EvidenceItem,
+    ToolCallRecord,
+    PlannerDecision,
+    FinalAnswer,
+    ToolResult,
+)
+from audio_agent.core.constants import AgentStatus
+
+
+def _replace_value(existing: any, new: any) -> any:
+    """Reducer that replaces the existing value with the new value."""
+    return new
+
+
+def _append_to_list(existing: list, new: list) -> list:
+    """Reducer that appends new items to the existing list."""
+    if existing is None:
+        existing = []
+    if new is None:
+        return existing
+    return existing + new
+
+
+class AgentState(TypedDict, total=False):
+    """
+    Central state object for the audio agent graph.
+    
+    This state flows through all nodes. LangGraph uses reducers (via Annotated)
+    to merge partial state updates from each node.
+    
+    Fields:
+        question: The user's question about the audio
+        audio_path_or_uri: Path or URI to the audio file
+        initial_frontend_output: Output from the frontend LALM
+        initial_plan: Initial planner output generated from question only
+        evidence_log: Accumulated evidence items (append-only)
+        tool_call_history: History of tool invocations (append-only)
+        initial_plan_trace: Log of initial planning outputs (append-only)
+        planner_trace: Log of planner action decisions (append-only)
+        current_decision: Latest planner decision
+        latest_tool_result: Most recent tool execution result (transient)
+        final_answer: The final answer if agent completed successfully
+        error_message: Error message if agent failed
+        step_count: Current step number
+        max_steps: Maximum allowed steps
+        status: Current agent status
+    """
+    # Core inputs (set once at start)
+    question: str
+    audio_path_or_uri: str
+    
+    # Frontend output (set once after frontend runs)
+    initial_frontend_output: FrontendOutput | None
+    initial_plan: InitialPlan | None
+    
+    # Accumulated data (append-only lists)
+    evidence_log: Annotated[list[EvidenceItem], _append_to_list]
+    tool_call_history: Annotated[list[ToolCallRecord], _append_to_list]
+    initial_plan_trace: Annotated[list[InitialPlan], _append_to_list]
+    planner_trace: Annotated[list[PlannerDecision], _append_to_list]
+    
+    # Current state (overwritten each cycle)
+    current_decision: PlannerDecision | None
+    latest_tool_result: ToolResult | None
+    
+    # Final outputs
+    final_answer: FinalAnswer | None
+    error_message: str | None
+    
+    # Counters and status
+    step_count: int
+    max_steps: int
+    status: AgentStatus
+
+
+def create_initial_state(
+    question: str,
+    audio_path_or_uri: str,
+    max_steps: int = 10,
+) -> AgentState:
+    """
+    Factory function to create a valid initial agent state.
+    
+    Args:
+        question: The user's question about the audio
+        audio_path_or_uri: Path or URI to the audio file
+        max_steps: Maximum steps before exhaustion
+    
+    Returns:
+        A properly initialized AgentState
+    
+    Raises:
+        ValueError: If question or audio_path_or_uri is empty
+    """
+    if not question or not question.strip():
+        raise ValueError("question must be a non-empty string")
+    if not audio_path_or_uri or not audio_path_or_uri.strip():
+        raise ValueError("audio_path_or_uri must be a non-empty string")
+    if max_steps < 1:
+        raise ValueError("max_steps must be at least 1")
+    
+    return AgentState(
+        question=question.strip(),
+        audio_path_or_uri=audio_path_or_uri.strip(),
+        initial_frontend_output=None,
+        initial_plan=None,
+        evidence_log=[],
+        tool_call_history=[],
+        initial_plan_trace=[],
+        planner_trace=[],
+        current_decision=None,
+        latest_tool_result=None,
+        final_answer=None,
+        error_message=None,
+        step_count=0,
+        max_steps=max_steps,
+        status=AgentStatus.RUNNING,
+    )

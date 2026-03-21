@@ -1,0 +1,48 @@
+# macOS
+.DS_Store
+._*
+
+# Python bytecode / caches
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Python tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Build / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+
+# Jupyter / notebooks
+.ipynb_checkpoints/
+
+# IDE / editor settings
+.idea/
+.vscode/
+
+# Logs / temp files
+*.log
+*.tmp
+*.temp
+
+# Local model / dataset caches
+.cache/
+.hf_cache/
+
+# Demo / runtime artifacts
+output.wav

@@ -1,0 +1,265 @@
+#!/usr/bin/env python3
+"""
+Demo script for the audio agent framework.
+
+This script demonstrates the complete workflow using:
+- Qwen2-Audio frontend
+- Qwen2.5 planner
+- dummy tool implementations for tool execution
+
+Usage:
+    python -m audio_agent.examples.demo_run --audio /path/to/audio.wav --question "What is being said?"
+
+    # Or from the project root:
+    python audio_agent/examples/demo_run.py --audio /path/to/audio.wav --question "What is being said?"
+"""
+
+import argparse
+import sys
+from pathlib import Path
+
+# Add project root to path for direct execution
+project_root = Path(__file__).parent.parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
+from audio_agent.config.settings import AgentConfig
+from audio_agent.core.constants import AgentStatus
+from audio_agent.core.logging import setup_logger, set_debug_mode
+from audio_agent.fusion.default_fuser import DefaultEvidenceFuser
+from audio_agent.frontend.qwen2_audio_frontend import Qwen2AudioFrontend
+from audio_agent.main import AudioAgent
+from audio_agent.planner.qwen25_planner import Qwen25Planner
+from audio_agent.tools.dummy_tools import DummyASRTool, DummyAudioEventDetectorTool
+from audio_agent.tools.registry import ToolRegistry
+
+
+def print_separator(title: str = "") -> None:
+    """Print a visual separator."""
+    line = "=" * 60
+    if title:
+        print(f"\n{line}")
+        print(f"  {title}")
+        print(f"{line}")
+    else:
+        print(line)
+
+
+def print_evidence_log(evidence_log: list) -> None:
+    """Print the evidence log in a readable format."""
+    print_separator("Evidence Log")
+    for i, item in enumerate(evidence_log, 1):
+        print(f"\n[{i}] Source: {item.source}")
+        print(f"    Type: {item.evidence_type}")
+        print(f"    Confidence: {item.confidence:.2f}")
+        print(f"    Content: {item.content[:200]}...")
+
+
+def print_tool_history(tool_history: list) -> None:
+    """Print the tool call history."""
+    print_separator("Tool Call History")
+    for i, record in enumerate(tool_history, 1):
+        req = record.request
+        res = record.result
+        print(f"\n[{i}] Tool: {req.tool_name}")
+        print(f"    Step: {record.step_number}")
+        print(f"    Args: {req.args}")
+        print(f"    Success: {res.success}")
+        print(f"    Execution time: {res.execution_time_ms:.2f}ms")
+
+
+def print_planner_trace(planner_trace: list) -> None:
+    """Print the planner decision trace."""
+    print_separator("Planner Trace")
+    for i, decision in enumerate(planner_trace, 1):
+        print(f"\n[{i}] Action: {decision.action.value}")
+        print(f"    Rationale: {decision.rationale}")
+        if decision.selected_tool_name:
+            print(f"    Tool: {decision.selected_tool_name}")
+        print(f"    Confidence: {decision.confidence:.2f}")
+
+
+def print_initial_plan(initial_plan) -> None:
+    """Print the initial plan."""
+    print_separator("Initial Plan")
+    print(f"\nApproach: {initial_plan.approach}")
+    if initial_plan.focus_points:
+        print("Focus points:")
+        for item in initial_plan.focus_points:
+            print(f"  - {item}")
+    if initial_plan.possible_tool_types:
+        print("Possible tool types:")
+        for item in initial_plan.possible_tool_types:
+            print(f"  - {item}")
+    if initial_plan.notes:
+        print(f"Notes: {initial_plan.notes}")
+
+
+def build_parser() -> argparse.ArgumentParser:
+    """Build command-line parser for the demo."""
+    parser = argparse.ArgumentParser(
+        description="Run the audio agent demo with Qwen2-Audio frontend and Qwen2.5 planner.",
+    )
+    parser.add_argument(
+        "--audio",
+        required=True,
+        help="Path or URI to the input audio file.",
+    )
+    parser.add_argument(
+        "--question",
+        required=True,
+        help="Question to ask about the audio.",
+    )
+    parser.add_argument(
+        "--frontend-model-path",
+        default="Qwen/Qwen2-Audio-7B-Instruct",
+        help="Model path for Qwen2-Audio frontend.",
+    )
+    parser.add_argument(
+        "--planner-model-path",
+        default="Qwen/Qwen2.5-7B-Instruct",
+        help="Model path for Qwen2.5 planner.",
+    )
+    parser.add_argument(
+        "--max-steps",
+        type=int,
+        default=5,
+        help="Maximum number of agent steps.",
+    )
+    return parser
+
+
+def create_qwen_demo_agent(
+    *,
+    frontend_model_path: str,
+    planner_model_path: str,
+    config: AgentConfig,
+) -> AudioAgent:
+    """Create an audio agent using Qwen frontend/planner plus dummy tools."""
+    frontend = Qwen2AudioFrontend(model_path=frontend_model_path)
+    planner = Qwen25Planner(model_path=planner_model_path)
+
+    registry = ToolRegistry()
+    registry.register(DummyASRTool())
+    registry.register(DummyAudioEventDetectorTool())
+
+    fuser = DefaultEvidenceFuser()
+
+    return AudioAgent(
+        frontend=frontend,
+        planner=planner,
+        registry=registry,
+        fuser=fuser,
+        config=config,
+    )
+
+
+def main() -> int:
+    """Run the demo."""
+    args = build_parser().parse_args()
+
+    print_separator("Audio Agent Framework Demo")
+    print("\nThis demo runs the agent with:")
+    print("- Qwen2-Audio frontend")
+    print("- Qwen2.5 planner")
+    print("- Dummy tools for tool execution\n")
+    
+    # Set up logging
+    setup_logger()
+    set_debug_mode(True)  # Enable debug logging for demo
+    
+    # Create configuration
+    config = AgentConfig(
+        max_steps=args.max_steps,
+        debug=True,
+    )
+    
+    # Create the agent with concrete model components
+    print("Creating audio agent with Qwen2-Audio frontend and Qwen2.5 planner...")
+    try:
+        agent = create_qwen_demo_agent(
+            frontend_model_path=args.frontend_model_path,
+            planner_model_path=args.planner_model_path,
+            config=config,
+        )
+    except Exception as e:
+        print(f"\nFailed to initialize agent: {type(e).__name__}: {e}")
+        return 1
+
+    question = args.question
+    audio_path = args.audio
+
+    print(f"\nQuestion: {question}")
+    print(f"Audio path: {audio_path}")
+    print(f"Frontend model: {args.frontend_model_path}")
+    print(f"Planner model: {args.planner_model_path}")
+    
+    print_separator("Running Agent")
+    
+    # Run the agent
+    try:
+        final_state = agent.run(
+            question=question,
+            audio_path_or_uri=audio_path,
+            max_steps=args.max_steps,
+        )
+    except Exception as e:
+        print(f"\nAgent failed with error: {type(e).__name__}: {e}")
+        return 1
+     
+    # Print results
+    print_separator("Results")
+    
+    status = final_state.get("status", AgentStatus.RUNNING)
+    print(f"\nFinal Status: {status.value}")
+    print(f"Step Count: {final_state.get('step_count', 0)}")
+
+    frontend_output = final_state.get("initial_frontend_output")
+    if frontend_output:
+        print_separator("Frontend Caption")
+        print(f"\n{frontend_output.question_guided_caption}")
+
+    initial_plan = final_state.get("initial_plan")
+    if initial_plan:
+        print_initial_plan(initial_plan)
+    
+    # Print evidence log
+    evidence_log = final_state.get("evidence_log", [])
+    if evidence_log:
+        print_evidence_log(evidence_log)
+    
+    # Print tool history
+    tool_history = final_state.get("tool_call_history", [])
+    if tool_history:
+        print_tool_history(tool_history)
+    
+    # Print planner trace
+    planner_trace = final_state.get("planner_trace", [])
+    if planner_trace:
+        print_planner_trace(planner_trace)
+    
+    # Print final answer
+    final_answer = final_state.get("final_answer")
+    if final_answer:
+        print_separator("Final Answer")
+        print(f"\n{final_answer.answer}")
+        print(f"\nConfidence: {final_answer.confidence:.2f}")
+    
+    # Print error if any
+    error_message = final_state.get("error_message")
+    if error_message:
+        print_separator("Error")
+        print(f"\n{error_message}")
+    
+    print_separator()
+    
+    if status == AgentStatus.ANSWERED:
+        print("\nDemo completed successfully.")
+        return 0
+    else:
+        print(f"\nDemo completed with status: {status.value}")
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
