@@ -56,7 +56,8 @@ audio_agent/
 ├── config/                # Configuration
 │   └── settings.py       # AgentConfig
 ├── utils/                 # Utilities
-│   └── validation.py     # Validation helpers
+│   ├── validation.py     # Validation helpers
+│   └── model_downloader.py  # Model download utility
 ├── examples/              # Example scripts
 │   └── demo_run.py       # Runnable demo
 └── tests/                 # Tests
@@ -106,7 +107,52 @@ if agent.is_successful(result):
 audio-agent-demo
 
 # Or directly
-python -m audio_agent.examples.demo_run
+python -m audio_agent.examples.demo_run \
+  --audio /path/to/audio.wav \
+  --question "What is being said in this audio?"
+```
+
+## Pre-downloading Models
+
+By default, the framework uses local model paths to avoid re-downloading models on every login. Models are stored in `/lihaoyu/workspace/AUDIO_AGENT/models/`.
+
+**Download all models (one-time setup):**
+
+```bash
+# Install with download support
+pip install -e ".[download]"
+
+# Download all models
+audio-agent-download-models --all
+```
+
+**Download specific models:**
+
+```bash
+audio-agent-download-models --models qwen2-audio qwen2.5
+```
+
+**List available models and their status:**
+
+```bash
+audio-agent-download-models --list
+```
+
+**Available models:**
+- `qwen2-audio` - Qwen/Qwen2-Audio-7B-Instruct (frontend, ~15GB)
+- `qwen3-omni` - Qwen/Qwen3-Omni-30B-A3B-Instruct (frontend, ~60GB)
+- `qwen2.5` - Qwen/Qwen2.5-7B-Instruct (planner, ~15GB)
+
+**Using HuggingFace Hub paths (fallback):**
+
+If you prefer to use HuggingFace Hub paths directly (models will be downloaded to cache):
+
+```bash
+python -m audio_agent.examples.demo_run \
+  --audio /path/to/audio.wav \
+  --question "What is being said?" \
+  --frontend-model-path Qwen/Qwen2-Audio-7B-Instruct \
+  --planner-model-path Qwen/Qwen2.5-7B-Instruct
 ```
 
 ## Running Tests

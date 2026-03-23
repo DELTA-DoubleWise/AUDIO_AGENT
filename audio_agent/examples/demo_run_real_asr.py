@@ -1,20 +1,22 @@
 #!/usr/bin/env python3
 """
-Demo script for the audio agent framework.
+Demo script with real ASR tool using Qwen3-ASR-1.7B.
 
 This script demonstrates the complete workflow using:
 - Qwen2-Audio frontend
 - Qwen2.5 planner
-- dummy tool implementations for tool execution
+- Real ASR tool (MCP-based Qwen3-ASR-1.7B)
 
 Usage:
-    python -m audio_agent.examples.demo_run --audio audio_agent/examples/sound1.wav --question "What happens in the given audio?"
-
-    # Or from the project root:
-    python audio_agent/examples/demo_run.py --audio audio_agent/examples/sound1.wav --question "What happens in the given audio?"
+    python -m audio_agent.examples.demo_run_real_asr \
+        --audio /path/to/audio.wav \
+        --question "What is being said?"
 """
 
+from __future__ import annotations
+
 import argparse
+import asyncio
 import sys
 from pathlib import Path
 
@@ -30,8 +32,9 @@ from audio_agent.fusion.default_fuser import DefaultEvidenceFuser
 from audio_agent.frontend.qwen2_audio_frontend import Qwen2AudioFrontend
 from audio_agent.main import AudioAgent
 from audio_agent.planner.qwen25_planner import Qwen25Planner
-from audio_agent.tools.dummy_tools import DummyASRTool, DummyAudioEventDetectorTool
 from audio_agent.tools.registry import ToolRegistry
+from audio_agent.tools.mcp import MCPServerManager, MCPToolAdapter
+from audio_agent.tools.catalog import load_mcp_server_config
 from audio_agent.utils.model_downloader import (
     DEFAULT_QWEN2_AUDIO_PATH,
     DEFAULT_QWEN25_PATH,
@@ -102,8 +105,7 @@ def print_initial_plan(initial_plan) -> None:
 def build_parser() -> argparse.ArgumentParser:
     """Build command-line parser for the demo."""
     parser = argparse.ArgumentParser(
-        description="Run the audio agent demo with Qwen2-Audio frontend and Qwen2.5 planner.",
-    )
+        description="Run the audio agent demo with real ASR tool.")
     parser.add_argument(
         "--audio",
         required=True,
@@ -130,50 +132,62 @@ def build_parser() -> argparse.ArgumentParser:
         default=5,
         help="Maximum number of agent steps.",
     )
+    parser.add_argument(
+        "--asr-device",
+        default="auto",
+        help="Device for ASR tool (auto, cuda, cpu).",
+    )
     return parser
 
 
-def create_qwen_demo_agent(
-    *,
-    frontend_model_path: str,
-    planner_model_path: str,
-    config: AgentConfig,
-) -> AudioAgent:
-    """Create an audio agent using Qwen frontend/planner plus dummy tools."""
-    frontend = Qwen2AudioFrontend(model_path=frontend_model_path)
-    planner = Qwen25Planner(model_path=planner_model_path)
-
-    registry = ToolRegistry()
-    registry.register(DummyASRTool())
-    registry.register(DummyAudioEventDetectorTool())
-
-    fuser = DefaultEvidenceFuser()
-
-    return AudioAgent(
-        frontend=frontend,
-        planner=planner,
-        registry=registry,
-        fuser=fuser,
-        config=config,
-    )
-
-
-import asyncio
+async def setup_asr_qwen3_tool(registry: ToolRegistry) -> MCPServerManager:
+    """
+    Set up the Qwen3-ASR-1.7B tool from catalog.
+    
+    Args:
+        registry: Tool registry to register tools to
+        
+    Returns:
+        Server manager for cleanup
+    """
+    # Create server manager
+    server_manager = MCPServerManager()
+    
+    # Load ASR config from catalog
+    asr_config = load_mcp_server_config("asr_qwen3")
+    server_manager.register_config("asr_qwen3", asr_config)
+    
+    # Get client and discover tools
+    print("Starting ASR MCP server and discovering tools...")
+    client = await server_manager.get_client("asr_qwen3")
+    tools = await client.list_tools()
+    
+    # Register each tool from the server
+    for tool_info in tools:
+        adapter = MCPToolAdapter(
+            server_name="asr_qwen3",
+            tool_info=tool_info,
+            server_manager=server_manager,
+        )
+        registry.register_mcp(adapter)
+        print(f"  Registered MCP tool: {tool_info.name}")
+    
+    return server_manager
 
 
 async def amain() -> int:
     """Run the demo (async version)."""
     args = build_parser().parse_args()
 
-    print_separator("Audio Agent Framework Demo")
+    print_separator("Audio Agent Framework Demo (Real ASR)")
     print("\nThis demo runs the agent with:")
     print("- Qwen2-Audio frontend")
     print("- Qwen2.5 planner")
-    print("- Dummy tools for tool execution\n")
+    print("- Qwen3-ASR-1.7B tool (MCP-based)\n")
     
     # Set up logging
     setup_logger()
-    set_debug_mode(True)  # Enable debug logging for demo
+    set_debug_mode(True)
     
     # Create configuration
     config = AgentConfig(
@@ -181,20 +195,36 @@ async def amain() -> int:
         debug=True,
     )
     
-    # Create the agent with concrete model components
+    # Create the agent components
     print("Creating audio agent with Qwen2-Audio frontend and Qwen2.5 planner...")
     try:
-        agent = create_qwen_demo_agent(
-            frontend_model_path=args.frontend_model_path,
-            planner_model_path=args.planner_model_path,
+        frontend = Qwen2AudioFrontend(model_path=args.frontend_model_path)
+        planner = Qwen25Planner(model_path=args.planner_model_path)
+        registry = ToolRegistry()
+        fuser = DefaultEvidenceFuser()
+        
+        # Set up ASR tool
+        print("Setting up Qwen3-ASR-1.7B tool...")
+        server_manager = await setup_asr_qwen3_tool(registry)
+        
+        # Create agent
+        agent = AudioAgent(
+            frontend=frontend,
+            planner=planner,
+            registry=registry,
+            fuser=fuser,
             config=config,
         )
+        
     except Exception as e:
         print(f"\nFailed to initialize agent: {type(e).__name__}: {e}")
+        import traceback
+        traceback.print_exc()
         return 1
 
     question = args.question
-    audio_path = args.audio
+    # Resolve audio path to absolute path for tools
+    audio_path = str(Path(args.audio).resolve())
 
     print(f"\nQuestion: {question}")
     print(f"Audio path: {audio_path}")
@@ -212,7 +242,13 @@ async def amain() -> int:
         )
     except Exception as e:
         print(f"\nAgent failed with error: {type(e).__name__}: {e}")
+        import traceback
+        traceback.print_exc()
         return 1
+    finally:
+        # Clean up MCP servers
+        print("\nShutting down MCP servers...")
+        await server_manager.shutdown_all()
      
     # Print results
     print_separator("Results")

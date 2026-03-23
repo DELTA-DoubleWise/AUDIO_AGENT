@@ -36,9 +36,13 @@ dev = [
     "ruff>=0.1.0",
     "mypy>=1.0.0",
 ]
+download = [
+    "huggingface_hub>=0.20.0",
+]
 
 [project.scripts]
 audio-agent-demo = "audio_agent.examples.demo_run:main"
+audio-agent-download-models = "audio_agent.utils.model_downloader:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

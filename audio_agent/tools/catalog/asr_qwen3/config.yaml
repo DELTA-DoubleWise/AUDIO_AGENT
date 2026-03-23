@@ -1,0 +1,62 @@
+# ASR Qwen3 Tool Configuration
+# Speech recognition using Qwen3-ASR-1.7B model
+
+name: asr_qwen3
+description: "Automatic Speech Recognition using Qwen3-ASR-1.7B model"
+version: "1.0.0"
+author: "Audio Agent Team"
+tags: ["asr", "speech", "transcription", "qwen", "qwen3"]
+
+# MCP Server Configuration
+server:
+  # IMPORTANT: You MUST pre-create the environment before running!
+  # Run: python -m audio_agent.tools.catalog.setup_tool asr_qwen3
+  #
+  # Using explicit venv Python:
+  command: [".venv/bin/python", "server.py"]
+  working_dir: "."
+  
+  env:
+    MODEL_PATH: "/lihaoyu/workspace/AUDIO_AGENT/models/Qwen3-ASR-1.7B"
+    DEVICE: "auto"
+    LANGUAGE: "auto"  # auto, zh, en, ja, ko, etc.
+    ALIGNER_PATH: "/lihaoyu/workspace/AUDIO_AGENT/models/Qwen3-ForcedAligner-0.6B"
+    USE_ALIGNER: "true"
+  
+  resources:
+    memory_gb: 8
+    gpu: true  # GPU recommended but not required
+    cpu_cores: 4
+  
+  lifecycle: "session"
+  startup_timeout_sec: 300  # Model loading can take time
+
+# Tool definitions
+tools:
+  - name: "asr_transcribe"
+    description: "Transcribe speech in audio to text using Qwen3-ASR-1.7B. Supports 52 languages including English, Chinese, Japanese, Korean, and 22 Chinese dialects."
+    input_schema:
+      type: object
+      properties:
+        audio_path:
+          type: string
+          description: "Path to the audio file to transcribe"
+        language:
+          type: string
+          description: "Language code (e.g., 'auto', 'zh', 'en', 'ja', 'ko'). Use 'auto' for automatic detection."
+          default: "auto"
+      required: ["audio_path"]
+  
+  - name: "asr_transcribe_with_timestamps"
+    description: "Transcribe speech with word-level timestamps using forced alignment"
+    input_schema:
+      type: object
+      properties:
+        audio_path:
+          type: string
+          description: "Path to the audio file"
+        language:
+          type: string
+          description: "Language code (e.g., 'zh', 'en', 'ja')"
+          default: "auto"
+      required: ["audio_path"]

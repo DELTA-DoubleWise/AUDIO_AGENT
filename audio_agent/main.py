@@ -72,7 +72,9 @@ class AudioAgent:
         max_steps: int | None = None,
     ) -> AgentState:
         """
-        Run the agent on an audio query.
+        Run the agent on an audio query (synchronous).
+        
+        Note: If using MCP tools, use arun() instead.
         
         Args:
             question: User question about the audio
@@ -92,6 +94,38 @@ class AudioAgent:
         
         # Execute the graph
         final_state = self._graph.invoke(initial_state)
+        
+        return final_state
+    
+    async def arun(
+        self,
+        question: str,
+        audio_path_or_uri: str,
+        max_steps: int | None = None,
+    ) -> AgentState:
+        """
+        Run the agent on an audio query (asynchronous).
+        
+        Required when using MCP tools or async tool execution.
+        
+        Args:
+            question: User question about the audio
+            audio_path_or_uri: Path or URI to audio file
+            max_steps: Override default max_steps
+        
+        Returns:
+            Final agent state with answer or error
+        """
+        effective_max_steps = max_steps if max_steps is not None else self.config.max_steps
+        
+        initial_state = create_initial_state(
+            question=question,
+            audio_path_or_uri=audio_path_or_uri,
+            max_steps=effective_max_steps,
+        )
+        
+        # Execute the graph asynchronously
+        final_state = await self._graph.ainvoke(initial_state)
         
         return final_state
     

@@ -194,6 +194,7 @@ def create_planner_decision_node(planner: BasePlanner, registry: ToolRegistry):
     def planner_decision_node(state: AgentState) -> dict:
         """
         Make an action decision based on current state.
+        On final step, generates final answer instead of making decision.
         
         Validates:
         - question exists
@@ -204,8 +205,47 @@ def create_planner_decision_node(planner: BasePlanner, registry: ToolRegistry):
         - current_decision
         - planner_trace (appends decision)
         """
+        step_count = state.get("step_count", 0)
+        max_steps = state.get("max_steps", 10)
+        is_final_step = step_count >= max_steps - 1
+
+        # Final step: generate answer directly
+        if is_final_step:
+            log_node_start("planner_decision_node", {
+                "step_count": step_count,
+                "mode": "final_answer",
+            })
+
+            try:
+                answer_text = planner.answer(state)
+            except PlannerError:
+                raise
+            except Exception as e:
+                log_error("planner_decision_node", e)
+                raise PlannerError(
+                    f"Final answer generation failed: {e}",
+                    details={"planner": planner.name}
+                ) from e
+
+            # Create ANSWER decision with generated answer
+            decision = PlannerDecision(
+                action=PlannerActionType.ANSWER,
+                rationale=f"Maximum steps ({max_steps}) reached. Providing final answer based on accumulated evidence.",
+                draft_answer=answer_text,
+                confidence=0.7,
+            )
+
+            log_planner_decision("answer", decision.rationale, None)
+            log_node_end("planner_decision_node", {"action": "answer", "mode": "final_answer"})
+
+            return {
+                "current_decision": decision,
+                "planner_trace": [decision],
+            }
+
+        # Normal decision flow
         log_node_start("planner_decision_node", {
-            "step_count": state.get("step_count", 0),
+            "step_count": step_count,
             "evidence_count": len(state.get("evidence_log", [])),
         })
         
@@ -258,9 +298,9 @@ def create_tool_executor_node(executor: ToolExecutor):
         executor: ToolExecutor instance for running tools
     
     Returns:
-        Node function compatible with LangGraph
+        Async node function compatible with LangGraph
     """
-    def tool_executor_node(state: AgentState) -> dict:
+    async def tool_executor_node(state: AgentState) -> dict:
         """
         Execute the tool specified in current_decision.
         
@@ -295,18 +335,26 @@ def create_tool_executor_node(executor: ToolExecutor):
             )
         
         # Build request
+        # Get args from planner decision, inject audio_path if needed
+        args = decision.selected_tool_args or {}
+        
+        # Inject audio_path for tools that need it (e.g., ASR tools)
+        # The planner doesn't know the audio path, so we inject it from state
+        if "audio_path" not in args and state.get("audio_path_or_uri"):
+            args = {**args, "audio_path": state["audio_path_or_uri"]}
+        
         request = ToolCallRequest(
             tool_name=decision.selected_tool_name,
-            args=decision.selected_tool_args or {},
+            args=args,
             context={
                 "question": state.get("question", ""),
                 "step_count": state.get("step_count", 0),
             },
         )
         
-        # Execute
+        # Execute (async)
         try:
-            result = executor.execute(request)
+            result = await executor.execute(request)
         except ToolExecutionError:
             raise
         except Exception as e:

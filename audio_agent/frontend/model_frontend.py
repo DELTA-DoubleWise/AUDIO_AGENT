@@ -32,7 +32,7 @@ DEFAULT_FRONTEND_SYSTEM_PROMPT = (
     "Do not guess unsupported details. "
     "State uncertainty explicitly when details are unclear. "
     "Keep the output concise, faithful, and useful for downstream tool planning. "
-    "Return a JSON object with key: `question_guided_caption` (str)."
+    "Return ONLY the caption as plain text. Do not use JSON format."
 )
 
 
@@ -111,7 +111,7 @@ class BaseModelFrontend(BaseFrontend):
             "Inspect the audio and produce a concise question-guided caption for a downstream planner. "
             "Do not do final reasoning or final answering. "
             "State uncertainty explicitly when details are unclear.\n"
-            "Return a JSON object with key: `question_guided_caption` (str)."
+            "Return ONLY the caption as plain text. Do not use JSON."
         )
 
     def _build_common_user_payload(self, question: str, audio_path_or_uri: str) -> dict[str, Any]:
@@ -123,9 +123,7 @@ class BaseModelFrontend(BaseFrontend):
                 "value": audio_path_or_uri,
             },
             "task": "question_guided_audio_captioning",
-            "output_schema": {
-                "question_guided_caption": "str (non-empty)",
-            },
+            "output_format": "plain_text_caption",
         }
 
     def build_api_model_input(self, question: str, audio_path_or_uri: str) -> UnifiedFrontendInput:
@@ -246,44 +244,37 @@ class BaseModelFrontend(BaseFrontend):
         """
         Normalize model output into FrontendOutput.
 
-        Supported raw output forms:
+        Supports:
         - FrontendOutput (returned directly)
-        - JSON text
-        - dict with exact FrontendOutput-compatible fields
+        - Plain text string (treated as caption directly)
+        - Dict (for backward compatibility with JSON outputs)
 
         Fail-fast requirement:
-        - No silent field repair/filling for malformed model output
+        - Empty outputs are rejected
         """
         if isinstance(raw_output, FrontendOutput):
             return raw_output
 
+        # Treat string output as plain text caption (new default behavior)
         if isinstance(raw_output, str):
-            parsed = parse_json_object_text(
-                raw_output,
-                error_cls=FrontendError,
-                subject="Model",
-            )
-            return self.normalize_model_output(parsed, model_input)
-
-        if isinstance(raw_output, dict):
-            required = {"question_guided_caption"}
-            keys = set(raw_output.keys())
-            missing = sorted(required - keys)
-            if missing:
+            caption = raw_output.strip()
+            if not caption:
                 raise FrontendError(
-                    "Malformed frontend output: missing required fields",
-                    details={"missing_fields": missing, "output_keys": sorted(keys)},
+                    "Frontend returned empty caption",
+                    details={"frontend": self.name},
                 )
-            try:
-                return FrontendOutput(**raw_output)
-            except Exception as e:
-                raise FrontendError(
-                    "Malformed frontend output: schema validation failed",
-                    details={"error": str(e), "output_keys": sorted(keys)},
-                ) from e
+            return FrontendOutput(question_guided_caption=caption)
+
+        # Dict output is not supported - model should return plain text
+        if isinstance(raw_output, dict):
+            raise FrontendError(
+                "Frontend returned dict instead of plain text. "
+                "The model should return plain text caption only.",
+                details={"output_keys": list(raw_output.keys())},
+            )
 
         raise FrontendError(
-            "Malformed frontend output: expected dict or FrontendOutput",
+            "Malformed frontend output: expected str or FrontendOutput",
             details={"output_type": type(raw_output).__name__, "question": model_input.question},
         )
 

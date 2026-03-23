@@ -27,9 +27,11 @@ from audio_agent.frontend.model_frontend import (
     FrontendInputFormat,
     UnifiedFrontendInput,
 )
+from audio_agent.utils.model_downloader import DEFAULT_QWEN2_AUDIO_PATH
 
 
-DEFAULT_QWEN2_AUDIO_MODEL_PATH = "Qwen/Qwen2-Audio-7B-Instruct"
+# Use local model path by default, fallback to HuggingFace Hub if not available
+DEFAULT_QWEN2_AUDIO_MODEL_PATH = DEFAULT_QWEN2_AUDIO_PATH
 
 
 class Qwen2AudioFrontend(BaseModelFrontend):
@@ -39,7 +41,7 @@ class Qwen2AudioFrontend(BaseModelFrontend):
         self,
         model_path: str = DEFAULT_QWEN2_AUDIO_MODEL_PATH,
         device_map: str = "auto",
-        max_length: int = 256,
+        max_length: int = 1024,
         generation_kwargs: dict[str, Any] | None = None,
         system_prompt: str | None = None,
         model_config: dict[str, Any] | None = None,
@@ -166,9 +168,10 @@ class Qwen2AudioFrontend(BaseModelFrontend):
                 model_input.audio_path_or_uri,
                 sampling_rate=processor.feature_extractor.sampling_rate,
             )
+
             inputs = processor(
                 text=text,
-                audios=[audio_array],
+                audio=[audio_array],
                 return_tensors="pt",
                 padding=True,
             )

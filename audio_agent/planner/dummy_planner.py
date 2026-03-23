@@ -127,3 +127,12 @@ class DummyPlanner(BasePlanner):
             draft_answer=draft_answer,
             confidence=0.75,
         )
+
+    def answer(self, state: AgentState) -> str:
+        """Generate dummy final answer from accumulated evidence."""
+        question = state.get("question", "")
+        evidence_count = len(state.get("evidence_log", []))
+        return (
+            f"[Dummy Answer] Based on {evidence_count} evidence items for question: {question}\n\n"
+            "The audio has been analyzed but this is a placeholder answer."
+        )

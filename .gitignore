@@ -39,10 +39,14 @@ pip-wheel-metadata/
 *.log
 *.tmp
 *.temp
+condaenv.*.requirements.txt
 
 # Local model / dataset caches
 .cache/
 .hf_cache/
+
+# Downloaded models (pre-downloaded to avoid re-downloading on every login)
+models/
 
 # Demo / runtime artifacts
 output.wav

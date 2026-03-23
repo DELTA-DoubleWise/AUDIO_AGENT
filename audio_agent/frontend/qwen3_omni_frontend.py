@@ -24,9 +24,11 @@ from audio_agent.frontend.model_frontend import (
     FrontendInputFormat,
     UnifiedFrontendInput,
 )
+from audio_agent.utils.model_downloader import DEFAULT_QWEN3_OMNI_PATH
 
 
-DEFAULT_QWEN3_OMNI_MODEL_PATH = "Qwen/Qwen3-Omni-30B-A3B-Instruct"
+# Use local model path by default, fallback to HuggingFace Hub if not available
+DEFAULT_QWEN3_OMNI_MODEL_PATH = DEFAULT_QWEN3_OMNI_PATH
 
 
 class Qwen3OmniFrontend(BaseModelFrontend):

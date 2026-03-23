@@ -68,6 +68,25 @@ class BasePlanner(ABC):
             PlannerError: If decision cannot be made or state is invalid
         """
         raise NotImplementedError
+
+    @abstractmethod
+    def answer(self, state: AgentState) -> str:
+        """
+        Generate final answer from accumulated evidence.
+        
+        Called on the final step when max_steps is reached.
+        Should synthesize all evidence to answer the original question.
+        
+        Args:
+            state: Current agent state with all accumulated evidence
+            
+        Returns:
+            The final answer string
+            
+        Raises:
+            PlannerError: If answer generation fails
+        """
+        raise NotImplementedError
     
     def validate_state(self, state: AgentState) -> None:
         """

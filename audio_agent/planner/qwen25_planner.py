@@ -26,9 +26,11 @@ from audio_agent.planner.model_planner import (
     PlannerInputFormat,
     UnifiedPlannerInput,
 )
+from audio_agent.utils.model_downloader import DEFAULT_QWEN25_PATH
 
 
-DEFAULT_QWEN25_MODEL_PATH = "Qwen/Qwen2.5-7B-Instruct"
+# Use local model path by default, fallback to HuggingFace Hub if not available
+DEFAULT_QWEN25_MODEL_PATH = DEFAULT_QWEN25_PATH
 
 
 class Qwen25Planner(BaseModelPlanner):

@@ -1,0 +1,30 @@
+"""
+Tool catalog for MCP-based tools.
+
+This package contains tool implementations that run as separate processes
+using the Model Context Protocol (MCP).
+
+Utilities provided:
+- loader: Load tool configurations with path resolution
+- setup_tool: Set up isolated environments for tools using uv
+"""
+
+from audio_agent.tools.catalog.loader import (
+    get_catalog_dir,
+    get_tool_dir,
+    load_mcp_server_config,
+    load_tool_config,
+    list_available_tools,
+    resolve_config_paths,
+    resolve_path,
+)
+
+__all__ = [
+    "get_catalog_dir",
+    "get_tool_dir",
+    "load_mcp_server_config",
+    "load_tool_config",
+    "list_available_tools",
+    "resolve_config_paths",
+    "resolve_path",
+]

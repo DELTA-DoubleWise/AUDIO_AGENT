@@ -162,13 +162,20 @@ class BaseModelPlanner(BasePlanner):
             "available_tools": tool_summary,
             "step_count": state.get("step_count", 0),
             "max_steps": state.get("max_steps", 10),
+            "decision_rules": [
+                "If you have enough evidence to answer the question, use action='answer' and provide draft_answer.",
+                "If you need more information, use action='call_tool' and specify which tool in selected_tool_name.",
+                "action='call_tool' REQUIRES a non-empty selected_tool_name - never leave it null or empty.",
+                "action='answer' REQUIRES a non-empty draft_answer.",
+                "Do NOT use action='call_tool' if you are ready to answer - use action='answer' instead.",
+            ],
             "required_output": {
                 "action": "answer | call_tool | fail",
-                "rationale": "str",
-                "selected_tool_name": "str | null",
-                "selected_tool_args": "dict",
-                "draft_answer": "str | null",
-                "confidence": "float",
+                "rationale": "str - explain your decision",
+                "selected_tool_name": "str | null - REQUIRED for call_tool, must be a valid tool name",
+                "selected_tool_args": "dict - arguments for the tool when using call_tool",
+                "draft_answer": "str | null - REQUIRED for answer, your final response to the question",
+                "confidence": "float - 0.0 to 1.0",
             },
         }
         return json.dumps(payload, ensure_ascii=True)
@@ -420,3 +427,67 @@ class BaseModelPlanner(BasePlanner):
                 details={"planner": self.name},
             ) from e
         return self.normalize_decision_output(raw_output)
+
+    def answer(self, state: AgentState) -> str:
+        """Generate final answer using the model."""
+        model_input = self.build_answer_model_input(state)
+        try:
+            raw_output = self.call_model(model_input)
+        except PlannerError:
+            raise
+        except Exception as e:
+            raise PlannerError(
+                f"Planner model call failed during answer generation: {type(e).__name__}: {e}",
+                details={"planner": self.name},
+            ) from e
+
+        # Treat output as plain text answer (could be JSON or string)
+        if isinstance(raw_output, str):
+            # Try to parse as JSON first (for structured answer)
+            try:
+                parsed = json.loads(raw_output)
+                if isinstance(parsed, dict) and "answer" in parsed:
+                    return parsed["answer"].strip()
+            except json.JSONDecodeError:
+                pass
+            # Return as plain text
+            return raw_output.strip()
+
+        return str(raw_output).strip()
+
+    def build_answer_model_input(self, state: AgentState) -> UnifiedPlannerInput:
+        """Build model input for final answer generation."""
+        question = state["question"]
+        evidence_log = state.get("evidence_log", [])
+
+        # Build evidence summary
+        evidence_text = "\n".join(
+            f"[{item.source}] {item.content}"
+            for item in evidence_log
+        )
+
+        system_prompt = (
+            "You are the final answer generator for an audio agent. "
+            "Given the original question and all accumulated evidence, "
+            "provide a comprehensive final answer. "
+            "Synthesize all evidence to directly answer the question. "
+            "Be concise but complete."
+        )
+
+        user_text = (
+            f"Original Question: {question}\n\n"
+            f"Accumulated Evidence:\n{evidence_text}\n\n"
+            "Based on all the evidence above, provide your final answer to the question."
+        )
+
+        return UnifiedPlannerInput(
+            system_prompt=system_prompt,
+            task_type="final_answer",
+            question=question,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_text},
+            ],
+            user_payload={"question": question, "task": "final_answer"},
+            metadata={"planner_name": self.name, "task_type": "final_answer"},
+        )

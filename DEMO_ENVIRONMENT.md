@@ -1,65 +1,82 @@
 # Demo Environment Setup
 
-This document explains how to build an environment for running:
+This document explains how to build an environment for running the **full demo** with real models:
 
 - `audio_agent/examples/demo_run.py`
 - `Qwen2AudioFrontend` with `Qwen/Qwen2-Audio-7B-Instruct`
 - `Qwen25Planner` with `Qwen/Qwen2.5-7B-Instruct`
 
-## What the demo needs
+## What the Demo Needs
 
 The current demo uses:
 
-- local Hugging Face model loading
+- Local Hugging Face model loading
 - GPU-oriented `device_map="auto"` execution
 - `Qwen2-Audio-7B-Instruct` for frontend audio captioning
 - `Qwen2.5-7B-Instruct` for text planning
-- the repo's built-in dummy tools for tool execution
+- The repo's built-in dummy tools for tool execution
 
-Important implications:
+**Important implications:**
 
-- the demo is not a lightweight CPU example
-- `Qwen2-Audio-7B-Instruct` support requires a recent `transformers` build
-- you should plan for a Linux GPU environment
+- The demo is **not** a lightweight CPU example
+- `Qwen2-Audio-7B-Instruct` support requires a recent `transformers` build from source
+- You should plan for a Linux GPU environment
 
-## Recommended environment
+## System Requirements
 
-Recommended baseline:
+### Recommended Baseline
 
-- OS: Linux
-- Python: `3.11`
-- GPU: NVIDIA CUDA-capable GPU
-- CUDA: match your PyTorch install
-- RAM: at least `32 GB`
-- Disk: at least `40-60 GB` free for models, cache, and environment
+| Resource | Minimum | Recommended |
+|----------|---------|-------------|
+| OS | Linux | Linux |
+| Python | 3.11 | 3.11 |
+| GPU | NVIDIA CUDA-capable | NVIDIA A100 or similar |
+| CUDA | 12.1+ | 12.1+ |
+| RAM | 32 GB | 64 GB |
+| Disk | 40 GB | 60 GB+ |
+| VRAM | 24 GB | 40 GB+ |
 
-Practical note:
+**Practical notes:**
 
-- both models are 7B-scale
-- running them together in one process is GPU-memory heavy
-- if VRAM is limited, start with a larger GPU machine or be prepared to adjust model loading manually later
+- Both models are 7B-scale and loaded in one process
+- Running them together is GPU-memory intensive
+- If VRAM is limited, consider using quantized models or adjusting the code for sequential loading
 
-This repo does not currently provide quantized demo adapters, CPU-friendly settings, or model offload tuning in `demo_run.py`.
+## Why `transformers` from Source is Required
 
-## Why `transformers` from source is recommended
+The `Qwen2-Audio-7B-Instruct` model card explicitly recommends building `transformers` from source. Without it, you will hit:
 
-The `Qwen2-Audio-7B-Instruct` model card advises building `transformers` from source, otherwise you may hit:
+```
+KeyError: 'qwen2-audio'
+```
 
-- `KeyError: 'qwen2-audio'`
+**Sources:**
+- [Qwen2-Audio-7B-Instruct Model Card](https://huggingface.co/Qwen/Qwen2-Audio-7B-Instruct)
+- [Qwen2.5-7B-Instruct Model Card](https://huggingface.co/Qwen/Qwen2.5-7B-Instruct)
 
-Source:
+## Installation Steps
 
-- Hugging Face model card: https://huggingface.co/Qwen/Qwen2-Audio-7B-Instruct
+### Step 1: Initialize Conda (if using conda)
 
-For `Qwen2.5-7B-Instruct`, the model card advises using the latest `transformers`.
+> **Important**: On this system, conda requires initialization before use:
+> ```bash
+> source /lihaoyu/.conda.path.sh
+> ```
 
-Source:
+### Step 2: Create Environment
 
-- Hugging Face model card: https://huggingface.co/Qwen/Qwen2.5-7B-Instruct
+**Using conda (recommended for GPU environments):**
 
-## Step 1: Create a virtual environment
+```bash
+# Initialize conda
+source /lihaoyu/.conda.path.sh
 
-From the repo root:
+# Create environment from provided environment.yml
+conda env create -f environment.yml
+conda activate audio_agent_demo
+```
+
+**Using pip with virtual environment:**
 
 ```bash
 python3.11 -m venv .venv
@@ -67,92 +84,98 @@ source .venv/bin/activate
 python -m pip install --upgrade pip setuptools wheel
 ```
 
-## Step 2: Install PyTorch first
+### Step 3: Install PyTorch with CUDA
 
 Install PyTorch using the official selector for your machine:
 
-- https://pytorch.org/get-started/locally/
+- [PyTorch Get Started](https://pytorch.org/get-started/locally/)
 
-Example for Linux + pip + CUDA 12.1:
+**Example for Linux + pip + CUDA 12.1:**
 
 ```bash
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
 ```
 
-If your cluster uses a different CUDA version, use the matching command from PyTorch docs instead.
+**Example for conda + CUDA 12.1:**
 
-## Step 3: Install Hugging Face and audio dependencies
+```bash
+conda install pytorch torchvision torchaudio pytorch-cuda=12.1 -c pytorch -c nvidia
+```
 
-Install `transformers` from source because of Qwen2-Audio:
+If your cluster uses a different CUDA version, use the matching command from PyTorch docs.
+
+### Step 4: Install Hugging Face and Audio Dependencies
+
+Install `transformers` from source (required for Qwen2-Audio):
 
 ```bash
 pip install git+https://github.com/huggingface/transformers
 ```
 
-Then install the remaining runtime packages used by the demo:
+Then install the remaining runtime packages:
 
 ```bash
 pip install accelerate librosa soundfile sentencepiece
 ```
 
-Why these packages:
+**Package purposes:**
 
-- `accelerate`: commonly required when using `device_map="auto"`
-- `librosa`: used by `Qwen2AudioFrontend` to load local and remote audio
-- `soundfile`: backend commonly used during audio decoding
-- `sentencepiece`: useful for tokenizer/model compatibility in HF environments
+| Package | Purpose |
+|---------|---------|
+| `accelerate` | Required for `device_map="auto"` and model distribution |
+| `librosa` | Audio loading and preprocessing for Qwen2AudioFrontend |
+| `soundfile` | Audio decoding backend (required by librosa and transformers) |
+| `sentencepiece` | Tokenizer compatibility for Qwen models |
 
-## Step 4: Install this repo
-
-The repo's base dependencies in `pyproject.toml` do not include the Qwen demo stack, so install both the project and the extra runtime packages above.
+### Step 5: Install This Package
 
 From the repo root:
 
 ```bash
+# Install the base package
 pip install -e .
-```
 
-If you also want test tooling:
-
-```bash
+# With development dependencies (for testing)
 pip install -e ".[dev]"
 ```
 
-## Step 5: Optional Hugging Face auth/cache setup
+### Step 6: Optional Hugging Face Auth/Cache Setup
 
 If your environment requires authenticated model pulls or you want predictable cache paths:
 
 ```bash
+# Set custom cache directory
 export HF_HOME=$PWD/.hf_cache
-```
 
-If needed:
-
-```bash
+# Login if needed (for gated models or rate limits)
 huggingface-cli login
 ```
 
-## Step 6: Sanity checks
+## Verification
 
-Check imports first:
+### Import Check
 
 ```bash
 python - <<'PY'
 from audio_agent.frontend.qwen2_audio_frontend import Qwen2AudioFrontend
 from audio_agent.planner.qwen25_planner import Qwen25Planner
-print("imports_ok")
+print("All imports successful!")
 PY
 ```
 
-Optional syntax check for the demo:
+### Syntax Check
 
 ```bash
 python -m py_compile audio_agent/examples/demo_run.py
 ```
 
-## Step 7: Run the demo
+### GPU Check
 
-Example:
+```bash
+python -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}'); print(f'Device count: {torch.cuda.device_count()}')"
+```
+
+## Running the Demo
 
 ```bash
 python -m audio_agent.examples.demo_run \
@@ -163,17 +186,15 @@ python -m audio_agent.examples.demo_run \
   --max-steps 5
 ```
 
-You can also pass an HTTP(S) audio URL to `--audio`, because `Qwen2AudioFrontend` supports both:
+**Notes:**
+- You can pass an HTTP(S) URL to `--audio` (Qwen2AudioFrontend supports both local paths and remote URLs)
+- First run will download models (several GB) to the Hugging Face cache
 
-- local file paths
-- remote URLs
-
-## Common failure modes
+## Common Failure Modes
 
 ### `ModuleNotFoundError: No module named 'transformers'`
 
-Install the HF stack:
-
+**Fix:**
 ```bash
 pip install git+https://github.com/huggingface/transformers
 ```
@@ -182,64 +203,89 @@ pip install git+https://github.com/huggingface/transformers
 
 Your `transformers` build is too old for `Qwen2-Audio`.
 
-Fix:
-
+**Fix:**
 ```bash
 pip install --upgrade git+https://github.com/huggingface/transformers
 ```
 
 ### `ImportError` or runtime errors around `device_map="auto"`
 
-Install `accelerate`:
-
+**Fix:**
 ```bash
 pip install accelerate
 ```
 
 ### Audio loading fails
 
-Likely causes:
+**Likely causes:**
+- Invalid local path
+- Remote URL inaccessible
+- Unsupported or corrupted audio file
+- Missing audio decoding backend
 
-- invalid local path
-- remote URL inaccessible from the machine
-- unsupported or corrupted audio file
-- missing audio decoding backend
-
-Try:
-
+**Fix:**
 ```bash
 pip install librosa soundfile
 ```
 
-and verify the audio file independently.
+Verify the audio file independently with:
+```python
+import librosa
+waveform, sr = librosa.load("/path/to/audio.wav", sr=16000)
+print(f"Loaded: {len(waveform)} samples at {sr} Hz")
+```
 
-### Out-of-memory during model load or generation
+### Out-of-Memory (OOM) during model load or generation
 
 This is the most likely operational issue.
 
-Current demo limitations:
+**Current demo limitations:**
+- Both models are loaded in one process
+- No quantization or manual offload settings
+- Default `device_map="auto"` behavior
 
-- both models are loaded in one process
-- the demo does not implement quantization or manual offload settings
-- the demo keeps default `device_map="auto"` behavior
+**Solutions:**
+1. Use a GPU with more VRAM (40GB+ recommended)
+2. Modify the code to load models sequentially (not simultaneously)
+3. Use 4-bit or 8-bit quantization (requires code changes)
+4. Use `accelerate`'s offloading features
 
-If you hit OOM, use a larger GPU environment first. If that is not possible, the code will need a separate change to support lower-memory loading strategies.
+## Minimal Install Command Summary
 
-## Minimal install command summary
-
-If you already have the right CUDA/PyTorch installed, the shortest path is:
+If you already have the right CUDA/PyTorch installed:
 
 ```bash
+# Using pip virtualenv
 python3.11 -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip setuptools wheel
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
 pip install git+https://github.com/huggingface/transformers
 pip install accelerate librosa soundfile sentencepiece
 pip install -e .
 ```
 
+```bash
+# Using conda
+source /lihaoyu/.conda.path.sh
+conda env create -f environment.yml
+conda activate audio_agent_demo
+```
+
+## Qwen3-Omni Support (Optional)
+
+The framework also includes a frontend for `Qwen3-Omni-30B-A3B-Instruct`. This requires additional dependencies:
+
+```bash
+# Install qwen_omni_utils from source
+pip install git+https://github.com/QwenLM/Qwen3-Omni.git
+```
+
+**Note:** Qwen3-Omni is a 30B parameter model and requires significantly more resources than the 7B models used in the default demo.
+
 ## References
 
-- PyTorch local install guide: https://pytorch.org/get-started/locally/
-- Qwen2-Audio model card: https://huggingface.co/Qwen/Qwen2-Audio-7B-Instruct
-- Qwen2.5-7B-Instruct model card: https://huggingface.co/Qwen/Qwen2.5-7B-Instruct
+- [PyTorch Local Install Guide](https://pytorch.org/get-started/locally/)
+- [Qwen2-Audio-7B-Instruct Model Card](https://huggingface.co/Qwen/Qwen2-Audio-7B-Instruct)
+- [Qwen2.5-7B-Instruct Model Card](https://huggingface.co/Qwen/Qwen2.5-7B-Instruct)
+- [Hugging Face Accelerate Documentation](https://huggingface.co/docs/accelerate)

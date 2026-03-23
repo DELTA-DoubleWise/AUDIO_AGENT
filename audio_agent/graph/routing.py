@@ -32,7 +32,8 @@ def route_after_planner_decision(state: AgentState) -> str:
     - CALL_TOOL -> tool_executor_node
     - FAIL -> failure_node
     
-    Also checks for max_steps exhaustion.
+    Note: max_steps exhaustion is handled in planner_decision_node by
+    forcing answer generation on the final step.
     
     Args:
         state: Current agent state
@@ -45,21 +46,13 @@ def route_after_planner_decision(state: AgentState) -> str:
     """
     logger = get_logger()
     
-    # Check for exhaustion first
-    step_count = state.get("step_count", 0)
-    max_steps = state.get("max_steps", 10)
-    
-    if step_count >= max_steps:
-        logger.info(f"ROUTING: step_count ({step_count}) >= max_steps ({max_steps}) -> {NODE_FAILURE}")
-        return NODE_FAILURE
-    
     # Get decision
     decision = state.get("current_decision")
     
     if decision is None:
         raise GraphRoutingError(
             "Cannot route: current_decision is None",
-            details={"step_count": step_count}
+            details={"step_count": state.get("step_count", 0)}
         )
     
     action = decision.action
