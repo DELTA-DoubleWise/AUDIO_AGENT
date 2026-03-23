@@ -53,6 +53,16 @@ MODELS: dict[str, dict[str, Any]] = {
         "description": "Qwen3-ForcedAligner 0.6B model for timestamp generation",
         "subdir": "Qwen3-ForcedAligner-0.6B",
     },
+    "diarizen": {
+        "repo_id": "BUT-FIT/diarizen-wavlm-large-s80-md",
+        "description": "DiariZen speaker diarization model (wavlm-large-s80-md)",
+        "subdir": "diarizen-wavlm-large-s80-md",
+    },
+    "omni-captioner": {
+        "repo_id": "Qwen/Qwen3-Omni-30B-A3B-Captioner",
+        "description": "Qwen3-Omni captioner for detailed audio description",
+        "subdir": "Qwen3-Omni-30B-A3B-Captioner",
+    },
 }
 
 # Convenience constants for local model paths
@@ -61,6 +71,8 @@ DEFAULT_QWEN3_OMNI_PATH = str(DEFAULT_MODELS_DIR / MODELS["qwen3-omni"]["subdir"
 DEFAULT_QWEN25_PATH = str(DEFAULT_MODELS_DIR / MODELS["qwen2.5"]["subdir"])
 DEFAULT_QWEN3_ASR_PATH = str(DEFAULT_MODELS_DIR / MODELS["qwen3-asr"]["subdir"])
 DEFAULT_QWEN3_ALIGNER_PATH = str(DEFAULT_MODELS_DIR / MODELS["qwen3-aligner"]["subdir"])
+DEFAULT_DIARIZEN_PATH = str(DEFAULT_MODELS_DIR / MODELS["diarizen"]["subdir"])
+DEFAULT_OMNI_CAPTIONER_PATH = str(DEFAULT_MODELS_DIR / MODELS["omni-captioner"]["subdir"])
 
 
 def get_local_model_path(model_name: str) -> str:

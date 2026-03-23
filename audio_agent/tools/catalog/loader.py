@@ -19,6 +19,11 @@ except ImportError:
 
 from audio_agent.tools.mcp.schemas import MCPServerConfig
 
+# Type hints for optional imports
+if False:
+    from audio_agent.tools.mcp import MCPServerManager, MCPToolAdapter
+    from audio_agent.tools.registry import ToolRegistry
+
 
 def get_catalog_dir() -> Path:
     """Get the path to the tools catalog directory."""
@@ -211,3 +216,89 @@ def get_tool_readme(tool_name: str, catalog_dir: Path | None = None) -> str | No
     
     with open(readme_path, "r", encoding="utf-8") as f:
         return f.read()
+
+
+async def register_all_mcp_tools(
+    registry: ToolRegistry,
+    server_manager: MCPServerManager,
+    catalog_dir: Path | None = None,
+    tool_names: list[str] | None = None,
+    verbose: bool = False,
+) -> list[str]:
+    """
+    Auto-register all MCP tools from the catalog.
+    
+    This function discovers all available MCP tools in the catalog and
+    registers them with the provided registry and server manager.
+    
+    Args:
+        registry: Tool registry to register tools to
+        server_manager: MCP server manager for tool execution
+        catalog_dir: Optional catalog directory path (defaults to built-in catalog)
+        tool_names: Optional list of specific tools to register. If None,
+                   all available tools are registered.
+        verbose: If True, print registration progress
+        
+    Returns:
+        List of registered tool names
+        
+    Example:
+        >>> from audio_agent.tools.catalog import register_all_mcp_tools
+        >>> from audio_agent.tools.mcp import MCPServerManager
+        >>> from audio_agent.tools.registry import ToolRegistry
+        >>> 
+        >>> registry = ToolRegistry()
+        >>> server_manager = MCPServerManager()
+        >>> registered = await register_all_mcp_tools(
+        ...     registry, server_manager, verbose=True
+        ... )
+        >>> print(f"Registered {len(registered)} tools: {registered}")
+    """
+    # Import here to avoid circular imports
+    from audio_agent.tools.mcp import MCPToolAdapter
+    
+    if catalog_dir is None:
+        catalog_dir = get_catalog_dir()
+    
+    # Discover tools to register
+    if tool_names is None:
+        tool_names = list_available_tools(catalog_dir)
+    
+    registered: list[str] = []
+    
+    for tool_name in tool_names:
+        try:
+            if verbose:
+                print(f"Registering MCP tool: {tool_name}...")
+            
+            # Load config and register with server manager
+            config = load_mcp_server_config(tool_name, catalog_dir)
+            server_manager.register_config(tool_name, config)
+            
+            # Get client and discover tools
+            client = await server_manager.get_client(tool_name)
+            tools = await client.list_tools()
+            
+            # Register each tool from the server
+            for tool_info in tools:
+                adapter = MCPToolAdapter(
+                    server_name=tool_name,
+                    tool_info=tool_info,
+                    server_manager=server_manager,
+                )
+                registry.register_mcp(adapter)
+                registered.append(tool_info.name)
+                
+                if verbose:
+                    print(f"  ✓ Registered: {tool_info.name}")
+            
+        except Exception as e:
+            if verbose:
+                print(f"  ✗ Failed to register {tool_name}: {e}")
+            # Continue with other tools even if one fails
+            continue
+    
+    if verbose:
+        print(f"\nTotal registered: {len(registered)} tool(s)")
+    
+    return registered

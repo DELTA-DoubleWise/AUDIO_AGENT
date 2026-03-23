@@ -7,6 +7,7 @@ using the Model Context Protocol (MCP).
 Utilities provided:
 - loader: Load tool configurations with path resolution
 - setup_tool: Set up isolated environments for tools using uv
+- register_all_mcp_tools: Auto-register all MCP tools from catalog
 """
 
 from audio_agent.tools.catalog.loader import (
@@ -15,6 +16,7 @@ from audio_agent.tools.catalog.loader import (
     load_mcp_server_config,
     load_tool_config,
     list_available_tools,
+    register_all_mcp_tools,
     resolve_config_paths,
     resolve_path,
 )
@@ -25,6 +27,7 @@ __all__ = [
     "load_mcp_server_config",
     "load_tool_config",
     "list_available_tools",
+    "register_all_mcp_tools",
     "resolve_config_paths",
     "resolve_path",
 ]

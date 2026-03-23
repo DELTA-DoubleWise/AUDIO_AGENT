@@ -1,0 +1,46 @@
+# Omni-Captioner Tool Configuration
+# Audio captioning using Qwen3-Omni-30B-A3B-Captioner model
+
+name: omni_captioner
+description: "Audio captioning using Qwen3-Omni-30B-A3B-Captioner. Generates detailed descriptions of audio content including speech, environmental sounds, music, and cinematic sound effects."
+version: "1.0.0"
+author: "Audio Agent Team"
+tags: ["captioning", "audio", "description", "omni", "qwen3"]
+
+# MCP Server Configuration
+server:
+  # IMPORTANT: You MUST pre-create the environment before running!
+  # Run: python -m audio_agent.tools.catalog.setup_tool omni_captioner
+  #
+  # Using explicit venv Python:
+  command: [".venv/bin/python", "server.py"]
+  working_dir: "."
+  
+  env:
+    MODEL_PATH: "/lihaoyu/workspace/AUDIO_AGENT/models/Qwen3-Omni-30B-A3B-Captioner"
+    DEVICE: "auto"
+    MAX_LENGTH: "8192"
+  
+  resources:
+    memory_gb: 32
+    gpu: true  # GPU strongly recommended (30GB+ VRAM)
+    cpu_cores: 8
+  
+  lifecycle: "session"
+  startup_timeout_sec: 600  # Model loading can take significant time
+
+# Tool definitions
+tools:
+  - name: "caption_audio"
+    description: "Generate a detailed caption/description of an audio file. Analyzes speech, environmental sounds, music, and other audio content to produce a comprehensive textual description. Best for audio clips up to 30 seconds."
+    input_schema:
+      type: object
+      properties:
+        audio_path:
+          type: string
+          description: "Path to the audio file to caption"
+        max_length:
+          type: integer
+          description: "Maximum length of the generated caption"
+          default: 8192
+      required: ["audio_path"]

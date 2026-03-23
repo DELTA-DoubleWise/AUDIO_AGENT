@@ -1,0 +1,31 @@
+[project]
+name = "diarizen-tool"
+version = "1.0.0"
+description = "Speaker diarization using DiariZen for the Audio Agent Framework"
+requires-python = ">=3.11"
+authors = [
+    {name = "Audio Agent Team"}
+]
+
+# Dependencies for DiariZen speaker diarization
+dependencies = [
+    "diarizen @ git+https://github.com/BUTSpeechFIT/DiariZen",
+    "torch>=2.0.0",
+    "torchaudio>=2.0.0",
+    "huggingface-hub>=0.20.0",
+    "pyannote.audio>=3.1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+]
+
+# Build system (required by PEP 518)
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+# uv-specific configuration
+[tool.uv]
+# allow-prereleases = true
