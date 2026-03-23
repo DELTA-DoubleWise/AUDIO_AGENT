@@ -36,16 +36,33 @@ audio_agent/
 │   ├── constants.py       # Enums and constants
 │   └── logging.py         # Logging utilities
 ├── frontend/              # Audio frontend implementations
-│   ├── base.py           # BaseFrontend ABC
-│   └── dummy_frontend.py # Dummy implementation
+│   ├── base.py            # BaseFrontend ABC
+│   ├── model_frontend.py  # BaseModelFrontend template
+│   ├── dummy_frontend.py  # Dummy implementation
+│   ├── qwen2_audio_frontend.py  # Qwen2-Audio adapter
+│   └── qwen3_omni_frontend.py   # Qwen3-Omni adapter
 ├── planner/               # Planner implementations
-│   ├── base.py           # BasePlanner ABC
-│   └── dummy_planner.py  # Dummy implementation
+│   ├── base.py            # BasePlanner ABC
+│   ├── model_planner.py   # BaseModelPlanner template
+│   ├── dummy_planner.py   # Dummy implementation
+│   └── qwen25_planner.py  # Qwen2.5 planner adapter
 ├── tools/                 # Tool system
-│   ├── base.py           # BaseTool ABC
-│   ├── registry.py       # ToolRegistry
-│   ├── executor.py       # ToolExecutor
-│   └── dummy_tools.py    # Dummy tools
+│   ├── base.py            # BaseTool ABC
+│   ├── registry.py        # ToolRegistry (internal + MCP tools)
+│   ├── executor.py        # ToolExecutor
+│   ├── dummy_tools.py     # Dummy tools
+│   ├── mcp/               # MCP (Model Context Protocol) infrastructure
+│   │   ├── client.py      # MCP client
+│   │   ├── server_manager.py  # MCP server lifecycle
+│   │   ├── tool_adapter.py    # MCP to BaseTool adapter
+│   │   └── schemas.py     # MCP data models
+│   └── catalog/           # MCP tool catalog
+│       ├── loader.py      # Auto-discovery and registration
+│       ├── setup_tool.py  # CLI for tool environment setup
+│       ├── _template/     # Template for new tools
+│       ├── asr_qwen3/     # Qwen3-ASR-1.7B speech recognition
+│       ├── diarizen/      # Speaker diarization
+│       └── omni_captioner/ # Qwen3-Omni captioner
 ├── fusion/                # Evidence fusion
 │   ├── base.py           # BaseEvidenceFuser ABC
 │   └── default_fuser.py  # Default implementation
@@ -57,13 +74,17 @@ audio_agent/
 │   └── settings.py       # AgentConfig
 ├── utils/                 # Utilities
 │   ├── validation.py     # Validation helpers
+│   ├── model_io.py       # Model I/O helpers
 │   └── model_downloader.py  # Model download utility
 ├── examples/              # Example scripts
-│   └── demo_run.py       # Runnable demo
+│   ├── demo_run.py            # Basic demo
+│   ├── demo_run_auto_tools.py # Demo with auto MCP tool discovery
+│   └── demo_run_real_asr.py   # Demo with real ASR tool
 └── tests/                 # Tests
     ├── test_state.py
     ├── test_registry.py
-    └── test_graph_smoke.py
+    ├── test_graph_smoke.py
+    └── ...
 ```
 
 ## Installation
@@ -80,37 +101,25 @@ pip install -e .
 pip install -r requirements.txt
 ```
 
-## Quick Start
-
-```python
-from audio_agent.main import create_dummy_agent
-
-# Create agent with dummy components
-agent = create_dummy_agent()
-
-# Run on a query
-result = agent.run(
-    question="What is being discussed in this audio?",
-    audio_path_or_uri="/path/to/audio.wav",
-)
-
-# Check result
-if agent.is_successful(result):
-    answer = agent.get_answer(result)
-    print(answer.answer)
-```
-
 ## Running the Demo
 
-```bash
-# Using the installed script
-audio-agent-demo
+The demo uses real models (Qwen2-Audio frontend, Qwen2.5 planner) with automatic MCP tool discovery:
 
-# Or directly
-python -m audio_agent.examples.demo_run \
+```bash
+# Setup MCP tools first (requires uv)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+python -m audio_agent.tools.catalog.setup_tool asr_qwen3
+
+# Download models
+audio-agent-download-models --models qwen2-audio qwen2.5 qwen3-asr
+
+# Run the demo with auto tool discovery
+python -m audio_agent.examples.demo_run_auto_tools \
   --audio /path/to/audio.wav \
   --question "What is being said in this audio?"
 ```
+
+See also `demo_run_real_asr.py` for a demo with specific ASR tool configuration.
 
 ## Pre-downloading Models
 
@@ -142,6 +151,10 @@ audio-agent-download-models --list
 - `qwen2-audio` - Qwen/Qwen2-Audio-7B-Instruct (frontend, ~15GB)
 - `qwen3-omni` - Qwen/Qwen3-Omni-30B-A3B-Instruct (frontend, ~60GB)
 - `qwen2.5` - Qwen/Qwen2.5-7B-Instruct (planner, ~15GB)
+- `qwen3-asr` - Qwen/Qwen3-ASR-1.7B (ASR tool, ~4GB)
+- `qwen3-aligner` - Qwen/Qwen3-ForcedAligner-0.6B (aligner tool, ~1.5GB)
+- `diarizen` - BUT-FIT/diarizen-wavlm-large-s80-md (diarization, ~1GB)
+- `omni-captioner` - Qwen/Qwen3-Omni-30B-A3B-Captioner (captioner, ~60GB)
 
 **Using HuggingFace Hub paths (fallback):**
 
@@ -253,10 +266,74 @@ class OpenAIPlanner(BasePlanner):
     def name(self) -> str:
         return "openai_planner"
     
+    def plan(self, question: str) -> InitialPlan:
+        # Generate initial plan from question only
+        return InitialPlan(approach="Analyze audio content...")
+    
     def decide(self, state, available_tools) -> PlannerDecision:
         self.validate_state(state)
         # Your implementation here
         return PlannerDecision(...)
+    
+    def answer(self, state) -> str:
+        # Generate final answer from accumulated evidence
+        return "Based on the evidence..."
+```
+
+### Using MCP Tools
+
+MCP tools run in isolated processes with auto-discovery:
+
+```python
+import asyncio
+from audio_agent.main import AudioAgent
+from audio_agent.tools.catalog import register_all_mcp_tools
+from audio_agent.tools.mcp import MCPServerManager
+from audio_agent.frontend.qwen2_audio_frontend import Qwen2AudioFrontend
+from audio_agent.planner.qwen25_planner import Qwen25Planner
+from audio_agent.tools.registry import ToolRegistry
+from audio_agent.fusion.default_fuser import DefaultEvidenceFuser
+
+async def run_with_tools():
+    # Create components
+    frontend = Qwen2AudioFrontend()
+    planner = Qwen25Planner()
+    registry = ToolRegistry()
+    fuser = DefaultEvidenceFuser()
+    
+    # Register all MCP tools from catalog
+    server_manager = MCPServerManager()
+    await register_all_mcp_tools(registry, server_manager, verbose=True)
+    
+    # Create agent and run
+    agent = AudioAgent(frontend, planner, registry, fuser)
+    result = await agent.arun(
+        question="What is being said?",
+        audio_path_or_uri="/path/to/audio.wav"
+    )
+    
+    # Cleanup
+    await server_manager.shutdown_all()
+    return result
+
+asyncio.run(run_with_tools())
+```
+
+### Adding an MCP Tool
+
+See [SKILL_add_tool.md](./SKILL_add_tool.md) for detailed instructions. Quick start:
+
+```bash
+# 1. Copy template
+cp -r audio_agent/tools/catalog/_template audio_agent/tools/catalog/my_tool
+
+# 2. Edit pyproject.toml, server.py, config.yaml
+
+# 3. Setup environment
+python -m audio_agent.tools.catalog.setup_tool my_tool
+
+# 4. Verify
+python -m audio_agent.tools.catalog.setup_tool my_tool --verify
 ```
 
 ## License

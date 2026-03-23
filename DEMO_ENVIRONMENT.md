@@ -283,6 +283,35 @@ pip install git+https://github.com/QwenLM/Qwen3-Omni.git
 
 **Note:** Qwen3-Omni is a 30B parameter model and requires significantly more resources than the 7B models used in the default demo.
 
+## MCP Tool Models (Optional)
+
+The framework includes MCP-based tools that require additional models:
+
+```bash
+# Download ASR tool model (Qwen3-ASR-1.7B, ~4GB)
+audio-agent-download-models --models qwen3-asr
+
+# Download diarization model (DiariZen, ~1GB)
+audio-agent-download-models --models diarizen
+
+# Download all tool models
+audio-agent-download-models --models qwen3-asr qwen3-aligner diarizen omni-captioner
+```
+
+Before using MCP tools, you must set up their environments:
+
+```bash
+# Install uv
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Setup tool environments
+python -m audio_agent.tools.catalog.setup_tool asr_qwen3
+python -m audio_agent.tools.catalog.setup_tool diarizen
+
+# Verify setup
+python -m audio_agent.tools.catalog.setup_tool --list
+```
+
 ## References
 
 - [PyTorch Local Install Guide](https://pytorch.org/get-started/locally/)
