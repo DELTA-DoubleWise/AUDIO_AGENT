@@ -1,0 +1,94 @@
+# Evaluation Tool Configuration
+# Provides RPS calculation and tool evaluation capabilities
+
+name: evaluation_tool
+description: "Tool evaluation and RPS-based tool selection for audio processing"
+version: "1.0.0"
+author: "Audio Agent Team"
+tags: ["evaluation", "rps", "benchmark", "tool_selection"]
+
+# MCP Server Configuration
+server:
+  command: ["python", "server.py"]
+  working_dir: "."
+  
+  env:
+    DATA_DIR: "./data"
+    RESULTS_DB: "./evaluation_results.json"
+  
+  resources:
+    memory_gb: 2
+    gpu: false
+    cpu_cores: 2
+  
+  lifecycle: "session"
+  startup_timeout_sec: 30
+
+# Tool definitions
+tools:
+  - name: "calculate_rps"
+    description: "Calculate Relative Performance Score (RPS) for a tool's performance on a dataset. RPS = 1.0 matches SOTA, RPS > 1.0 beats SOTA, RPS < 1.0 is below SOTA."
+    input_schema:
+      type: object
+      properties:
+        dataset:
+          type: string
+          description: "Dataset name (e.g., 'aishell1', 'librispeech_clean')"
+        score:
+          type: number
+          description: "Tool's performance score"
+        metric:
+          type: string
+          description: "Metric type (cer, wer, accuracy, bleu). Auto-detected if not provided."
+          default: "auto"
+      required: ["dataset", "score"]
+  
+  - name: "record_performance"
+    description: "Record a tool's performance on a dataset and calculate/store RPS"
+    input_schema:
+      type: object
+      properties:
+        tool_name:
+          type: string
+          description: "Name of the tool"
+        dataset:
+          type: string
+          description: "Dataset name"
+        score:
+          type: number
+          description: "Performance score"
+        metric:
+          type: string
+          description: "Metric type (auto-detected from dataset if not provided)"
+          default: "auto"
+      required: ["tool_name", "dataset", "score"]
+  
+  - name: "recommend_tool"
+    description: "Recommend the best tool for a specific dataset based on RPS scores"
+    input_schema:
+      type: object
+      properties:
+        dataset:
+          type: string
+          description: "Dataset name"
+        task:
+          type: string
+          description: "Task type filter (e.g., 'ASR', 'SER')"
+          default: ""
+      required: ["dataset"]
+  
+  - name: "list_datasets"
+    description: "List all available benchmark datasets with SOTA information"
+    input_schema:
+      type: object
+      properties: {}
+  
+  - name: "get_sota"
+    description: "Get SOTA information for a specific dataset"
+    input_schema:
+      type: object
+      properties:
+        dataset:
+          type: string
+          description: "Dataset name"
+      required: ["dataset"]

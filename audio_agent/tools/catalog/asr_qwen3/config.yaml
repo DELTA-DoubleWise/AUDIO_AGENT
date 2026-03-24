@@ -17,11 +17,11 @@ server:
   working_dir: "."
   
   env:
-    MODEL_PATH: "/lihaoyu/workspace/AUDIO_AGENT/models/Qwen3-ASR-1.7B"
+    MODEL_PATH: "./model_cache"
     DEVICE: "auto"
     LANGUAGE: "auto"  # auto, zh, en, ja, ko, etc.
-    ALIGNER_PATH: "/lihaoyu/workspace/AUDIO_AGENT/models/Qwen3-ForcedAligner-0.6B"
-    USE_ALIGNER: "true"
+    ALIGNER_PATH: ""
+    USE_ALIGNER: "false"
   
   resources:
     memory_gb: 8

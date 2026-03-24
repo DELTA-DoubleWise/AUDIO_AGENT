@@ -50,3 +50,32 @@ models/
 
 # Demo / runtime artifacts
 output.wav
+
+# ============================================
+# Evaluation Module - Large Files
+# ============================================
+
+# Model weights
+audio_agent/tools/catalog/**/model_cache/
+audio_agent/tools/catalog/**/models/
+audio_agent/tools/catalog/**/*.safetensors
+audio_agent/tools/catalog/**/*.bin
+audio_agent/tools/catalog/**/*.pt
+audio_agent/tools/catalog/**/*.pth
+audio_agent/tools/catalog/**/*.ckpt
+
+# Evaluation data
+audio_agent/evaluation/data/
+audio_agent/evaluation/**/data/
+audio_agent/evaluation/**/*.wav
+audio_agent/evaluation/**/*.mp3
+audio_agent/evaluation/**/*.flac
+
+# Evaluation results
+evaluation_results.json
+*.results.json
+audio_agent/evaluation/results/
+
+# Download logs
+download.log
+setup.log
