@@ -171,3 +171,56 @@ def create_dummy_agent(config: AgentConfig | None = None) -> AudioAgent:
         fuser=fuser,
         config=config,
     )
+
+
+def create_openai_planner(
+    model: str = "qwen3.5-plus",
+    api_key: str | None = None,
+    base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    enable_thinking: bool = False,
+    **kwargs,
+) -> "OpenAICompatiblePlanner":
+    """
+    Create an OpenAI-compatible API planner.
+    
+    Works with qwen3.5-plus, kimi-k2.5, OpenAI models, and any other
+    OpenAI-compatible API endpoint.
+    
+    Args:
+        model: Model name (e.g., "qwen3.5-plus", "kimi-k2.5", "gpt-4")
+        api_key: API key. If None, reads from DASHSCOPE_API_KEY or OPENAI_API_KEY env var.
+        base_url: API base URL
+        enable_thinking: Enable thinking mode for models that support it (qwen3.5-plus)
+        **kwargs: Additional arguments passed to OpenAICompatiblePlanner
+    
+    Returns:
+        Configured OpenAICompatiblePlanner instance
+    
+    Example:
+        # qwen3.5-plus with thinking
+        planner = create_openai_planner(
+            model="qwen3.5-plus",
+            api_key="sk-xxx",
+            enable_thinking=True,
+        )
+        
+        # kimi-k2.5
+        planner = create_openai_planner(
+            model="kimi-k2.5",
+            api_key="sk-xxx",
+        )
+        
+        # Using environment variable for API key
+        import os
+        os.environ["DASHSCOPE_API_KEY"] = "sk-xxx"
+        planner = create_openai_planner(model="qwen3.5-plus")
+    """
+    from audio_agent.planner.openai_compatible_planner import OpenAICompatiblePlanner
+    
+    return OpenAICompatiblePlanner(
+        model=model,
+        api_key=api_key,
+        base_url=base_url,
+        enable_thinking=enable_thinking,
+        **kwargs,
+    )

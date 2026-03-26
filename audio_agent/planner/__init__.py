@@ -8,6 +8,7 @@ from audio_agent.planner.model_planner import (
     UnifiedPlannerInput,
 )
 from audio_agent.planner.qwen25_planner import Qwen25Planner
+from audio_agent.planner.openai_compatible_planner import OpenAICompatiblePlanner
 
 __all__ = [
     "BasePlanner",
@@ -15,5 +16,6 @@ __all__ = [
     "PlannerInputFormat",
     "UnifiedPlannerInput",
     "Qwen25Planner",
+    "OpenAICompatiblePlanner",
     "DummyPlanner",
 ]
