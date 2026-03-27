@@ -87,6 +87,33 @@ class BasePlanner(ABC):
             PlannerError: If answer generation fails
         """
         raise NotImplementedError
+
+    @abstractmethod
+    def clarify_intent(self, state: AgentState) -> tuple[str, str]:
+        """
+        Clarify the user's intent and expected output format.
+        
+        This method uses reasoning on accumulated evidence to refine or
+        clarify what the user is asking and what format they expect.
+        
+        Important: This method does NOT call tools. If tools (e.g., ASR,
+        transcription) are needed to clarify intent, the planner should
+        first return CALL_TOOL to gather evidence, then return CLARIFY_INTENT
+        in a subsequent step to reason about that evidence.
+        
+        Args:
+            state: Current agent state with accumulated evidence (frontend output,
+                   tool results, etc.)
+            
+        Returns:
+            Tuple of (clarified_intent, expected_output_format)
+            - clarified_intent: What the question is actually asking
+            - expected_output_format: Expected format of the final answer
+            
+        Raises:
+            PlannerError: If clarification fails
+        """
+        raise NotImplementedError
     
     def validate_state(self, state: AgentState) -> None:
         """

@@ -170,11 +170,15 @@ def create_initial_plan_node(planner: BasePlanner):
         log_node_end("initial_plan_node", {
             "focus_points": len(plan.focus_points),
             "possible_tool_types": len(plan.possible_tool_types),
+            "clarified_intent": plan.clarified_intent,
+            "expected_output_format": plan.expected_output_format,
         })
 
         return {
             "initial_plan": plan,
             "initial_plan_trace": [plan],
+            "clarified_intent": plan.clarified_intent,
+            "expected_output_format": plan.expected_output_format,
         }
 
     return initial_plan_node
@@ -449,6 +453,92 @@ def create_evidence_fusion_node(fuser: BaseEvidenceFuser):
     return evidence_fusion_node
 
 
+def create_intent_clarification_node(planner: BasePlanner):
+    """
+    Factory to create an intent clarification node.
+    
+    Args:
+        planner: Planner instance for intent clarification
+    
+    Returns:
+        Node function compatible with LangGraph
+    """
+    def intent_clarification_node(state: AgentState) -> dict:
+        """
+        Clarify the user's intent and expected output format.
+        
+        Uses reasoning on accumulated evidence to refine or clarify intent.
+        Does NOT call tools - if tools are needed, planner should CALL_TOOL first.
+        
+        Validates:
+        - current_decision exists and is CLARIFY_INTENT
+        
+        Updates:
+        - clarified_intent
+        - expected_output_format
+        - evidence_log (appends clarification as evidence)
+        """
+        log_node_start("intent_clarification_node")
+        
+        validate_state_has_fields(
+            state,
+            ["current_decision"],
+            context="intent_clarification_node",
+        )
+        
+        decision: PlannerDecision = state["current_decision"]
+        
+        if decision.action != PlannerActionType.CLARIFY_INTENT:
+            raise StateValidationError(
+                f"intent_clarification_node called with non-CLARIFY_INTENT action: {decision.action}",
+                details={"action": decision.action.value}
+            )
+        
+        # Call planner to clarify intent
+        try:
+            clarified_intent, expected_format = planner.clarify_intent(state)
+        except PlannerError:
+            raise
+        except Exception as e:
+            log_error("intent_clarification_node", e)
+            raise PlannerError(
+                f"Intent clarification failed: {e}",
+                details={"planner": planner.name}
+            ) from e
+        
+        if clarified_intent is None:
+            raise PlannerError(
+                "Planner returned None for clarified_intent",
+                details={"planner": planner.name}
+            )
+        
+        # Create evidence item for the clarification
+        clarification_evidence = EvidenceItem(
+            source=f"planner:{planner.name}:intent_clarification",
+            content=f"Clarified intent: {clarified_intent}. Expected format: {expected_format or 'not specified'}",
+            evidence_type="intent_clarification",
+            confidence=0.8,
+            metadata={
+                "clarified_intent": clarified_intent,
+                "expected_output_format": expected_format,
+                "rationale": decision.rationale,
+            },
+        )
+        
+        log_node_end("intent_clarification_node", {
+            "clarified_intent": clarified_intent[:100] if clarified_intent else None,
+            "expected_output_format": expected_format[:100] if expected_format else None,
+        })
+        
+        return {
+            "clarified_intent": clarified_intent,
+            "expected_output_format": expected_format,
+            "evidence_log": [clarification_evidence],
+        }
+    
+    return intent_clarification_node
+
+
 def answer_node(state: AgentState) -> dict:
     """
     Finalize the agent with an answer.
@@ -563,3 +653,4 @@ planner_decision_node = create_planner_decision_node
 planner_node = create_planner_decision_node  # Backward-compatible alias
 tool_executor_node = create_tool_executor_node
 evidence_fusion_node = create_evidence_fusion_node
+intent_clarification_node = create_intent_clarification_node

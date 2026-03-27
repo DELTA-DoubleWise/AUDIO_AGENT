@@ -22,10 +22,12 @@ class PlannerActionType(str, Enum):
     
     - ANSWER: Provide final answer based on accumulated evidence
     - CALL_TOOL: Invoke a tool to gather more evidence
+    - CLARIFY_INTENT: Clarify the user's intent and expected output format
     - FAIL: Stop with explicit failure (unrecoverable state)
     """
     ANSWER = "answer"
     CALL_TOOL = "call_tool"
+    CLARIFY_INTENT = "clarify_intent"
     FAIL = "fail"
 
 
@@ -149,6 +151,7 @@ class InitialPlan(BaseModel):
     Initial high-level plan generated from the question only.
 
     This plan guides downstream action decisions but is not itself a tool call decision.
+    Includes clarified intent and expected output format extracted from the question.
     """
 
     approach: str = Field(..., min_length=1, description="High-level strategy for answering")
@@ -161,6 +164,14 @@ class InitialPlan(BaseModel):
         description="Possible tool categories that may help later",
     )
     notes: str | None = Field(default=None, description="Optional concise planning notes")
+    clarified_intent: str | None = Field(
+        default=None,
+        description="What the question is actually asking (extracted from question)",
+    )
+    expected_output_format: str | None = Field(
+        default=None,
+        description="Expected format of the final answer (extracted from question)",
+    )
     timestamp: datetime = Field(default_factory=datetime.now)
     model_config = {"extra": "forbid"}
 
@@ -208,6 +219,7 @@ class PlannerDecision(BaseModel):
                 raise ValueError(
                     "PlannerDecision with action=ANSWER must have non-empty draft_answer"
                 )
+        # CLARIFY_INTENT requires no additional fields - uses rationale only
         return self
 
 

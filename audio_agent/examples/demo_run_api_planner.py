@@ -102,6 +102,10 @@ def print_initial_plan(initial_plan) -> None:
     """Print the initial plan."""
     print_separator("Initial Plan")
     print(f"\nApproach: {initial_plan.approach}")
+    if initial_plan.clarified_intent:
+        print(f"Clarified Intent: {initial_plan.clarified_intent}")
+    if initial_plan.expected_output_format:
+        print(f"Expected Output Format: {initial_plan.expected_output_format}")
     if initial_plan.focus_points:
         print("Focus points:")
         for item in initial_plan.focus_points:
@@ -140,7 +144,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--api-key",
-        default="sk-e42a74831975417394d99cabd73b708b",
+        default="sk-f8ae3fc37bdd4953977e813f77b7324f",
         help="API key. If not provided, reads from DASHSCOPE_API_KEY or OPENAI_API_KEY env var.",
     )
     parser.add_argument(
@@ -315,6 +319,16 @@ async def amain() -> int:
     initial_plan = final_state.get("initial_plan")
     if initial_plan:
         print_initial_plan(initial_plan)
+    
+    # Print final clarified intent (may differ from initial if clarification occurred)
+    clarified_intent = final_state.get("clarified_intent")
+    expected_format = final_state.get("expected_output_format")
+    if clarified_intent or expected_format:
+        print_separator("Clarified Intent")
+        if clarified_intent:
+            print(f"\nIntent: {clarified_intent}")
+        if expected_format:
+            print(f"Expected Format: {expected_format}")
     
     # Print evidence log
     evidence_log = final_state.get("evidence_log", [])

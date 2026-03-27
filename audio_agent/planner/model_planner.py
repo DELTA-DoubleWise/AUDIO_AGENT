@@ -39,6 +39,14 @@ DEFAULT_DECISION_SYSTEM_PROMPT = (
     "Return only a JSON object matching the required PlannerDecision schema."
 )
 
+DEFAULT_CLARIFY_INTENT_SYSTEM_PROMPT = (
+    "You are the intent clarification module for an audio agent. "
+    "Given the original question and all accumulated evidence, "
+    "clarify what the user is actually asking and what output format they expect. "
+    "Use reasoning on the evidence to refine or clarify the intent. "
+    "Do not call tools - if tools were needed, they should have been called before this step."
+)
+
 
 class PlannerInputFormat(str, Enum):
     """Supported planner backend input modes."""
@@ -111,7 +119,10 @@ class BaseModelPlanner(BasePlanner):
             f"Question: {question}\n"
             "Produce an InitialPlan JSON object with keys: "
             "`approach` (str), `focus_points` (list[str]), "
-            "`possible_tool_types` (list[str]), optional `notes` (str)."
+            "`possible_tool_types` (list[str]), optional `notes` (str), "
+            "`clarified_intent` (str | null) - what the question is asking, "
+            "`expected_output_format` (str | null) - expected answer format. "
+            "If the intent is unclear, express uncertainty in focus_points or notes."
         )
 
     def build_decision_system_prompt(self) -> str:
@@ -166,12 +177,14 @@ class BaseModelPlanner(BasePlanner):
             "decision_rules": [
                 "If you have enough evidence to answer the question, use action='answer' and provide draft_answer.",
                 "If you need more information, use action='call_tool' and specify which tool in selected_tool_name.",
+                "If the intent or expected output format is unclear, use action='clarify_intent' to reason about it.",
                 "action='call_tool' REQUIRES a non-empty selected_tool_name - never leave it null or empty.",
                 "action='answer' REQUIRES a non-empty draft_answer.",
+                "action='clarify_intent' uses reasoning only - do not call tools.",
                 "Do NOT use action='call_tool' if you are ready to answer - use action='answer' instead.",
             ],
             "required_output": {
-                "action": "answer | call_tool | fail",
+                "action": "answer | call_tool | clarify_intent | fail",
                 "rationale": "str - explain your decision",
                 "selected_tool_name": "str | null - REQUIRED for call_tool, must be a valid tool name",
                 "selected_tool_args": "dict - arguments for the tool when using call_tool",
@@ -492,3 +505,88 @@ class BaseModelPlanner(BasePlanner):
             user_payload={"question": question, "task": "final_answer"},
             metadata={"planner_name": self.name, "task_type": "final_answer"},
         )
+
+    def build_clarify_intent_model_input(self, state: AgentState) -> UnifiedPlannerInput:
+        """Build model input for intent clarification."""
+        question = state["question"]
+        evidence_log = state.get("evidence_log", [])
+        clarified_intent = state.get("clarified_intent")
+        expected_format = state.get("expected_output_format")
+
+        # Build evidence summary
+        evidence_text = "\n".join(
+            f"[{item.source}] {item.content}"
+            for item in evidence_log
+        )
+
+        system_prompt = DEFAULT_CLARIFY_INTENT_SYSTEM_PROMPT
+
+        user_text_parts = [
+            f"Original Question: {question}",
+            f"Current Clarified Intent: {clarified_intent or 'Not yet clarified'}",
+            f"Current Expected Format: {expected_format or 'Not yet specified'}",
+            "",
+            "Accumulated Evidence:",
+            evidence_text if evidence_text else "No evidence yet.",
+            "",
+            "Based on the question and accumulated evidence, clarify the intent and expected output format.",
+            "Return a JSON object with keys:",
+            "  `clarified_intent` (str): What the question is actually asking",
+            "  `expected_output_format` (str | null): Expected format (e.g., 'bullet points', 'single sentence', 'detailed paragraph')",
+        ]
+        user_text = "\n".join(user_text_parts)
+
+        return UnifiedPlannerInput(
+            system_prompt=system_prompt,
+            task_type="clarify_intent",
+            question=question,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_text},
+            ],
+            user_payload={"question": question, "task": "clarify_intent"},
+            metadata={"planner_name": self.name, "task_type": "clarify_intent"},
+        )
+
+    def normalize_clarify_intent_output(self, raw_output: Any) -> tuple[str, str | None]:
+        """Normalize model output into (clarified_intent, expected_output_format)."""
+        if isinstance(raw_output, tuple) and len(raw_output) == 2:
+            return raw_output[0], raw_output[1]
+        if isinstance(raw_output, str):
+            raw_output = parse_json_object_text(
+                raw_output,
+                error_cls=PlannerError,
+                subject="Planner",
+            )
+        if isinstance(raw_output, dict):
+            clarified_intent = raw_output.get("clarified_intent")
+            expected_format = raw_output.get("expected_output_format")
+            if clarified_intent is None:
+                raise PlannerError(
+                    "Malformed clarify_intent output: missing clarified_intent",
+                    details={"output_keys": sorted(raw_output.keys())},
+                )
+            return clarified_intent, expected_format
+        raise PlannerError(
+            "Malformed clarify_intent output: expected dict, JSON text, or tuple",
+            details={"output_type": type(raw_output).__name__},
+        )
+
+    def clarify_intent(self, state: AgentState) -> tuple[str, str | None]:
+        """
+        Clarify the user's intent and expected output format.
+        
+        Uses reasoning on accumulated evidence to refine or clarify intent.
+        Does NOT call tools - evidence should already be accumulated.
+        """
+        model_input = self.build_clarify_intent_model_input(state)
+        try:
+            raw_output = self.call_model(model_input)
+        except PlannerError:
+            raise
+        except Exception as e:
+            raise PlannerError(
+                f"Planner model call failed during intent clarification: {type(e).__name__}: {e}",
+                details={"planner": self.name},
+            ) from e
+        return self.normalize_clarify_intent_output(raw_output)

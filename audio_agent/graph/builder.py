@@ -13,6 +13,7 @@ from audio_agent.graph.nodes import (
     create_planner_decision_node,
     create_tool_executor_node,
     create_evidence_fusion_node,
+    create_intent_clarification_node,
     answer_node,
     failure_node,
 )
@@ -24,6 +25,7 @@ from audio_agent.graph.routing import (
     NODE_EVIDENCE_FUSION,
     NODE_INITIAL_PLAN,
     NODE_PLANNER_DECISION,
+    NODE_INTENT_CLARIFICATION,
 )
 from audio_agent.frontend.base import BaseFrontend
 from audio_agent.planner.base import BasePlanner
@@ -79,6 +81,7 @@ def build_graph(
     planner_decision_node_fn = create_planner_decision_node(planner, registry)
     tool_executor_node_fn = create_tool_executor_node(executor)
     evidence_fusion_node_fn = create_evidence_fusion_node(fuser)
+    intent_clarification_node_fn = create_intent_clarification_node(planner)
     
     # Build the graph
     graph = StateGraph(AgentState)
@@ -89,6 +92,7 @@ def build_graph(
     graph.add_node(NODE_PLANNER_DECISION, planner_decision_node_fn)
     graph.add_node(NODE_TOOL_EXECUTOR, tool_executor_node_fn)
     graph.add_node(NODE_EVIDENCE_FUSION, evidence_fusion_node_fn)
+    graph.add_node(NODE_INTENT_CLARIFICATION, intent_clarification_node_fn)
     graph.add_node(NODE_ANSWER, answer_node)
     graph.add_node(NODE_FAILURE, failure_node)
     
@@ -109,6 +113,7 @@ def build_graph(
         {
             NODE_ANSWER: NODE_ANSWER,
             NODE_TOOL_EXECUTOR: NODE_TOOL_EXECUTOR,
+            NODE_INTENT_CLARIFICATION: NODE_INTENT_CLARIFICATION,
             NODE_FAILURE: NODE_FAILURE,
         }
     )
@@ -118,6 +123,9 @@ def build_graph(
     
     # evidence_fusion_node -> planner_decision_node (loop back)
     graph.add_edge(NODE_EVIDENCE_FUSION, NODE_PLANNER_DECISION)
+    
+    # intent_clarification_node -> planner_decision_node (loop back)
+    graph.add_edge(NODE_INTENT_CLARIFICATION, NODE_PLANNER_DECISION)
     
     # Terminal nodes -> END
     graph.add_edge(NODE_ANSWER, END)
@@ -167,6 +175,7 @@ def build_graph_with_config(
     planner_decision_node_fn = create_planner_decision_node(planner, registry)
     tool_executor_node_fn = create_tool_executor_node(executor)
     evidence_fusion_node_fn = create_evidence_fusion_node(fuser)
+    intent_clarification_node_fn = create_intent_clarification_node(planner)
     
     graph = StateGraph(AgentState)
     
@@ -175,6 +184,7 @@ def build_graph_with_config(
     graph.add_node(NODE_PLANNER_DECISION, planner_decision_node_fn)
     graph.add_node(NODE_TOOL_EXECUTOR, tool_executor_node_fn)
     graph.add_node(NODE_EVIDENCE_FUSION, evidence_fusion_node_fn)
+    graph.add_node(NODE_INTENT_CLARIFICATION, intent_clarification_node_fn)
     graph.add_node(NODE_ANSWER, answer_node)
     graph.add_node(NODE_FAILURE, failure_node)
     
@@ -188,12 +198,14 @@ def build_graph_with_config(
         {
             NODE_ANSWER: NODE_ANSWER,
             NODE_TOOL_EXECUTOR: NODE_TOOL_EXECUTOR,
+            NODE_INTENT_CLARIFICATION: NODE_INTENT_CLARIFICATION,
             NODE_FAILURE: NODE_FAILURE,
         }
     )
     
     graph.add_edge(NODE_TOOL_EXECUTOR, NODE_EVIDENCE_FUSION)
     graph.add_edge(NODE_EVIDENCE_FUSION, NODE_PLANNER_DECISION)
+    graph.add_edge(NODE_INTENT_CLARIFICATION, NODE_PLANNER_DECISION)
     graph.add_edge(NODE_ANSWER, END)
     graph.add_edge(NODE_FAILURE, END)
     

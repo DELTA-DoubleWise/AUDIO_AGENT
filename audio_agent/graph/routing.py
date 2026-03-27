@@ -19,6 +19,7 @@ NODE_ANSWER = "answer_node"
 NODE_TOOL_EXECUTOR = "tool_executor_node"
 NODE_FAILURE = "failure_node"
 NODE_EVIDENCE_FUSION = "evidence_fusion_node"
+NODE_INTENT_CLARIFICATION = "intent_clarification_node"
 NODE_PLANNER = NODE_PLANNER_DECISION  # Backward-compatible alias
 END = "__end__"
 
@@ -30,6 +31,7 @@ def route_after_planner_decision(state: AgentState) -> str:
     Routes:
     - ANSWER -> answer_node
     - CALL_TOOL -> tool_executor_node
+    - CLARIFY_INTENT -> intent_clarification_node
     - FAIL -> failure_node
     
     Note: max_steps exhaustion is handled in planner_decision_node by
@@ -65,6 +67,10 @@ def route_after_planner_decision(state: AgentState) -> str:
         tool_name = decision.selected_tool_name
         logger.info(f"ROUTING: action={action.value}, tool={tool_name} -> {NODE_TOOL_EXECUTOR}")
         return NODE_TOOL_EXECUTOR
+    
+    elif action == PlannerActionType.CLARIFY_INTENT:
+        logger.info(f"ROUTING: action={action.value} -> {NODE_INTENT_CLARIFICATION}")
+        return NODE_INTENT_CLARIFICATION
     
     elif action == PlannerActionType.FAIL:
         logger.info(f"ROUTING: action={action.value} -> {NODE_FAILURE}")

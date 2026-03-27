@@ -76,6 +76,10 @@ class AgentState(TypedDict, total=False):
     current_decision: PlannerDecision | None
     latest_tool_result: ToolResult | None
     
+    # Intent clarification (set during planning or clarification)
+    clarified_intent: str | None
+    expected_output_format: str | None
+    
     # Final outputs
     final_answer: FinalAnswer | None
     error_message: str | None
@@ -123,6 +127,8 @@ def create_initial_state(
         planner_trace=[],
         current_decision=None,
         latest_tool_result=None,
+        clarified_intent=None,
+        expected_output_format=None,
         final_answer=None,
         error_message=None,
         step_count=0,
