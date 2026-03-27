@@ -50,3 +50,4 @@ models/
 
 # Demo / runtime artifacts
 output.wav
+audio_agent/tools/catalog/diarizen/diarizen_src/
