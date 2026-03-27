@@ -247,7 +247,7 @@ class ASRQwen3Server:
                 # If timestamps requested, include them in the output
                 if include_timestamps and hasattr(transcription, 'time_stamps') and transcription.time_stamps:
                     timestamp_text = "\n".join([
-                        f"[{ts.start:.2f}s - {ts.end:.2f}s]: {ts.text}"
+                        f"[{ts.start_time:.2f}s - {ts.end_time:.2f}s]: {ts.text}"
                         for ts in transcription.time_stamps
                     ])
                     text = f"{text}\n\nTimestamps:\n{timestamp_text}"
