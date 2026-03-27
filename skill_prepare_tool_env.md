@@ -430,6 +430,20 @@ Before considering a tool environment ready:
 - [ ] Model can be imported/instantiated
 - [ ] `server.py` can start without errors
 
+### Bulk Verification
+
+To verify all tools at once from the project root:
+
+```bash
+# Verify all tools
+./verify_all_tools.sh
+
+# Setup and verify all tools (useful after server restart)
+./verify_all_tools.sh --setup
+```
+
+This script finds all `test_env.sh` files in the catalog and runs them, providing a summary of which tools passed/failed.
+
 ---
 
 ## 8. Quick Reference
@@ -455,8 +469,11 @@ source /lihaoyu/workspace/AUDIO_AGENT/.uv/activate.sh
 source /lihaoyu/.conda.path.sh
 conda activate ./.venv
 
-# Verify tools still work
+# Verify a single tool still works
 ./test_env.sh
+
+# Or verify all tools at once
+./verify_all_tools.sh
 ```
 
 ---

@@ -108,7 +108,14 @@ The demo uses real models (Qwen2-Audio frontend, Qwen2.5 planner) with automatic
 ```bash
 # Setup MCP tools first (requires uv)
 curl -LsSf https://astral.sh/uv/install.sh | sh
-python -m audio_agent.tools.catalog.setup_tool asr_qwen3
+
+# Setup individual tools
+cd audio_agent/tools/catalog/asr_qwen3 && ./setup.sh && cd -
+cd audio_agent/tools/catalog/diarizen && ./setup.sh && cd -
+cd audio_agent/tools/catalog/omni_captioner && ./setup.sh && cd -
+
+# Or use the helper script to setup all tools
+./verify_all_tools.sh --setup
 
 # Download models
 audio-agent-download-models --models qwen2-audio qwen2.5 qwen3-asr
@@ -117,6 +124,18 @@ audio-agent-download-models --models qwen2-audio qwen2.5 qwen3-asr
 python -m audio_agent.examples.demo_run_auto_tools \
   --audio /path/to/audio.wav \
   --question "What is being said in this audio?"
+```
+
+### Verifying Tool Environments
+
+To verify all MCP tools are properly configured:
+
+```bash
+# Test all tools
+./verify_all_tools.sh
+
+# Setup and test all tools
+./verify_all_tools.sh --setup
 ```
 
 See also `demo_run_real_asr.py` for a demo with specific ASR tool configuration.
@@ -321,7 +340,7 @@ asyncio.run(run_with_tools())
 
 ### Adding an MCP Tool
 
-See [SKILL_add_tool.md](./SKILL_add_tool.md) for detailed instructions. Quick start:
+See [SKILL_add_tool.md](./SKILL_add_tool.md) and [skill_prepare_tool_env.md](./skill_prepare_tool_env.md) for detailed instructions. Quick start:
 
 ```bash
 # 1. Copy template
@@ -329,11 +348,16 @@ cp -r audio_agent/tools/catalog/_template audio_agent/tools/catalog/my_tool
 
 # 2. Edit pyproject.toml, server.py, config.yaml
 
-# 3. Setup environment
-python -m audio_agent.tools.catalog.setup_tool my_tool
+# 3. Create setup.sh and test_env.sh (see skill_prepare_tool_env.md for templates)
 
-# 4. Verify
-python -m audio_agent.tools.catalog.setup_tool my_tool --verify
+# 4. Setup environment
+cd audio_agent/tools/catalog/my_tool && ./setup.sh
+
+# 5. Verify
+./test_env.sh
+
+# 6. Register and test
+./verify_all_tools.sh
 ```
 
 ## License
