@@ -1,46 +1,67 @@
-# Omni-Captioner Tool Configuration
-# Audio captioning using Qwen3-Omni-30B-A3B-Captioner model
+# Omni Captioner Tool Configuration
+# API-based audio captioning using Qwen3-Omni via DashScope
 
 name: omni_captioner
-description: "Audio captioning using Qwen3-Omni-30B-A3B-Captioner. Generates detailed descriptions of audio content including speech, environmental sounds, music, and cinematic sound effects."
+description: "Audio captioning using Qwen3-Omni API via DashScope"
 version: "1.0.0"
 author: "Audio Agent Team"
-tags: ["captioning", "audio", "description", "omni", "qwen3"]
+tags: ["captioning", "audio", "qwen", "omni", "api"]
 
 # MCP Server Configuration
 server:
-  # IMPORTANT: You MUST pre-create the environment before running!
-  # Run: python -m audio_agent.tools.catalog.setup_tool omni_captioner
-  #
-  # Using explicit venv Python:
   command: [".venv/bin/python", "server.py"]
   working_dir: "."
   
   env:
-    MODEL_PATH: "/lihaoyu/workspace/AUDIO_AGENT/models/Qwen3-Omni-30B-A3B-Captioner"
-    DEVICE: "auto"
-    MAX_LENGTH: "8192"
+    DASHSCOPE_API_KEY: "sk-e42a74831975417394d99cabd73b708b"  # ⚠️ Must be set by user
+    DASHSCOPE_BASE_URL: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+    DEFAULT_MODEL: "qwen3-omni-flash"
+    DEFAULT_VOICE: "Cherry"
+    DEFAULT_AUDIO_FORMAT: "wav"
+    DEFAULT_SAMPLE_RATE: "24000"
   
   resources:
-    memory_gb: 32
-    gpu: true  # GPU strongly recommended (30GB+ VRAM)
-    cpu_cores: 8
+    memory_gb: 2
+    gpu: false  # API-based, no local GPU needed
+    cpu_cores: 2
   
   lifecycle: "session"
-  startup_timeout_sec: 600  # Model loading can take significant time
+  startup_timeout_sec: 10
 
 # Tool definitions
 tools:
-  - name: "caption_audio"
-    description: "Generate a detailed caption/description of an audio file. Analyzes speech, environmental sounds, music, and other audio content to produce a comprehensive textual description. Best for audio clips up to 30 seconds."
+  - name: "omni_caption"
+    description: "Generate text caption for an audio file using Qwen3-Omni"
     input_schema:
       type: object
       properties:
         audio_path:
           type: string
           description: "Path to the audio file to caption"
-        max_length:
-          type: integer
-          description: "Maximum length of the generated caption"
-          default: 8192
+        prompt:
+          type: string
+          description: "Prompt for captioning task"
+          default: "Describe this audio in detail."
+      required: ["audio_path"]
+  
+  - name: "omni_caption_with_audio"
+    description: "Generate caption + audio response for an audio file"
+    input_schema:
+      type: object
+      properties:
+        audio_path:
+          type: string
+          description: "Path to the audio file to caption"
+        prompt:
+          type: string
+          description: "Prompt for captioning task"
+          default: "Describe this audio in detail."
+        voice:
+          type: string
+          description: "Voice for audio response (e.g., 'Cherry')"
+          default: "Cherry"
+        output_audio_path:
+          type: string
+          description: "Path to save the generated audio response"
+          default: ""
       required: ["audio_path"]

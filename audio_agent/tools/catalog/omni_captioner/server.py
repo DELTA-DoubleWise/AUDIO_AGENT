@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """
-Omni-Captioner MCP Server
+Omni Captioner MCP Server.
 
-MCP server implementation for audio captioning using Qwen3-Omni-30B-A3B-Captioner.
-Generates detailed descriptions of audio content including speech, environmental sounds,
-music, and cinematic sound effects.
+MCP server for Qwen3-Omni API via DashScope.
+Supports audio captioning with optional audio response.
 """
 
 from __future__ import annotations
@@ -12,39 +11,73 @@ from __future__ import annotations
 import json
 import os
 import sys
+from pathlib import Path
 from typing import Any
 
 
 class OmniCaptionerServer:
-    """MCP Server for Qwen3-Omni Audio Captioning."""
+    """MCP Server for Omni Captioner API."""
     
     def __init__(self):
         self._initialized = False
-        self._model = None
-        self._processor = None
-        self._model_path = os.environ.get(
-            "MODEL_PATH", 
-            "Qwen/Qwen3-Omni-30B-A3B-Captioner"
+        self._client = None
+        
+        # API configuration from environment
+        self._api_key = os.environ.get("DASHSCOPE_API_KEY", "")
+        self._base_url = os.environ.get(
+            "DASHSCOPE_BASE_URL",
+            "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
         )
-        self._device = os.environ.get("DEVICE", "auto")
-        self._max_length = int(os.environ.get("MAX_LENGTH", "8192"))
+        self._default_model = os.environ.get("DEFAULT_MODEL", "qwen3-omni-flash")
+        self._default_voice = os.environ.get("DEFAULT_VOICE", "Cherry")
+        self._default_audio_format = os.environ.get("DEFAULT_AUDIO_FORMAT", "wav")
+        self._default_sample_rate = int(os.environ.get("DEFAULT_SAMPLE_RATE", "24000"))
         
         # Tool definitions
         self._tools = [
             {
-                "name": "caption_audio",
-                "description": "Generate a detailed caption/description of an audio file. Analyzes speech, environmental sounds, music, and other audio content to produce a comprehensive textual description. Best for audio clips up to 30 seconds.",
-                "inputSchema": {
+                "name": "omni_caption",
+                "description": "Generate text caption for an audio file using Qwen3-Omni",
+                "input_schema": {
                     "type": "object",
                     "properties": {
                         "audio_path": {
                             "type": "string",
                             "description": "Path to the audio file to caption"
                         },
-                        "max_length": {
-                            "type": "integer",
-                            "description": "Maximum length of the generated caption",
-                            "default": 8192
+                        "prompt": {
+                            "type": "string",
+                            "description": "Prompt for captioning task",
+                            "default": "Describe this audio in detail."
+                        }
+                    },
+                    "required": ["audio_path"]
+                }
+            },
+            {
+                "name": "omni_caption_with_audio",
+                "description": "Generate caption + audio response for an audio file",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "audio_path": {
+                            "type": "string",
+                            "description": "Path to the audio file to caption"
+                        },
+                        "prompt": {
+                            "type": "string",
+                            "description": "Prompt for captioning task",
+                            "default": "Describe this audio in detail."
+                        },
+                        "voice": {
+                            "type": "string",
+                            "description": "Voice for audio response (e.g., 'Cherry')",
+                            "default": "Cherry"
+                        },
+                        "output_audio_path": {
+                            "type": "string",
+                            "description": "Path to save the generated audio response",
+                            "default": ""
                         }
                     },
                     "required": ["audio_path"]
@@ -52,52 +85,24 @@ class OmniCaptionerServer:
             }
         ]
     
-    def _load_model(self) -> None:
-        """Lazy load the Qwen3-Omni model and processor."""
-        if self._model is not None:
-            return
-        
-        try:
-            from transformers import (
-                Qwen3OmniMoeForConditionalGeneration,
-                Qwen3OmniMoeProcessor
+    def _get_client(self):
+        """Lazy initialize OpenAI client."""
+        if self._client is None:
+            try:
+                from openai import OpenAI
+            except ImportError as e:
+                raise RuntimeError(f"Missing openai package: {e}") from e
+            
+            if not self._api_key:
+                raise RuntimeError(
+                    "DASHSCOPE_API_KEY not set. Please provide API key."
+                )
+            
+            self._client = OpenAI(
+                api_key=self._api_key,
+                base_url=self._base_url,
             )
-            import torch
-        except ImportError as e:
-            raise RuntimeError(
-                f"Missing required packages. Ensure environment is set up correctly: {e}"
-            ) from e
-        
-        print(f"Loading Qwen3-Omni Captioner model: {self._model_path}", file=sys.stderr)
-        
-        try:
-            # Determine device and dtype
-            if self._device == "auto":
-                device = "cuda" if torch.cuda.is_available() else "cpu"
-            else:
-                device = self._device
-            
-            # Load processor
-            self._processor = Qwen3OmniMoeProcessor.from_pretrained(self._model_path)
-            
-            # Load model with appropriate settings
-            load_kwargs = {
-                "device_map": device if device != "cpu" else None,
-            }
-            
-            # Use auto dtype if on CUDA
-            if device == "cuda":
-                load_kwargs["torch_dtype"] = "auto"
-            
-            self._model = Qwen3OmniMoeForConditionalGeneration.from_pretrained(
-                self._model_path,
-                **load_kwargs
-            )
-            
-            print(f"Model loaded successfully on {device}", file=sys.stderr)
-            
-        except Exception as e:
-            raise RuntimeError(f"Failed to load model: {e}") from e
+        return self._client
     
     def run(self) -> None:
         """Run the server."""
@@ -189,103 +194,62 @@ class OmniCaptionerServer:
     
     def _execute_tool(self, tool_name: str, arguments: dict) -> dict[str, Any]:
         """Execute a tool."""
-        self._load_model()
-        
-        if tool_name == "caption_audio":
-            return self._caption_audio(arguments)
+        if tool_name == "omni_caption":
+            return self._omni_caption(arguments, generate_audio=False)
+        elif tool_name == "omni_caption_with_audio":
+            return self._omni_caption(arguments, generate_audio=True)
         else:
             raise ValueError(f"Unknown tool: {tool_name}")
     
-    def _caption_audio(self, arguments: dict) -> dict[str, Any]:
-        """Generate a detailed caption for an audio file."""
-        audio_path = arguments.get("audio_path")
-        max_length = arguments.get("max_length", self._max_length)
+    def _omni_caption(self, arguments: dict, generate_audio: bool) -> dict[str, Any]:
+        """Call Qwen3-Omni API for audio captioning."""
+        from model import OmniCaptionerModel
+        
+        audio_path = arguments.get("audio_path", "")
+        prompt = arguments.get("prompt", "Describe this audio in detail.")
+        voice = arguments.get("voice", self._default_voice)
+        output_audio_path = arguments.get("output_audio_path", "")
         
         if not audio_path:
             raise ValueError("audio_path is required")
         
-        if not os.path.exists(audio_path):
-            raise ValueError(f"Audio file not found: {audio_path}")
+        if not Path(audio_path).exists():
+            raise FileNotFoundError(f"Audio file not found: {audio_path}")
         
-        print(f"Captioning audio: {audio_path}", file=sys.stderr)
-        
-        try:
-            from qwen_omni_utils import process_mm_info
-            import torch
-        except ImportError as e:
-            raise RuntimeError(
-                f"Missing qwen-omni-utils package. Ensure environment is set up correctly: {e}"
-            ) from e
+        print(f"Captioning audio: {audio_path}, audio={generate_audio}", file=sys.stderr)
         
         try:
-            # Prepare messages (audio only, no text prompt)
-            messages = [{
-                "role": "user",
-                "content": [{"type": "audio", "audio": audio_path}]
-            }]
-            
-            # Process multimedia info
-            audios, images, videos = process_mm_info(messages, use_audio_in_video=True)
-            
-            # Apply chat template
-            text = self._processor.apply_chat_template(
-                messages,
-                add_generation_prompt=True,
-                tokenize=False
+            model = OmniCaptionerModel(
+                api_key=self._api_key,
+                base_url=self._base_url,
+                model=self._default_model,
+                voice=voice,
             )
             
-            # Process inputs
-            inputs = self._processor(
-                text=text,
-                audio=audios,
-                images=images,
-                videos=videos,
-                return_tensors="pt",
-                padding=True,
-                use_audio_in_video=True
+            result = model.caption_audio(
+                audio_path=audio_path,
+                prompt=prompt,
+                generate_audio=generate_audio,
+                output_audio_path=output_audio_path if output_audio_path else None,
             )
             
-            # Move to device and dtype
-            inputs = inputs.to(self._model.device)
-            if hasattr(self._model, 'dtype'):
-                inputs = inputs.to(self._model.dtype)
-            
-            # Generate caption
-            print(f"Generating caption (max_length={max_length})...", file=sys.stderr)
-            
-            with torch.no_grad():
-                text_ids, _ = self._model.generate(
-                    **inputs,
-                    thinker_return_dict_in_generate=True,
-                    thinker_max_new_tokens=max_length,
-                    thinker_do_sample=True,
-                    thinker_top_p=0.95,
-                    thinker_top_k=20,
-                    thinker_temperature=0.6,
-                    speaker="Chelsie",
-                    use_audio_in_video=True,
-                    return_audio=False
-                )
-            
-            # Decode response
-            response = self._processor.batch_decode(
-                text_ids.sequences[:, inputs["input_ids"].shape[1]:],
-                skip_special_tokens=True,
-                clean_up_tokenization_spaces=False
-            )[0]
-            
-            print(f"Caption generated: {response[:100]}...", file=sys.stderr)
+            # Build response
+            result_text = result.text
+            if result.audio_path:
+                result_text += f"\n\n[Audio response saved to: {result.audio_path}]"
+            elif generate_audio and not output_audio_path:
+                result_text += "\n\n[Audio response generated but not saved (no output path provided)]"
             
             return {
-                "content": [{"type": "text", "text": response}],
+                "content": [{"type": "text", "text": result_text}],
                 "isError": False
             }
             
         except Exception as e:
-            print(f"Caption generation failed: {e}", file=sys.stderr)
+            print(f"API call failed: {e}", file=sys.stderr)
             import traceback
             traceback.print_exc(file=sys.stderr)
-            raise RuntimeError(f"Caption generation failed: {e}") from e
+            raise RuntimeError(f"API call failed: {e}") from e
     
     def _handle_shutdown(self, request_id: Any) -> dict[str, Any]:
         """Handle shutdown request."""
@@ -311,7 +275,6 @@ class OmniCaptionerServer:
 
 def main():
     """Main entry point."""
-    # Ensure unbuffered output for proper JSON-RPC communication
     sys.stdout.reconfigure(line_buffering=True)
     sys.stderr.reconfigure(line_buffering=True)
     
@@ -323,7 +286,6 @@ if __name__ == "__main__":
     try:
         main()
     except Exception as e:
-        # Log to stderr only - never to stdout (breaks JSON-RPC)
         print(f"Fatal error: {e}", file=sys.stderr)
         import traceback
         traceback.print_exc(file=sys.stderr)
