@@ -24,11 +24,13 @@ cp -r audio_agent/tools/catalog/_template audio_agent/tools/catalog/my_tool
 
 # 5. If using ML models, add to model_downloader.py
 
-# 6. Setup environment
-python -m audio_agent.tools.catalog.setup_tool my_tool
+# 6. Create setup.sh and test scripts (see skill_prepare_tool_env.md for templates)
 
-# 7. Test
-python -m audio_agent.tools.catalog.setup_tool my_tool --verify
+# 7. Setup environment
+./setup.sh
+
+# 8. Test
+./test_env.sh
 ```
 
 ---
@@ -44,8 +46,14 @@ audio_agent/tools/catalog/my_tool/
 ├── __init__.py          # (optional) Package marker
 ├── config.yaml          # Tool configuration and metadata
 ├── server.py            # MCP server implementation
-├── pyproject.toml       # Tool dependencies
+├── model.py             # Tool implementation wrapper
+├── setup.sh             # Environment setup script ⭐
+├── test_env.py          # Environment test (Python) ⭐
+├── test_env.sh          # Environment test wrapper ⭐
+├── pyproject.toml       # Tool dependencies ⭐
 └── README.md            # Documentation
+
+**See `skill_prepare_tool_env.md` for setup.sh and test script templates.**
 ```
 
 **Copy from template:**
@@ -79,9 +87,16 @@ dependencies = [
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
+
+# ⭐ CRITICAL: Exclude test files from package discovery
+[tool.setuptools]
+py-modules = ["server", "model"]  # List your package modules, exclude test_env
 ```
 
-**Important:** Keep dependencies minimal. Don't include packages the tool doesn't directly use.
+**Important:**
+- Keep dependencies minimal. Don't include packages the tool doesn't directly use.
+- **Always include `[tool.setuptools]` section** to prevent test files from being included as package modules.
+- See `skill_prepare_tool_env.md` for complete pyproject.toml template.
 
 ---
 
@@ -354,23 +369,42 @@ audio-agent-download-models --models my-model
 
 ---
 
-### Step 6: Setup Tool Environment
+### Step 6: Create Setup and Test Scripts
+
+Before setting up the environment, create the required scripts. See `skill_prepare_tool_env.md` for detailed templates.
+
+**Create `setup.sh`:**
+```bash
+# Copy from skill_prepare_tool_env.md Section 3 (Template A or B)
+# Choose based on Python version requirements:
+# - Template A (uv): Standard tools with Python 3.11
+# - Template B (conda): Tools requiring specific Python versions
+```
+
+**Create `test_env.py` and `test_env.sh`:**
+```bash
+# Copy from skill_prepare_tool_env.md Section 5
+# These verify imports, CUDA, and model loading
+```
+
+### Step 7: Setup Tool Environment
 
 ```bash
-# Setup the tool's isolated environment
-python -m audio_agent.tools.catalog.setup_tool my_tool
+# Make setup.sh executable
+chmod +x setup.sh test_env.sh
 
-# Verify it's ready
-python -m audio_agent.tools.catalog.setup_tool my_tool --verify
+# Run setup
+./setup.sh
 
-# If you need to recreate:
-python -m audio_agent.tools.catalog.setup_tool my_tool --force
+# Verify environment
+./test_env.sh
 ```
 
 **What this does:**
-1. Creates `.venv/` with Python 3.11
-2. Installs dependencies from `pyproject.toml`
-3. Verifies the environment works
+1. Creates `.venv/` with correct Python version
+2. Installs PyTorch with CUDA support
+3. Installs dependencies from `pyproject.toml`
+4. Installs the tool package in editable mode
 
 ---
 
@@ -395,8 +429,8 @@ audio-agent-download-models --models my-model
 
 ### 3. Setup Environment
 ```bash
-python -m audio_agent.tools.catalog.setup_tool my_tool
-python -m audio_agent.tools.catalog.setup_tool my_tool --verify
+./setup.sh
+./test_env.sh
 ```
 
 ## Usage
@@ -506,7 +540,7 @@ for tool_info in tools:
 ## Common Issues and Solutions
 
 ### Issue: "Virtual environment not found"
-**Solution:** Run `python -m audio_agent.tools.catalog.setup_tool my_tool`
+**Solution:** Run `./setup.sh` to create the environment. Ensure you're in the tool directory.
 
 ### Issue: "No such file or directory" for audio files
 **Solution:** The caller must provide absolute paths. In demo scripts:
@@ -523,8 +557,18 @@ audio-agent-download-models --models my-model
 ### Issue: Import errors in server
 **Solution:** Ensure dependencies are in `pyproject.toml` and environment is recreated:
 ```bash
-python -m audio_agent.tools.catalog.setup_tool my_tool --force
+rm -rf .venv
+./setup.sh
+./test_env.sh
 ```
+
+### Issue: "Multiple top-level modules discovered"
+**Solution:** Add `[tool.setuptools]` section to `pyproject.toml`:
+```toml
+[tool.setuptools]
+py-modules = ["server", "model"]  # Exclude test_env.py
+```
+See `skill_prepare_tool_env.md` Section 4 for details.
 
 ### Issue: Tool returns "Empty output"
 **Solution:** Check server stderr logs. Common causes:
@@ -539,12 +583,15 @@ python -m audio_agent.tools.catalog.setup_tool my_tool --force
 Before considering a tool complete:
 
 - [ ] `pyproject.toml` with minimal dependencies
+- [ ] `pyproject.toml` has `[tool.setuptools]` section
 - [ ] `server.py` implements MCP protocol correctly
 - [ ] `config.yaml` uses explicit venv path (`.venv/bin/python`)
 - [ ] `config.yaml` has correct environment variables
+- [ ] `setup.sh` created (copy from skill_prepare_tool_env.md template)
+- [ ] `test_env.py` and `test_env.sh` created
 - [ ] `README.md` with setup instructions
 - [ ] If using ML models: added to `model_downloader.py`
-- [ ] Environment setup works: `setup_tool my_tool --verify`
+- [ ] Environment setup works: `./setup.sh && ./test_env.sh`
 - [ ] Tool tested manually with MCPClient
 - [ ] Tool integrated into agent and tested end-to-end
 
@@ -552,6 +599,7 @@ Before considering a tool complete:
 
 ## See Also
 
+- [`skill_prepare_tool_env.md`](./skill_prepare_tool_env.md) - Environment setup templates and guides
 - [MCP Protocol Documentation](https://modelcontextprotocol.io/)
 - [Tool Catalog README](../audio_agent/tools/catalog/README.md)
 - [Template Tool](../audio_agent/tools/catalog/_template/)
