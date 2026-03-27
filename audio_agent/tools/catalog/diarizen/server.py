@@ -66,6 +66,7 @@ class DiariZenServer:
         
         try:
             from diarizen.pipelines.inference import DiariZenPipeline
+            from pathlib import Path
             import torch
         except ImportError as e:
             raise RuntimeError(
@@ -75,10 +76,39 @@ class DiariZenServer:
         print(f"Loading DiariZen pipeline: {self._model_path}", file=sys.stderr)
         
         try:
-            # Load the pipeline
-            self._pipeline = DiariZenPipeline.from_pretrained(self._model_path)
+            # DiariZen prints to stdout which breaks JSON-RPC
+            # Redirect stdout to stderr during loading
+            old_stdout = sys.stdout
+            sys.stdout = sys.stderr
+            
+            # Check if model_path is a local directory
+            if os.path.isdir(self._model_path):
+                # Load from local path using direct instantiation
+                print(f"Loading from local directory: {self._model_path}", file=sys.stderr)
+                
+                # Download embedding model from HF Hub (required component)
+                from huggingface_hub import hf_hub_download
+                embedding_model = hf_hub_download(
+                    repo_id="pyannote/wespeaker-voxceleb-resnet34-LM",
+                    filename="pytorch_model.bin"
+                )
+                
+                # Directly instantiate the pipeline
+                self._pipeline = DiariZenPipeline(
+                    diarizen_hub=Path(self._model_path).expanduser().absolute(),
+                    embedding_model=embedding_model
+                )
+            else:
+                # Load from HuggingFace Hub using from_pretrained
+                self._pipeline = DiariZenPipeline.from_pretrained(self._model_path)
+            
+            # Restore stdout
+            sys.stdout = old_stdout
+            
             print(f"Pipeline loaded successfully", file=sys.stderr)
         except Exception as e:
+            # Restore stdout on error
+            sys.stdout = old_stdout
             raise RuntimeError(f"Failed to load pipeline: {e}") from e
     
     def run(self) -> None:
@@ -193,6 +223,10 @@ class DiariZenServer:
         
         print(f"Diarizing: {audio_path}", file=sys.stderr)
         
+        # Redirect stdout to stderr during diarization (DiariZen prints progress)
+        old_stdout = sys.stdout
+        sys.stdout = sys.stderr
+        
         try:
             # Build kwargs for the pipeline
             pipeline_kwargs = {}
@@ -212,7 +246,7 @@ class DiariZenServer:
                 segments.append({
                     "start": round(turn.start, 2),
                     "end": round(turn.end, 2),
-                    "speaker": speaker
+                    "speaker": str(speaker)
                 })
             
             # Build output text
@@ -240,12 +274,17 @@ class DiariZenServer:
             print(f"Diarization complete: {len(segments)} segments, {len(unique_speakers)} speakers", 
                   file=sys.stderr)
             
+            # Restore stdout
+            sys.stdout = old_stdout
+            
             return {
                 "content": [{"type": "text", "text": result_text}],
                 "isError": False
             }
             
         except Exception as e:
+            # Restore stdout on error
+            sys.stdout = old_stdout
             print(f"Diarization failed: {e}", file=sys.stderr)
             import traceback
             traceback.print_exc(file=sys.stderr)
