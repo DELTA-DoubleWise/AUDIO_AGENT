@@ -70,11 +70,24 @@ audio_agent/
 │   ├── builder.py        # Graph construction
 │   ├── nodes.py          # Node functions
 │   └── routing.py        # Routing logic
+├── prompts/               # Markdown prompt files
+│   ├── frontend_system.md # Frontend system prompt
+│   ├── frontend_user.md   # Frontend user instruction
+│   ├── plan_system.md     # Planner planning system prompt
+│   ├── plan_user.md       # Planner planning user instruction
+│   ├── decide_system.md   # Planner decision system prompt
+│   ├── decide_user.md     # Planner decision user instruction
+│   ├── decide_rules.md    # Planner decision rules
+│   ├── answer_system.md   # Planner answer system prompt
+│   ├── answer_user.md     # Planner answer user instruction
+│   ├── clarify_system.md  # Planner clarify system prompt
+│   └── clarify_user.md    # Planner clarify user instruction
 ├── config/                # Configuration
 │   └── settings.py       # AgentConfig
 ├── utils/                 # Utilities
 │   ├── validation.py     # Validation helpers
 │   ├── model_io.py       # Model I/O helpers
+│   ├── prompt_io.py      # Prompt loading utilities
 │   └── model_downloader.py  # Model download utility
 ├── examples/              # Example scripts
 │   ├── demo_run.py            # Basic demo
@@ -336,6 +349,55 @@ async def run_with_tools():
     return result
 
 asyncio.run(run_with_tools())
+```
+
+### Customizing Prompts
+
+All prompts are now externalized as markdown files in `audio_agent/prompts/`. You can customize the behavior of the planner and frontend by editing these files.
+
+**Available prompt files:**
+
+| File | Purpose | Variables |
+|------|---------|-----------|
+| `frontend_system.md` | Frontend system prompt | None |
+| `frontend_user.md` | Frontend user instruction | `{question}`, `{audio_path_or_uri}` |
+| `plan_system.md` | Planner initial planning system prompt | None |
+| `plan_user.md` | Planner initial planning user instruction | `{question}` |
+| `decide_system.md` | Planner decision system prompt | None |
+| `decide_user.md` | Planner decision user instruction | `{question}`, `{frontend_caption}`, `{initial_plan}`, `{evidence_log}`, `{tool_call_history}`, `{available_tools}`, `{step_count}`, `{max_steps}` |
+| `decide_rules.md` | Planner decision rules | None |
+| `answer_system.md` | Planner answer system prompt | None |
+| `answer_user.md` | Planner answer user instruction | `{question}`, `{evidence_text}` |
+| `clarify_system.md` | Planner clarify system prompt | None |
+| `clarify_user.md` | Planner clarify user instruction | `{question}`, `{clarified_intent}`, `{expected_format}`, `{evidence_text}` |
+
+**Example: Customizing the frontend system prompt:**
+
+Edit `audio_agent/prompts/frontend_system.md`:
+```markdown
+You are an expert audio analyst. Focus on identifying speakers, emotions, 
+and background sounds relevant to the question.
+Return ONLY the caption as plain text.
+```
+
+**Example: Adding decision rules:**
+
+Edit `audio_agent/prompts/decide_rules.md` to add custom decision logic:
+```markdown
+1. If you have enough evidence to answer the question, use action='answer'.
+2. If you need transcription, use action='call_tool' with an ASR tool.
+3. If you need speaker information, use action='call_tool' with a diarization tool.
+...
+```
+
+**Loading prompts programmatically:**
+
+```python
+from audio_agent.utils.prompt_io import load_prompt
+
+# Load a prompt
+system_prompt = load_prompt("frontend_system")
+user_prompt = load_prompt("plan_user").format(question="What is being said?")
 ```
 
 ### Adding an MCP Tool
