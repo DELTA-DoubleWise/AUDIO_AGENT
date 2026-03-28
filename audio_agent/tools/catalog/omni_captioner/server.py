@@ -26,7 +26,7 @@ class OmniCaptionerServer:
         self._api_key = os.environ.get("DASHSCOPE_API_KEY", "")
         self._base_url = os.environ.get(
             "DASHSCOPE_BASE_URL",
-            "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+            "https://dashscope.aliyuncs.com/compatible-mode/v1"
         )
         self._default_model = os.environ.get("DEFAULT_MODEL", "qwen3-omni-flash")
         self._default_voice = os.environ.get("DEFAULT_VOICE", "Cherry")

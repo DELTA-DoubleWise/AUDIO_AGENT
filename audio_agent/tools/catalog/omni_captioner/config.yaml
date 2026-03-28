@@ -13,8 +13,8 @@ server:
   working_dir: "."
   
   env:
-    DASHSCOPE_API_KEY: "sk-e42a74831975417394d99cabd73b708b"  # ⚠️ Must be set by user
-    DASHSCOPE_BASE_URL: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+    DASHSCOPE_API_KEY: "sk-f8ae3fc37bdd4953977e813f77b7324f"
+    DASHSCOPE_BASE_URL: "https://dashscope.aliyuncs.com/compatible-mode/v1"
     DEFAULT_MODEL: "qwen3-omni-flash"
     DEFAULT_VOICE: "Cherry"
     DEFAULT_AUDIO_FORMAT: "wav"
@@ -26,7 +26,7 @@ server:
     cpu_cores: 2
   
   lifecycle: "session"
-  startup_timeout_sec: 10
+  startup_timeout_sec: 60  # API calls can take 10-30 seconds
 
 # Tool definitions
 tools:

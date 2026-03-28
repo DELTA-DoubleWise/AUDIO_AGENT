@@ -48,7 +48,7 @@ class OmniCaptionerModel:
         self.api_key = api_key or os.environ.get("DASHSCOPE_API_KEY", "")
         self.base_url = base_url or os.environ.get(
             "DASHSCOPE_BASE_URL",
-            "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+            "https://dashscope.aliyuncs.com/compatible-mode/v1"
         )
         self.model = model
         self.voice = voice
@@ -116,6 +116,7 @@ class OmniCaptionerModel:
             audio_format = "wav"  # Default fallback
         
         # Build request with audio input
+        # Note: data:;base64, prefix is required for base64 audio data
         messages = [
             {
                 "role": "user",
@@ -124,7 +125,7 @@ class OmniCaptionerModel:
                     {
                         "type": "input_audio",
                         "input_audio": {
-                            "data": audio_base64,
+                            "data": f"data:;base64,{audio_base64}",
                             "format": audio_format,
                         }
                     }
