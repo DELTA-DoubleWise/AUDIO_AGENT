@@ -136,3 +136,11 @@ class DummyPlanner(BasePlanner):
             f"[Dummy Answer] Based on {evidence_count} evidence items for question: {question}\n\n"
             "The audio has been analyzed but this is a placeholder answer."
         )
+
+    def clarify_intent(self, state: AgentState) -> tuple[str, str | None]:
+        """Clarify intent using dummy values."""
+        question = state.get("question", "")
+        return (
+            f"Understand the audio content related to: {question}",
+            "concise answer",
+        )

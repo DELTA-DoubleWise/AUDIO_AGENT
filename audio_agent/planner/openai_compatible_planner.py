@@ -46,8 +46,6 @@ class OpenAICompatiblePlanner(BaseModelPlanner):
         max_tokens: Maximum tokens to generate
         enable_thinking: Enable thinking/reasoning mode (qwen3.5-plus specific)
         timeout: API request timeout in seconds
-        plan_system_prompt: Custom system prompt for planning phase
-        decision_system_prompt: Custom system prompt for decision phase
     """
 
     def __init__(
@@ -60,8 +58,6 @@ class OpenAICompatiblePlanner(BaseModelPlanner):
         max_tokens: int = 4096,
         enable_thinking: bool = False,
         timeout: float = 120.0,
-        plan_system_prompt: str | None = None,
-        decision_system_prompt: str | None = None,
     ) -> None:
         self._model = model
         self._api_key = api_key
@@ -72,10 +68,7 @@ class OpenAICompatiblePlanner(BaseModelPlanner):
         self._enable_thinking = enable_thinking
         self._timeout = timeout
 
-        super().__init__(
-            plan_system_prompt=plan_system_prompt,
-            decision_system_prompt=decision_system_prompt,
-        )
+        super().__init__()
 
     @property
     def name(self) -> str:

@@ -43,8 +43,6 @@ class Qwen25Planner(BaseModelPlanner):
         device_map: str = "auto",
         max_new_tokens: int = 512,
         generation_kwargs: dict[str, Any] | None = None,
-        plan_system_prompt: str | None = None,
-        decision_system_prompt: str | None = None,
         model_config: dict[str, Any] | None = None,
     ) -> None:
         self.model_path = model_path
@@ -52,11 +50,7 @@ class Qwen25Planner(BaseModelPlanner):
         self.device_map = device_map
         self.max_new_tokens = max_new_tokens
         self.generation_kwargs = generation_kwargs or {}
-        super().__init__(
-            plan_system_prompt=plan_system_prompt,
-            decision_system_prompt=decision_system_prompt,
-            model_config=model_config,
-        )
+        super().__init__(model_config=model_config)
 
     @property
     def name(self) -> str:

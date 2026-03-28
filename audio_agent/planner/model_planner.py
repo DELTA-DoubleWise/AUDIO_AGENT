@@ -22,30 +22,7 @@ from audio_agent.core.schemas import InitialPlan, PlannerDecision, ToolSpec
 from audio_agent.core.state import AgentState
 from audio_agent.planner.base import BasePlanner
 from audio_agent.utils.model_io import parse_json_object_text, validate_message_sequence
-
-
-DEFAULT_PLAN_SYSTEM_PROMPT = (
-    "You are the planning module for an audio agent. "
-    "Given only the user question, produce an initial high-level plan. "
-    "Do not answer the question yet. "
-    "Return only a JSON object matching the required InitialPlan schema."
-)
-
-DEFAULT_DECISION_SYSTEM_PROMPT = (
-    "You are the action-decision planner for an audio agent. "
-    "Given the question, frontend caption, initial plan, accumulated evidence, "
-    "tool history, and available tools, decide the next concrete action. "
-    "Keep suspecting that the initial front-end caption may be hallucinated and adapt as needed based on evidence and tool results. "
-    "Return only a JSON object matching the required PlannerDecision schema."
-)
-
-DEFAULT_CLARIFY_INTENT_SYSTEM_PROMPT = (
-    "You are the intent clarification module for an audio agent. "
-    "Given the original question and all accumulated evidence, "
-    "clarify what the user is actually asking and what output format they expect. "
-    "Use reasoning on the evidence to refine or clarify the intent. "
-    "Do not call tools - if tools were needed, they should have been called before this step."
-)
+from audio_agent.utils.prompt_io import load_prompt
 
 
 class PlannerInputFormat(str, Enum):
@@ -79,18 +56,8 @@ class BaseModelPlanner(BasePlanner):
 
     def __init__(
         self,
-        plan_system_prompt: str | None = None,
-        decision_system_prompt: str | None = None,
         model_config: dict[str, Any] | None = None,
     ) -> None:
-        self.plan_system_prompt = (plan_system_prompt or DEFAULT_PLAN_SYSTEM_PROMPT).strip()
-        self.decision_system_prompt = (
-            decision_system_prompt or DEFAULT_DECISION_SYSTEM_PROMPT
-        ).strip()
-        if not self.plan_system_prompt:
-            raise PlannerError("plan_system_prompt must be non-empty")
-        if not self.decision_system_prompt:
-            raise PlannerError("decision_system_prompt must be non-empty")
         self.model_config = model_config or {}
         self.model_handle = self.initialize_model()
 
@@ -111,23 +78,15 @@ class BaseModelPlanner(BasePlanner):
 
     def build_plan_system_prompt(self) -> str:
         """Build system prompt for initial planning phase."""
-        return self.plan_system_prompt
+        return load_prompt("plan_system")
 
     def build_plan_user_instruction(self, question: str) -> str:
         """Build user instruction for initial planning phase."""
-        return (
-            f"Question: {question}\n"
-            "Produce an InitialPlan JSON object with keys: "
-            "`approach` (str), `focus_points` (list[str]), "
-            "`possible_tool_types` (list[str]), optional `notes` (str), "
-            "`clarified_intent` (str | null) - what the question is asking, "
-            "`expected_output_format` (str | null) - expected answer format. "
-            "If the intent is unclear, express uncertainty in focus_points or notes."
-        )
+        return load_prompt("plan_user").format(question=question)
 
     def build_decision_system_prompt(self) -> str:
         """Build system prompt for action decision phase."""
-        return self.decision_system_prompt
+        return load_prompt("decide_system")
 
     def build_decision_user_instruction(
         self,
@@ -165,6 +124,14 @@ class BaseModelPlanner(BasePlanner):
             for tool in available_tools
         ]
 
+        # Load and parse decision rules from markdown
+        rules_text = load_prompt("decide_rules")
+        rules = [
+            line.strip()[2:].strip()
+            for line in rules_text.split("\n")
+            if line.strip() and line.strip()[0].isdigit()
+        ]
+
         payload = {
             "question": state["question"],
             "frontend_caption": frontend_output.question_guided_caption,
@@ -174,15 +141,7 @@ class BaseModelPlanner(BasePlanner):
             "available_tools": tool_summary,
             "step_count": state.get("step_count", 0),
             "max_steps": state.get("max_steps", 10),
-            "decision_rules": [
-                "If you have enough evidence to answer the question, use action='answer' and provide draft_answer.",
-                "If you need more information, use action='call_tool' and specify which tool in selected_tool_name.",
-                "If the intent or expected output format is unclear, use action='clarify_intent' to reason about it.",
-                "action='call_tool' REQUIRES a non-empty selected_tool_name - never leave it null or empty.",
-                "action='answer' REQUIRES a non-empty draft_answer.",
-                "action='clarify_intent' uses reasoning only - do not call tools.",
-                "Do NOT use action='call_tool' if you are ready to answer - use action='answer' instead.",
-            ],
+            "decision_rules": rules,
             "required_output": {
                 "action": "answer | call_tool | clarify_intent | fail",
                 "rationale": "str - explain your decision",
@@ -480,18 +439,10 @@ class BaseModelPlanner(BasePlanner):
             for item in evidence_log
         )
 
-        system_prompt = (
-            "You are the final answer generator for an audio agent. "
-            "Given the original question and all accumulated evidence, "
-            "provide a comprehensive final answer. "
-            "Synthesize all evidence to directly answer the question. "
-            "Be concise but complete."
-        )
-
-        user_text = (
-            f"Original Question: {question}\n\n"
-            f"Accumulated Evidence:\n{evidence_text}\n\n"
-            "Based on all the evidence above, provide your final answer to the question."
+        system_prompt = load_prompt("answer_system")
+        user_text = load_prompt("answer_user").format(
+            question=question,
+            evidence_text=evidence_text,
         )
 
         return UnifiedPlannerInput(
@@ -519,22 +470,13 @@ class BaseModelPlanner(BasePlanner):
             for item in evidence_log
         )
 
-        system_prompt = DEFAULT_CLARIFY_INTENT_SYSTEM_PROMPT
-
-        user_text_parts = [
-            f"Original Question: {question}",
-            f"Current Clarified Intent: {clarified_intent or 'Not yet clarified'}",
-            f"Current Expected Format: {expected_format or 'Not yet specified'}",
-            "",
-            "Accumulated Evidence:",
-            evidence_text if evidence_text else "No evidence yet.",
-            "",
-            "Based on the question and accumulated evidence, clarify the intent and expected output format.",
-            "Return a JSON object with keys:",
-            "  `clarified_intent` (str): What the question is actually asking",
-            "  `expected_output_format` (str | null): Expected format (e.g., 'bullet points', 'single sentence', 'detailed paragraph')",
-        ]
-        user_text = "\n".join(user_text_parts)
+        system_prompt = load_prompt("clarify_system")
+        user_text = load_prompt("clarify_user").format(
+            question=question,
+            clarified_intent=clarified_intent or "Not yet clarified",
+            expected_format=expected_format or "Not yet specified",
+            evidence_text=evidence_text if evidence_text else "No evidence yet.",
+        )
 
         return UnifiedPlannerInput(
             system_prompt=system_prompt,
