@@ -39,8 +39,9 @@ audio_agent/
 │   ├── base.py            # BaseFrontend ABC
 │   ├── model_frontend.py  # BaseModelFrontend template
 │   ├── dummy_frontend.py  # Dummy implementation
-│   ├── qwen2_audio_frontend.py  # Qwen2-Audio adapter
-│   └── qwen3_omni_frontend.py   # Qwen3-Omni adapter
+│   ├── qwen2_audio_frontend.py      # Qwen2-Audio adapter (local)
+│   ├── qwen3_omni_frontend.py       # Qwen3-Omni adapter (local)
+│   └── openai_compatible_frontend.py # OpenAI-compatible API frontend
 ├── planner/               # Planner implementations
 │   ├── base.py            # BasePlanner ABC
 │   ├── model_planner.py   # BaseModelPlanner template
@@ -90,9 +91,11 @@ audio_agent/
 │   ├── prompt_io.py      # Prompt loading utilities
 │   └── model_downloader.py  # Model download utility
 ├── examples/              # Example scripts
-│   ├── demo_run.py            # Basic demo
-│   ├── demo_run_auto_tools.py # Demo with auto MCP tool discovery
-│   └── demo_run_real_asr.py   # Demo with real ASR tool
+│   ├── demo_run.py                # Basic demo (local models)
+│   ├── demo_run_auto_tools.py     # Demo with auto MCP tool discovery
+│   ├── demo_run_real_asr.py       # Demo with real ASR tool
+│   ├── demo_run_api_planner.py    # Demo with API planner + local frontend
+│   └── demo_run_api_full.py       # Demo with API frontend + API planner (no GPU)
 └── tests/                 # Tests
     ├── test_state.py
     ├── test_registry.py
@@ -152,6 +155,33 @@ To verify all MCP tools are properly configured:
 ```
 
 See also `demo_run_real_asr.py` for a demo with specific ASR tool configuration.
+
+### API-Based Demos (No Local GPU Required)
+
+If you don't have a local GPU or prefer to use API-based models:
+
+```bash
+# Setup MCP tools first (same as above)
+./verify_all_tools.sh --setup
+
+# Demo with API planner + local frontend
+export DASHSCOPE_API_KEY="sk-xxx"
+python -m audio_agent.examples.demo_run_api_planner \
+  --audio /path/to/audio.wav \
+  --question "What is being said?"
+
+# Demo with API frontend + API planner (fully API-based, no local models)
+python -m audio_agent.examples.demo_run_api_full \
+  --audio /path/to/audio.wav \
+  --question "What is being said?" \
+  --frontend-model "qwen3-omni-flash" \
+  --planner-model "qwen3.5-plus"
+```
+
+The `demo_run_api_full.py` script is ideal for:
+- Users without local GPU resources
+- Quick prototyping and testing
+- Deployments where model inference is handled externally
 
 ## Pre-downloading Models
 
@@ -263,6 +293,8 @@ registry.register(MyAudioTool())
 
 ### Adding a Real Frontend
 
+**Local Model Frontend:**
+
 ```python
 from audio_agent.frontend.base import BaseFrontend
 from audio_agent.core.schemas import FrontendOutput
@@ -283,6 +315,22 @@ class RealLALMFrontend(BaseFrontend):
             confidence=0.9,
         )
 ```
+
+**API-Based Frontend:**
+
+Use the built-in `OpenAICompatibleFrontend` for API-based frontends:
+
+```python
+from audio_agent.frontend.openai_compatible_frontend import OpenAICompatibleFrontend
+
+frontend = OpenAICompatibleFrontend(
+    model="qwen3-omni-flash",  # Or any API model that supports audio
+    api_key="sk-xxx",  # Or set DASHSCOPE_API_KEY env var
+    base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+)
+```
+
+The API frontend sends audio as base64-encoded data and receives text captions.
 
 ### Adding a Real Planner
 

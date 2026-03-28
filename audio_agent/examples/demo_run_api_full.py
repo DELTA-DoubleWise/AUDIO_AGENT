@@ -1,30 +1,33 @@
 #!/usr/bin/env python3
 """
-Demo script with API-based planner and auto-registered MCP tools.
+Demo script with API-based frontend AND planner.
 
 This script demonstrates the complete workflow using:
-- Qwen2-Audio frontend (local)
+- OpenAI-compatible API frontend (qwen3-omni-flash via DashScope)
 - OpenAI-compatible API planner (qwen3.5-plus, kimi-k2.5, etc.)
 - All available MCP tools auto-registered from catalog
 
+This is a fully API-based demo that requires no local GPU or model downloads.
+
 Usage:
     # With explicit API key
-    python -m audio_agent.examples.demo_run_api_planner \
+    python -m audio_agent.examples.demo_run_api_full \
         --audio /path/to/audio.wav \
         --question "What is being said?" \
         --api-key "sk-xxx"
 
     # With environment variable
     export DASHSCOPE_API_KEY="sk-xxx"
-    python -m audio_agent.examples.demo_run_api_planner \
+    python -m audio_agent.examples.demo_run_api_full \
         --audio /path/to/audio.wav \
         --question "What is being said?"
 
-    # Using kimi-k2.5
-    python -m audio_agent.examples.demo_run_api_planner \
+    # Using custom models
+    python -m audio_agent.examples.demo_run_api_full \
         --audio /path/to/audio.wav \
         --question "What is being said?" \
-        --planner-model "kimi-k2.5"
+        --frontend-model "qwen3-omni-flash" \
+        --planner-model "qwen3.5-plus"
 """
 
 from __future__ import annotations
@@ -44,13 +47,12 @@ from audio_agent.config.settings import AgentConfig
 from audio_agent.core.constants import AgentStatus
 from audio_agent.core.logging import setup_logger, set_debug_mode
 from audio_agent.fusion.default_fuser import DefaultEvidenceFuser
-from audio_agent.frontend.qwen2_audio_frontend import Qwen2AudioFrontend
+from audio_agent.frontend.openai_compatible_frontend import OpenAICompatibleFrontend
 from audio_agent.main import AudioAgent
 from audio_agent.planner.openai_compatible_planner import OpenAICompatiblePlanner
 from audio_agent.tools.registry import ToolRegistry
 from audio_agent.tools.mcp import MCPServerManager
 from audio_agent.tools.catalog import register_all_mcp_tools, list_available_tools
-from audio_agent.utils.model_downloader import DEFAULT_QWEN2_AUDIO_PATH
 
 
 def print_separator(title: str = "") -> None:
@@ -121,11 +123,11 @@ def print_initial_plan(initial_plan) -> None:
 def build_parser() -> argparse.ArgumentParser:
     """Build command-line parser for the demo."""
     parser = argparse.ArgumentParser(
-        description="Run the audio agent demo with API-based planner and auto-registered MCP tools.")
+        description="Run the audio agent demo with API-based frontend, planner, and auto-registered MCP tools.")
     parser.add_argument(
         "--audio",
         required=True,
-        help="Path or URI to the input audio file.",
+        help="Path to the input audio file.",
     )
     parser.add_argument(
         "--question",
@@ -133,9 +135,9 @@ def build_parser() -> argparse.ArgumentParser:
         help="Question to ask about the audio.",
     )
     parser.add_argument(
-        "--frontend-model-path",
-        default=DEFAULT_QWEN2_AUDIO_PATH,
-        help=f"Model path for Qwen2-Audio frontend (default: {DEFAULT_QWEN2_AUDIO_PATH}).",
+        "--frontend-model",
+        default="qwen3-omni-flash",
+        help="API model name for frontend (default: qwen3-omni-flash).",
     )
     parser.add_argument(
         "--planner-model",
@@ -144,7 +146,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--api-key",
-        default="sk-f8ae3fc37bdd4953977e813f77b7324f",
+        default=None,
         help="API key. If not provided, reads from DASHSCOPE_API_KEY or OPENAI_API_KEY env var.",
     )
     parser.add_argument(
@@ -155,7 +157,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--enable-thinking",
         action="store_true",
-        help="Enable thinking mode for models that support it (e.g., qwen3.5-plus).",
+        help="Enable thinking mode for planner models that support it (e.g., qwen3.5-plus).",
     )
     parser.add_argument(
         "--temperature",
@@ -194,7 +196,6 @@ async def amain() -> int:
     parser = build_parser()
     
     # Handle --list-tools before parsing all args (since --audio and --question are required)
-    import sys
     if "--list-tools" in sys.argv:
         print("Available MCP tools:")
         for tool in list_available_tools():
@@ -203,11 +204,12 @@ async def amain() -> int:
     
     args = parser.parse_args()
     
-    print_separator("Audio Agent Framework Demo (API Planner + Auto-registered Tools)")
+    print_separator("Audio Agent Framework Demo (Full API Mode)")
     print("\nThis demo runs the agent with:")
-    print("- Qwen2-Audio frontend (local)")
+    print(f"- {args.frontend_model} frontend (API-based)")
     print(f"- {args.planner_model} planner (API-based)")
-    print("- Auto-registered MCP tools from catalog\n")
+    print("- Auto-registered MCP tools from catalog")
+    print("\nNo local GPU or model downloads required!\n")
     
     # Get API key from args or environment
     api_key = args.api_key
@@ -229,9 +231,15 @@ async def amain() -> int:
     )
     
     # Create the agent components
-    print(f"Creating audio agent with Qwen2-Audio frontend and {args.planner_model} planner...")
+    print(f"Creating audio agent with {args.frontend_model} frontend and {args.planner_model} planner...")
     try:
-        frontend = Qwen2AudioFrontend(model_path=args.frontend_model_path)
+        frontend = OpenAICompatibleFrontend(
+            model=args.frontend_model,
+            api_key=api_key,
+            base_url=args.base_url,
+            temperature=args.temperature,
+            max_tokens=args.max_tokens,
+        )
         planner = OpenAICompatiblePlanner(
             model=args.planner_model,
             api_key=api_key,
@@ -281,7 +289,7 @@ async def amain() -> int:
 
     print(f"\nQuestion: {question}")
     print(f"Audio path: {audio_path}")
-    print(f"Frontend model: {args.frontend_model_path}")
+    print(f"Frontend model: {args.frontend_model} (API)")
     print(f"Planner model: {args.planner_model} (API)")
     print(f"Enable thinking: {args.enable_thinking}")
     
