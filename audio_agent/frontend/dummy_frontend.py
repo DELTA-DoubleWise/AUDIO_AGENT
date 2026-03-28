@@ -29,16 +29,13 @@ class DummyFrontend(BaseModelFrontend):
         """
         return {"provider": "dummy", "ready": True}
 
-    def call_model(self, model_input: UnifiedFrontendInput) -> dict:
+    def call_model(self, model_input: UnifiedFrontendInput) -> str:
         """
-        Return mock model output using the unified input structure.
+        Return mock model output as plain text caption.
         """
-        caption = (
+        return (
             f"The audio appears to include speech content relevant to the question "
             f"'{model_input.question}'. "
             "There may also be background sounds, but exact lexical details are unclear "
             "from this initial frontend pass."
         )
-        return {
-            "question_guided_caption": caption,
-        }

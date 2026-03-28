@@ -41,7 +41,6 @@ class Qwen3OmniFrontend(BaseModelFrontend):
         device_map: str = "auto",
         attn_implementation: str = "flash_attention_2",
         generation_kwargs: dict[str, Any] | None = None,
-        system_prompt: str | None = None,
         model_config: dict[str, Any] | None = None,
     ) -> None:
         self.model_path = model_path
@@ -50,7 +49,7 @@ class Qwen3OmniFrontend(BaseModelFrontend):
         self.device_map = device_map
         self.attn_implementation = attn_implementation
         self.generation_kwargs = generation_kwargs or {}
-        super().__init__(system_prompt=system_prompt, model_config=model_config)
+        super().__init__(model_config=model_config)
 
     @property
     def name(self) -> str:

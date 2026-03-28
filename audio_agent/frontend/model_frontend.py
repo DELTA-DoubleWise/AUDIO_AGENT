@@ -20,20 +20,7 @@ from audio_agent.core.errors import FrontendError
 from audio_agent.core.schemas import FrontendOutput
 from audio_agent.frontend.base import BaseFrontend
 from audio_agent.utils.model_io import parse_json_object_text, validate_message_sequence
-
-
-DEFAULT_FRONTEND_SYSTEM_PROMPT = (
-    "You are the front-end perception model for an audio agent. "
-    "Your job is to inspect the input audio and produce a question-guided textual caption "
-    "for a downstream planner. "
-    "You are not the final answering agent and not the main reasoner. "
-    "Do not do final reasoning or final answering. "
-    "Focus on information relevant to the user question. "
-    "Do not guess unsupported details. "
-    "State uncertainty explicitly when details are unclear. "
-    "Keep the output concise, faithful, and useful for downstream tool planning. "
-    "Return ONLY the caption as plain text. Do not use JSON format."
-)
+from audio_agent.utils.prompt_io import load_prompt
 
 
 class UnifiedFrontendInput(BaseModel):
@@ -76,12 +63,8 @@ class BaseModelFrontend(BaseFrontend):
 
     def __init__(
         self,
-        system_prompt: str | None = None,
         model_config: dict[str, Any] | None = None,
     ) -> None:
-        self.system_prompt = (system_prompt or DEFAULT_FRONTEND_SYSTEM_PROMPT).strip()
-        if not self.system_prompt:
-            raise FrontendError("system_prompt must be non-empty")
         self.model_config = model_config or {}
         self.model_handle = self.initialize_model()
 
@@ -104,14 +87,11 @@ class BaseModelFrontend(BaseFrontend):
         """
         return FrontendInputFormat.API_MODEL
 
-    def build_frontend_task_instruction(self, question: str) -> str:
+    def build_frontend_task_instruction(self, question: str, audio_path_or_uri: str) -> str:
         """Shared instruction text reused across input builders."""
-        return (
-            f"User question: {question}\n"
-            "Inspect the audio and produce a concise question-guided caption for a downstream planner. "
-            "Do not do final reasoning or final answering. "
-            "State uncertainty explicitly when details are unclear.\n"
-            "Return ONLY the caption as plain text. Do not use JSON."
+        return load_prompt("frontend_user").format(
+            question=question,
+            audio_path_or_uri=audio_path_or_uri,
         )
 
     def _build_common_user_payload(self, question: str, audio_path_or_uri: str) -> dict[str, Any]:
@@ -133,18 +113,16 @@ class BaseModelFrontend(BaseFrontend):
         - one user message with readable task text + audio reference
         """
         user_payload = self._build_common_user_payload(question, audio_path_or_uri)
-        user_text = (
-            f"{self.build_frontend_task_instruction(question)}\n"
-            f"Audio reference: {audio_path_or_uri}"
-        )
+        system_prompt = load_prompt("frontend_system")
+        user_text = self.build_frontend_task_instruction(question, audio_path_or_uri)
 
         return UnifiedFrontendInput(
-            system_prompt=self.system_prompt,
+            system_prompt=system_prompt,
             question=question,
             audio_path_or_uri=audio_path_or_uri,
             user_payload=user_payload,
             messages=[
-                {"role": "system", "content": self.system_prompt},
+                {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_text},
             ],
             metadata={
@@ -164,18 +142,20 @@ class BaseModelFrontend(BaseFrontend):
         - user content list with text instruction + audio reference
         """
         user_payload = self._build_common_user_payload(question, audio_path_or_uri)
+        system_prompt = load_prompt("frontend_system")
+        user_text = self.build_frontend_task_instruction(question, audio_path_or_uri)
 
         return UnifiedFrontendInput(
-            system_prompt=self.system_prompt,
+            system_prompt=system_prompt,
             question=question,
             audio_path_or_uri=audio_path_or_uri,
             user_payload=user_payload,
             messages=[
-                {"role": "system", "content": self.system_prompt},
+                {"role": "system", "content": system_prompt},
                 {
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": self.build_frontend_task_instruction(question)},
+                        {"type": "text", "text": user_text},
                         {"type": "audio", "audio": audio_path_or_uri},
                     ],
                 },

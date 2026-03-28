@@ -3,7 +3,6 @@
 from audio_agent.frontend.base import BaseFrontend
 from audio_agent.frontend.model_frontend import (
     BaseModelFrontend,
-    DEFAULT_FRONTEND_SYSTEM_PROMPT,
     FrontendInputFormat,
     UnifiedFrontendInput,
 )
@@ -16,7 +15,6 @@ __all__ = [
     "BaseModelFrontend",
     "UnifiedFrontendInput",
     "FrontendInputFormat",
-    "DEFAULT_FRONTEND_SYSTEM_PROMPT",
     "DummyFrontend",
     "Qwen2AudioFrontend",
     "Qwen3OmniFrontend",

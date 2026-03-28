@@ -69,7 +69,6 @@ class BaseFrontend(ABC):
 # Backward-compatible re-exports for existing imports.
 from audio_agent.frontend.model_frontend import (  # noqa: E402
     BaseModelFrontend,
-    DEFAULT_FRONTEND_SYSTEM_PROMPT,
     FrontendInputFormat,
     UnifiedFrontendInput,
 )
@@ -77,7 +76,6 @@ from audio_agent.frontend.model_frontend import (  # noqa: E402
 __all__ = [
     "BaseFrontend",
     "BaseModelFrontend",
-    "DEFAULT_FRONTEND_SYSTEM_PROMPT",
     "FrontendInputFormat",
     "UnifiedFrontendInput",
 ]

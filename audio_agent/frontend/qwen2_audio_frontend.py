@@ -28,6 +28,7 @@ from audio_agent.frontend.model_frontend import (
     UnifiedFrontendInput,
 )
 from audio_agent.utils.model_downloader import DEFAULT_QWEN2_AUDIO_PATH
+from audio_agent.utils.prompt_io import load_prompt
 
 
 # Use local model path by default, fallback to HuggingFace Hub if not available
@@ -43,14 +44,13 @@ class Qwen2AudioFrontend(BaseModelFrontend):
         device_map: str = "auto",
         max_length: int = 1024,
         generation_kwargs: dict[str, Any] | None = None,
-        system_prompt: str | None = None,
         model_config: dict[str, Any] | None = None,
     ) -> None:
         self.model_path = model_path
         self.device_map = device_map
         self.max_length = max_length
         self.generation_kwargs = generation_kwargs or {}
-        super().__init__(system_prompt=system_prompt, model_config=model_config)
+        super().__init__(model_config=model_config)
 
     @property
     def name(self) -> str:
@@ -103,18 +103,19 @@ class Qwen2AudioFrontend(BaseModelFrontend):
         else:
             audio_content["audio"] = audio_path_or_uri
 
+        system_prompt = load_prompt("frontend_system")
         return UnifiedFrontendInput(
-            system_prompt=self.system_prompt,
+            system_prompt=system_prompt,
             question=question,
             audio_path_or_uri=audio_path_or_uri,
             user_payload=user_payload,
             messages=[
-                {"role": "system", "content": self.system_prompt},
+                {"role": "system", "content": system_prompt},
                 {
                     "role": "user",
                     "content": [
                         audio_content,
-                        {"type": "text", "text": self.build_frontend_task_instruction(question)},
+                        {"type": "text", "text": self.build_frontend_task_instruction(question, audio_path_or_uri)},
                     ],
                 },
             ],

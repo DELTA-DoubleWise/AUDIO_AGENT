@@ -12,6 +12,7 @@ from audio_agent.frontend.model_frontend import (
     UnifiedFrontendInput,
 )
 from audio_agent.frontend.dummy_frontend import DummyFrontend
+from audio_agent.utils.prompt_io import load_prompt
 
 
 class EchoModelFrontend(BaseModelFrontend):
@@ -25,9 +26,7 @@ class EchoModelFrontend(BaseModelFrontend):
         return {"ready": True}
 
     def call_model(self, model_input: UnifiedFrontendInput):
-        return {
-            "question_guided_caption": f"Echo: {model_input.question}",
-        }
+        return f"Echo: {model_input.question}"
 
 
 class TestBaseModelFrontend:
@@ -79,7 +78,7 @@ class TestBaseModelFrontend:
         class BadBuilderFrontend(EchoModelFrontend):
             def build_api_model_input(self, question: str, audio_path_or_uri: str):
                 return UnifiedFrontendInput(
-                    system_prompt=self.system_prompt,
+                    system_prompt=load_prompt("frontend_system"),
                     question=question,
                     audio_path_or_uri=audio_path_or_uri,
                     user_payload={},
@@ -98,13 +97,13 @@ class TestBaseModelFrontend:
         assert isinstance(output, FrontendOutput)
         assert output.question_guided_caption.startswith("Echo:")
 
-    def test_normalize_model_output_rejects_invalid_dict(self):
-        class BadFrontend(EchoModelFrontend):
+    def test_normalize_model_output_rejects_empty_string(self):
+        class EmptyFrontend(EchoModelFrontend):
             def call_model(self, model_input: UnifiedFrontendInput):
-                return {"not_question_guided_caption": "x"}
+                return "   "
 
-        frontend = BadFrontend()
-        with pytest.raises(FrontendError, match="missing required fields"):
+        frontend = EmptyFrontend()
+        with pytest.raises(FrontendError, match="empty caption"):
             frontend.run("Question", "/tmp/audio.wav")
 
     def test_empty_inputs_raise_frontend_error(self):
@@ -114,39 +113,34 @@ class TestBaseModelFrontend:
         with pytest.raises(FrontendError, match="Audio path/URI must be a non-empty string"):
             frontend.run("Question", "")
 
-    def test_json_text_output_is_parsed(self):
-        class JsonTextFrontend(EchoModelFrontend):
+    def test_plain_text_output_used_directly(self):
+        class PlainTextFrontend(EchoModelFrontend):
             def call_model(self, model_input: UnifiedFrontendInput):
-                return json.dumps(
-                    {
-                        "question_guided_caption": "caption from text json",
-                    }
-                )
+                return "Plain text caption from model"
 
-        frontend = JsonTextFrontend()
+        frontend = PlainTextFrontend()
         output = frontend.run("Question", "/tmp/audio.wav")
-        assert output.question_guided_caption == "caption from text json"
+        assert output.question_guided_caption == "Plain text caption from model"
 
-    def test_fenced_json_text_output_is_parsed(self):
-        class FencedJsonTextFrontend(EchoModelFrontend):
+    def test_multiline_text_output_used_directly(self):
+        class MultilineTextFrontend(EchoModelFrontend):
             def call_model(self, model_input: UnifiedFrontendInput):
-                return """```json
-{
-  "question_guided_caption": "caption from fenced json"
-}
-```"""
+                return """This is a multiline
+caption with multiple
+lines of text."""
 
-        frontend = FencedJsonTextFrontend()
+        frontend = MultilineTextFrontend()
         output = frontend.run("Question", "/tmp/audio.wav")
-        assert output.question_guided_caption == "caption from fenced json"
+        assert "multiline" in output.question_guided_caption
+        assert "multiple" in output.question_guided_caption
 
-    def test_invalid_json_text_raises(self):
-        class InvalidJsonTextFrontend(EchoModelFrontend):
+    def test_dict_output_raises_error(self):
+        class DictOutputFrontend(EchoModelFrontend):
             def call_model(self, model_input: UnifiedFrontendInput):
-                return "this is not valid json"
+                return {"question_guided_caption": "should not work"}
 
-        frontend = InvalidJsonTextFrontend()
-        with pytest.raises(FrontendError, match="not valid JSON object text"):
+        frontend = DictOutputFrontend()
+        with pytest.raises(FrontendError, match="dict instead of plain text"):
             frontend.run("Question", "/tmp/audio.wav")
 
 
