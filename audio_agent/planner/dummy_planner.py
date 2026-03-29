@@ -57,6 +57,7 @@ class DummyPlanner(BasePlanner):
         tool_history = state.get("tool_call_history", [])
         evidence_log = state.get("evidence_log", [])
         initial_plan: InitialPlan = state["initial_plan"]
+        audio_list = state.get("audio_list", [])
         
         # Check step limit first
         if step_count >= max_steps:
@@ -71,6 +72,9 @@ class DummyPlanner(BasePlanner):
 
         # Decision logic based on tool call count
         num_tools_called = len(tool_history)
+        
+        # Get first audio from audio_list (original audio)
+        selected_audio_id = audio_list[0].audio_id if audio_list else "audio_0"
         
         if num_tools_called == 0:
             # First iteration: call ASR tool if available
@@ -88,7 +92,8 @@ class DummyPlanner(BasePlanner):
                     "call ASR to gather direct textual evidence."
                 ),
                 selected_tool_name=target_tool,
-                selected_tool_args={"audio_path": state.get("audio_path_or_uri", "")},
+                selected_tool_args={},
+                selected_audio_id=selected_audio_id,
                 confidence=0.8,
             )
 

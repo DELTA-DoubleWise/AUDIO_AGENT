@@ -14,6 +14,7 @@ from audio_agent.core.schemas import (
     ToolCallRequest,
     ToolCallRecord,
     FinalAnswer,
+    AudioItem,
 )
 from audio_agent.core.constants import AgentStatus
 from audio_agent.core.errors import (
@@ -53,7 +54,8 @@ def create_frontend_evidence_node(frontend: BaseFrontend):
         Process audio through frontend and generate initial evidence.
         
         Validates:
-        - question and audio_path_or_uri are present
+        - question and audio_list are present
+        - audio_0 (original audio) exists in audio_list
         
         Updates:
         - initial_frontend_output
@@ -61,17 +63,30 @@ def create_frontend_evidence_node(frontend: BaseFrontend):
         """
         log_node_start("frontend_evidence_node", {
             "question": state.get("question", "")[:50],
-            "audio": state.get("audio_path_or_uri", "")[:50],
+            "audio_count": len(state.get("audio_list", [])),
         })
         
         validate_state_has_fields(
             state,
-            ["question", "audio_path_or_uri"],
+            ["question", "audio_list"],
             context="frontend_evidence_node",
         )
         
         question = state["question"]
-        audio_path = state["audio_path_or_uri"]
+        audio_list = state["audio_list"]
+        
+        # Find audio_0 (original audio) in the list
+        original_audio = next(
+            (a for a in audio_list if a.audio_id == "audio_0"),
+            None
+        )
+        if original_audio is None:
+            raise StateValidationError(
+                "audio_0 (original audio) not found in audio_list",
+                details={"audio_ids": [a.audio_id for a in audio_list]}
+            )
+        
+        audio_path = original_audio.path
         
         # Run frontend
         try:
@@ -311,20 +326,23 @@ def create_tool_executor_node(executor: ToolExecutor):
         Validates:
         - current_decision exists and is CALL_TOOL
         - selected_tool_name is present
+        - selected_audio_id is present and valid
         
         Updates:
         - latest_tool_result
         - tool_call_history (appends record)
+        - audio_list (if tool generates new audio)
         """
         log_node_start("tool_executor_node")
         
         validate_state_has_fields(
             state,
-            ["current_decision"],
+            ["current_decision", "audio_list"],
             context="tool_executor_node",
         )
         
         decision: PlannerDecision = state["current_decision"]
+        audio_list: list[AudioItem] = state["audio_list"]
         
         if decision.action != PlannerActionType.CALL_TOOL:
             raise StateValidationError(
@@ -338,14 +356,29 @@ def create_tool_executor_node(executor: ToolExecutor):
                 details={"decision": decision.model_dump()}
             )
         
-        # Build request
-        # Get args from planner decision, inject audio_path if needed
-        args = decision.selected_tool_args or {}
+        if not decision.selected_audio_id:
+            raise StateValidationError(
+                "CALL_TOOL decision has no selected_audio_id",
+                details={"decision": decision.model_dump()}
+            )
         
-        # Inject audio_path for tools that need it (e.g., ASR tools)
-        # The planner doesn't know the audio path, so we inject it from state
-        if "audio_path" not in args and state.get("audio_path_or_uri"):
-            args = {**args, "audio_path": state["audio_path_or_uri"]}
+        # Find the selected audio in the list
+        selected_audio = next(
+            (a for a in audio_list if a.audio_id == decision.selected_audio_id),
+            None
+        )
+        if selected_audio is None:
+            raise StateValidationError(
+                f"Audio '{decision.selected_audio_id}' not found in audio_list",
+                details={
+                    "selected_audio_id": decision.selected_audio_id,
+                    "available_ids": [a.audio_id for a in audio_list],
+                }
+            )
+        
+        # Build request with the selected audio path
+        args = decision.selected_tool_args or {}
+        args = {**args, "audio_path": selected_audio.path}
         
         request = ToolCallRequest(
             tool_name=decision.selected_tool_name,
@@ -353,6 +386,8 @@ def create_tool_executor_node(executor: ToolExecutor):
             context={
                 "question": state.get("question", ""),
                 "step_count": state.get("step_count", 0),
+                "selected_audio_id": decision.selected_audio_id,
+                "selected_audio_description": selected_audio.description,
             },
         )
         
@@ -375,15 +410,38 @@ def create_tool_executor_node(executor: ToolExecutor):
             step_number=state.get("step_count", 0),
         )
         
-        log_node_end("tool_executor_node", {
-            "tool": decision.selected_tool_name,
-            "success": result.success,
-        })
-        
-        return {
+        # Prepare return updates
+        updates: dict = {
             "latest_tool_result": result,
             "tool_call_history": [record],
         }
+        
+        # If tool generates new audio, add it to audio_list
+        if result.output.get("generated_audio_path"):
+            new_audio_id = f"audio_{len(audio_list)}"
+            new_audio = AudioItem(
+                audio_id=new_audio_id,
+                path=result.output["generated_audio_path"],
+                source=decision.selected_tool_name,
+                description=result.output.get(
+                    "audio_description",
+                    f"Generated by {decision.selected_tool_name}"
+                ),
+                metadata=result.output.get("audio_metadata", {}),
+            )
+            updates["audio_list"] = audio_list + [new_audio]
+            log_node_end("tool_executor_node", {
+                "tool": decision.selected_tool_name,
+                "success": result.success,
+                "new_audio_id": new_audio_id,
+            })
+        else:
+            log_node_end("tool_executor_node", {
+                "tool": decision.selected_tool_name,
+                "success": result.success,
+            })
+        
+        return updates
     
     return tool_executor_node
 

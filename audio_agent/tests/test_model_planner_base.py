@@ -36,6 +36,7 @@ class EchoModelPlanner(BaseModelPlanner):
             "rationale": "Need ASR evidence first.",
             "selected_tool_name": "dummy_asr",
             "selected_tool_args": {"audio_path": "/tmp/audio.wav"},
+            "selected_audio_id": "audio_0",
             "confidence": 0.8,
         }
 

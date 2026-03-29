@@ -98,6 +98,7 @@ class BaseModelPlanner(BasePlanner):
         initial_plan = state["initial_plan"]
         evidence_log = state.get("evidence_log", [])
         tool_history = state.get("tool_call_history", [])
+        audio_list = state.get("audio_list", [])
 
         evidence_summary = [
             {
@@ -123,6 +124,12 @@ class BaseModelPlanner(BasePlanner):
             }
             for tool in available_tools
         ]
+        
+        # Build audio list summary with descriptions
+        audio_summary = [
+            f"- {a.audio_id}: {a.description} (source: {a.source})"
+            for a in audio_list
+        ]
 
         # Load and parse decision rules from markdown
         rules_text = load_prompt("decide_rules")
@@ -138,6 +145,7 @@ class BaseModelPlanner(BasePlanner):
             "initial_plan": initial_plan.model_dump(mode="json"),
             "evidence_log": evidence_summary,
             "tool_call_history": tool_history_summary,
+            "audio_list": "\n".join(audio_summary) if audio_summary else "- audio_0: original input audio (source: original)",
             "available_tools": tool_summary,
             "step_count": state.get("step_count", 0),
             "max_steps": state.get("max_steps", 10),
@@ -147,6 +155,7 @@ class BaseModelPlanner(BasePlanner):
                 "rationale": "str - explain your decision",
                 "selected_tool_name": "str | null - REQUIRED for call_tool, must be a valid tool name",
                 "selected_tool_args": "dict - arguments for the tool when using call_tool",
+                "selected_audio_id": "str | null - REQUIRED for call_tool, must be a valid audio_id from Available Audio Files",
                 "draft_answer": "str | null - REQUIRED for answer, your final response to the question",
                 "confidence": "float - 0.0 to 1.0",
             },

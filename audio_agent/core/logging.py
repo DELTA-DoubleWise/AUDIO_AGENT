@@ -121,3 +121,12 @@ def log_state_transition(from_status: str, to_status: str, reason: str) -> None:
     """Log an agent status transition."""
     logger = get_logger()
     logger.info(f"STATUS TRANSITION: {from_status} -> {to_status} | Reason: {reason}")
+
+
+def log_info(event: str, details: dict[str, Any] | None = None) -> None:
+    """Log a general informational event."""
+    logger = get_logger()
+    msg = f"EVENT: {event}"
+    if details:
+        msg += f" | Details: {details}"
+    logger.info(msg)

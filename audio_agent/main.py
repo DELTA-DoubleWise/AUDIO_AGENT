@@ -4,10 +4,15 @@ Main entry point for the audio agent framework.
 Provides convenience functions for running the agent.
 """
 
+import os
+import shutil
+from datetime import datetime
+from pathlib import Path
+
 from audio_agent.core.state import AgentState, create_initial_state
 from audio_agent.core.constants import AgentStatus
-from audio_agent.core.schemas import FinalAnswer
-from audio_agent.core.logging import setup_logger, set_debug_mode
+from audio_agent.core.schemas import FinalAnswer, AudioItem
+from audio_agent.core.logging import setup_logger, set_debug_mode, log_info
 from audio_agent.config.settings import AgentConfig
 from audio_agent.graph.builder import build_graph
 from audio_agent.frontend.base import BaseFrontend
@@ -56,6 +61,7 @@ class AudioAgent:
         self.registry = registry
         self.fuser = fuser
         self.config = config or AgentConfig()
+        self._temp_dir: str | None = None
         
         # Set up logging
         setup_logger()
@@ -64,6 +70,63 @@ class AudioAgent:
         
         # Build the graph
         self._graph = build_graph(frontend, planner, registry, fuser)
+    
+    def _setup_temp_dir(self, audio_path: str) -> tuple[str, list[AudioItem]]:
+        """
+        Create temp directory and copy original audio.
+        
+        Creates a temp directory at {temp_dir_base}/agent_{timestamp}_{random}/
+        and copies the original audio as audio_0.wav.
+        
+        Args:
+            audio_path: Path to the original audio file
+            
+        Returns:
+            Tuple of (temp_dir_path, audio_list)
+        """
+        import random
+        import string
+        
+        # Generate temp directory name (use absolute path)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
+        temp_dir_name = f"agent_{timestamp}_{random_suffix}"
+        temp_dir = os.path.abspath(os.path.join(self.config.temp_dir_base, temp_dir_name))
+        
+        # Create directory
+        os.makedirs(temp_dir, exist_ok=True)
+        log_info("temp_dir_created", {"path": temp_dir})
+        
+        # Copy original audio as audio_0.wav (use absolute path)
+        original_ext = Path(audio_path).suffix or ".wav"
+        dest_path = os.path.join(temp_dir, f"audio_0{original_ext}")
+        shutil.copy2(audio_path, dest_path)
+        log_info("audio_copied", {"source": audio_path, "dest": dest_path})
+        
+        # Create audio item with absolute path
+        audio_item = AudioItem(
+            audio_id="audio_0",
+            path=dest_path,
+            source="original",
+            description="original input audio",
+        )
+        
+        self._temp_dir = temp_dir
+        return temp_dir, [audio_item]
+    
+    def cleanup(self) -> None:
+        """
+        Clean up temporary files and directory.
+        
+        Removes the temp directory if it exists and cleanup is enabled.
+        """
+        if self._temp_dir and os.path.exists(self._temp_dir):
+            try:
+                shutil.rmtree(self._temp_dir)
+                log_info("temp_dir_cleaned", {"path": self._temp_dir})
+                self._temp_dir = None
+            except Exception as e:
+                log_info("temp_dir_cleanup_failed", {"path": self._temp_dir, "error": str(e)})
     
     def run(
         self,
@@ -74,8 +137,6 @@ class AudioAgent:
         """
         Run the agent on an audio query (synchronous).
         
-        Note: If using MCP tools, use arun() instead.
-        
         Args:
             question: User question about the audio
             audio_path_or_uri: Path or URI to audio file
@@ -84,18 +145,9 @@ class AudioAgent:
         Returns:
             Final agent state with answer or error
         """
-        effective_max_steps = max_steps if max_steps is not None else self.config.max_steps
-        
-        initial_state = create_initial_state(
-            question=question,
-            audio_path_or_uri=audio_path_or_uri,
-            max_steps=effective_max_steps,
-        )
-        
-        # Execute the graph
-        final_state = self._graph.invoke(initial_state)
-        
-        return final_state
+        import asyncio
+        # Use asyncio.run to execute the async version
+        return asyncio.run(self.arun(question, audio_path_or_uri, max_steps))
     
     async def arun(
         self,
@@ -118,16 +170,25 @@ class AudioAgent:
         """
         effective_max_steps = max_steps if max_steps is not None else self.config.max_steps
         
+        # Setup temp directory and copy audio
+        temp_dir, audio_list = self._setup_temp_dir(audio_path_or_uri)
+        
         initial_state = create_initial_state(
             question=question,
             audio_path_or_uri=audio_path_or_uri,
             max_steps=effective_max_steps,
+            temp_dir=temp_dir,
+            audio_list=audio_list,
         )
         
-        # Execute the graph asynchronously
-        final_state = await self._graph.ainvoke(initial_state)
-        
-        return final_state
+        try:
+            # Execute the graph asynchronously
+            final_state = await self._graph.ainvoke(initial_state)
+            return final_state
+        finally:
+            # Cleanup if enabled
+            if self.config.cleanup_temp_on_exit:
+                self.cleanup()
     
     def get_answer(self, state: AgentState) -> FinalAnswer | None:
         """Extract the final answer from a completed state."""

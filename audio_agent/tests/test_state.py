@@ -5,6 +5,7 @@ import pytest
 from audio_agent.core.state import create_initial_state, AgentState
 from audio_agent.core.constants import AgentStatus
 from audio_agent.core.errors import StateValidationError
+from audio_agent.core.schemas import AudioItem
 from audio_agent.utils.validation import validate_state_has_fields, validate_non_empty_string
 
 
@@ -13,14 +14,27 @@ class TestCreateInitialState:
     
     def test_valid_inputs(self):
         """Test creating state with valid inputs."""
+        audio_list = [
+            AudioItem(
+                audio_id="audio_0",
+                path="/path/to/audio.wav",
+                source="original",
+                description="original input audio",
+            )
+        ]
         state = create_initial_state(
             question="What is in this audio?",
             audio_path_or_uri="/path/to/audio.wav",
             max_steps=5,
+            temp_dir="/tmp/test",
+            audio_list=audio_list,
         )
         
         assert state["question"] == "What is in this audio?"
-        assert state["audio_path_or_uri"] == "/path/to/audio.wav"
+        assert state["original_audio_path"] == "/path/to/audio.wav"
+        assert state["temp_dir"] == "/tmp/test"
+        assert len(state["audio_list"]) == 1
+        assert state["audio_list"][0].audio_id == "audio_0"
         assert state["max_steps"] == 5
         assert state["step_count"] == 0
         assert state["status"] == AgentStatus.RUNNING
@@ -69,13 +83,23 @@ class TestCreateInitialState:
     
     def test_strips_whitespace(self):
         """Test that question and audio path are stripped."""
+        audio_list = [
+            AudioItem(
+                audio_id="audio_0",
+                path="/path/to/audio.wav",
+                source="original",
+                description="original input audio",
+            )
+        ]
         state = create_initial_state(
             question="  What is this?  ",
             audio_path_or_uri="  /path/to/audio.wav  ",
+            temp_dir="/tmp/test",
+            audio_list=audio_list,
         )
         
         assert state["question"] == "What is this?"
-        assert state["audio_path_or_uri"] == "/path/to/audio.wav"
+        assert state["original_audio_path"] == "/path/to/audio.wav"
 
 
 class TestValidateStateHasFields:
@@ -83,16 +107,21 @@ class TestValidateStateHasFields:
     
     def test_valid_state(self):
         """Test validation passes with required fields."""
-        state = AgentState(question="test", audio_path_or_uri="/path")
+        state = AgentState(
+            question="test",
+            original_audio_path="/path",
+            temp_dir="/tmp",
+            audio_list=[],
+        )
         # Should not raise
-        validate_state_has_fields(state, ["question", "audio_path_or_uri"])
+        validate_state_has_fields(state, ["question", "original_audio_path"])
     
     def test_missing_field_raises(self):
         """Test validation fails with missing field."""
         state = AgentState(question="test")
         
         with pytest.raises(StateValidationError, match="Missing required state fields"):
-            validate_state_has_fields(state, ["question", "audio_path_or_uri"])
+            validate_state_has_fields(state, ["question", "original_audio_path"])
     
     def test_none_state_raises(self):
         """Test validation fails with None state."""
