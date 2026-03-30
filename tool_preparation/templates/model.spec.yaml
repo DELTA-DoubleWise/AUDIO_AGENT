@@ -1,0 +1,46 @@
+# Tool Spec Template
+# 复制到 audio_agent/tools/catalog/{tool_name}/model.spec.yaml 并填写
+
+tool_id: ""
+tool_name: ""
+task_type: ""         # asr / s2tt / sd / ser / vad / speech_enhancement / slu / omni / api / utility
+deployment_type: ""   # local / api
+
+repo:
+  url: ""
+  commit: null
+
+weights:
+  source: ""          # huggingface / modelscope / pip / local / api
+  local_path: null
+  required: true
+
+environment:
+  preferred_backend: ""   # uv / conda / docker / api
+  python_version: "3.11"
+  requires_gpu: true
+  system_packages: []
+
+entrypoints:
+  import_test: ""
+  load_test: ""
+  infer_test: ""
+
+fixture:
+  audio: tests/fixtures/shared/asr/en_16k.wav
+  task_specific: false
+  fallback_allowed: true
+
+io_contract:
+  input_type: ""          # audio_path / text / json
+  output_type: ""         # text / json
+  primary_field: ""       # e.g. "text" for ASR, "labels" for SER
+  required_fields: []     # e.g. ["text", "confidence"] - 必须存在的字段
+  nonempty_fields: []     # e.g. ["text"] - 必须非空的字段
+  json_serializable: true # 输出是否必须可 JSON 序列化
+
+acceptance:
+  must_import: true
+  must_load: true
+  must_infer: true
+  must_return_nonempty: true
