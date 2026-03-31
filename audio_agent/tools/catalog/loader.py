@@ -281,6 +281,12 @@ async def register_all_mcp_tools(
             
             # Register each tool from the server
             for tool_info in tools:
+                # Skip healthcheck tools - they're for environment verification only
+                if tool_info.name == "healthcheck":
+                    if verbose:
+                        print(f"  ⏭ Skipped: healthcheck (environment verification only)")
+                    continue
+                
                 adapter = MCPToolAdapter(
                     server_name=tool_name,
                     tool_info=tool_info,
