@@ -54,3 +54,9 @@ audio_agent/tools/catalog/diarizen/diarizen_src/
 
 # Server-specific files (do not push to remote)
 tool_preparation/SERVER_SPECIFIC_*.md
+
+# MCP Tool artifacts - auto-generated during tool execution
+/audio_agent/tools/catalog/*/.artifacts/
+/audio_agent/tools/catalog/*/.artifact/
+/audio_agent/tools/catalog/*/artifacts/
+/audio_agent/tools/catalog/*/artifact/
