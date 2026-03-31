@@ -1,0 +1,15 @@
+{
+  "chosen_backend": "uv",
+  "reason": "system tool with pure-python wrapper, no weights required, no cuda compilation needed",
+  "evidence": [
+    "pyproject.toml present with no heavy dependencies",
+    "no Dockerfile",
+    "no conda env required",
+    "requires_gpu: false",
+    "ffmpeg installed as system package"
+  ],
+  "rejected_options": [
+    {"backend": "conda", "reason": "uv is sufficient for simple wrapper"},
+    {"backend": "docker", "reason": "overkill for system tool wrapper"}
+  ]
+}

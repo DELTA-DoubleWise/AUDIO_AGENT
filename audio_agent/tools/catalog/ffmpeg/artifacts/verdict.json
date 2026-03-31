@@ -1,0 +1,32 @@
+{
+  "timestamp": "2024-03-30T20:53:00Z",
+  "tool_id": "ffmpeg",
+  "tool_name": "FFmpeg",
+  "status": "PASSED",
+  "phase": "phase_1",
+  "workflow": {
+    "started_at": "2024-03-30T20:53:00Z",
+    "completed_at": "2024-03-30T20:53:00Z",
+    "final_checkpoint": "SAVE_ARTIFACTS"
+  },
+  "validation_results": {
+    "import": {"passed": true, "duration_ms": 200, "note": ""},
+    "load": {"passed": true, "duration_ms": 500, "note": ""},
+    "infer": {"passed": true, "duration_ms": 2000, "note": ""},
+    "contract": {"passed": true, "duration_ms": 100, "note": ""}
+  },
+  "backend": {
+    "chosen": "uv",
+    "reason": "system tool with pure-python wrapper"
+  },
+  "artifacts": [
+    "model.spec.yaml",
+    "artifacts/backend_choice.json",
+    "artifacts/build.log",
+    "artifacts/validation.log",
+    "artifacts/verdict.json"
+  ],
+  "warnings": [],
+  "escalation": null,
+  "human_override": null
+}
