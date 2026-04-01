@@ -13,12 +13,13 @@
 - `audio_agent/graph/`: LangGraph assembly + node logic + routing (`builder.py`, `nodes.py`, `routing.py`); classification `core`.
 - `audio_agent/frontend/`: frontend interface/template (`base.py`, `model_frontend.py`), dummy frontend (`dummy_frontend.py`), Qwen2-Audio adapter (`qwen2_audio_frontend.py`), Qwen3-Omni adapter (`qwen3_omni_frontend.py`); classification `core`.
 - `audio_agent/planner/`: planner interface (`base.py`), model planner template (`model_planner.py`), dummy planner (`dummy_planner.py`), Qwen2.5 adapter (`qwen25_planner.py`); classification `core`.
-- `audio_agent/tools/`: tool interface (`base.py`), registry (`registry.py`), executor (`executor.py`), dummy tools (`dummy_tools.py`), plus MCP infrastructure (`mcp/`) and tool catalog (`catalog/`); classification `core`.
+- `audio_agent/tools/`: tool interface (`base.py`), registry (`registry.py`), executor (`executor.py`), dummy tools (`dummy_tools.py`), plus MCP infrastructure (`mcp/`) and tool catalog (`catalog/` with tools: asr_qwen3, diarizen, ffmpeg, librosa, omni_captioner, snakers4_silero-vad); classification `core`.
 - `audio_agent/fusion/`: evidence fusion interface + default fuser; classification `core`.
 - `audio_agent/config/`: `AgentConfig` schema; classification `config`.
 - `audio_agent/utils/`: validation helpers used by graph nodes; classification `support`.
-- `audio_agent/examples/`: demo scripts (`demo_run.py`, `demo_run_auto_tools.py`, `demo_run_real_asr.py`); classification `support/example`.
+- `audio_agent/examples/`: demo scripts (`demo_run.py`, `demo_run_auto_tools.py`, `demo_run_real_asr.py`, `demo_run_api_planner.py`, `demo_run_api_full.py`); classification `support/example`.
 - `audio_agent/tests/`: unit + smoke tests, including state, registry, graph, frontend-base, model I/O, planner-base, and Qwen adapter tests; classification `support`.
+- `tool_preparation/`: Harness-First Agent Workflow for automated tool onboarding; contains policies, playbooks, contracts, specs, and templates; classification `support/docs`.
 - `README.md`: architecture and quick start reference; classification `support/docs`.
 - `pyproject.toml`: package metadata, pytest config, console script; classification `config`.
 - `requirements.txt`: dependency list for local install path; classification `config`.
@@ -69,7 +70,7 @@
 - `audio_agent/planner/qwen25_planner.py`: Qwen2.5-based planner with real LLM reasoning.
 - `audio_agent/tools/base.py`, `registry.py`, `executor.py`, `dummy_tools.py`: tool abstraction, registration (internal + MCP), execution, dummy tools.
 - `audio_agent/tools/mcp/`: MCP infrastructure for external tools (client, server manager, tool adapter, schemas).
-- `audio_agent/tools/catalog/`: MCP tool catalog with auto-discovery (loader), environment setup (setup_tool), and tool implementations (asr_qwen3, diarizen, omni_captioner).
+- `audio_agent/tools/catalog/`: MCP tool catalog with auto-discovery (loader) and tool implementations (asr_qwen3, diarizen, ffmpeg, librosa, omni_captioner, snakers4_silero-vad).
 - `audio_agent/fusion/base.py` + `audio_agent/fusion/default_fuser.py`: tool result to evidence transformation.
 
 ### Wrapper/config/validation/example/test layers
@@ -132,12 +133,15 @@
 - Add a new graph step:
   - add node function in `audio_agent/graph/nodes.py`, route in `audio_agent/graph/routing.py`, wire in `audio_agent/graph/builder.py`, and update `AgentState` if needed.
 - Add an MCP tool:
-  - copy `audio_agent/tools/catalog/_template/` to new tool directory.
-  - define `pyproject.toml` with minimal dependencies.
-  - implement `server.py` with MCP protocol handlers.
-  - configure `config.yaml` with explicit `.venv/bin/python` path.
-  - run `python -m audio_agent.tools.catalog.setup_tool <name>` to create environment.
-  - add to `audio_agent/utils/model_downloader.py` if using HF models.
+  - **Recommended**: Use the Harness-First Agent Workflow in `tool_preparation/`:
+    - See `tool_preparation/README.md` for the complete workflow
+    - Use `tool_preparation/AGENTS.md` for Phase 1 onboarding harness
+  - **Manual**: Copy `audio_agent/tools/catalog/_template/` to new tool directory.
+    - define `pyproject.toml` with minimal dependencies.
+    - implement `server.py` with MCP protocol handlers.
+    - configure `config.yaml` with explicit `.venv/bin/python` path.
+    - run `./setup.sh` to create environment.
+    - add to `audio_agent/utils/model_downloader.py` if using HF models.
 - Change MCP client behavior:
   - edit `audio_agent/tools/mcp/client.py` for JSON-RPC handling.
   - edit `audio_agent/tools/mcp/server_manager.py` for lifecycle management.
@@ -163,7 +167,7 @@
   - `pytest audio_agent/tests/test_state.py audio_agent/tests/test_registry.py -q` passed.
 - Gaps:
   - real model inference (Qwen2-Audio, Qwen3-Omni, Qwen2.5) is not covered by default CI-safe unit tests; integration depends on cluster env and model availability.
-  - MCP tool tests require pre-created environments (`setup_tool --verify`).
+  - MCP tool tests require pre-created environments (`./test_env.sh` or `./verify_all_tools.sh`).
 
 ## 9. Known ambiguity / risk areas
 - Production readiness: core architecture is complete with real Qwen2.5 planner; tools include both dummy and real MCP-based implementations.
@@ -187,5 +191,5 @@
 9. `audio_agent/tools/catalog/` for MCP tool implementations.
 10. `audio_agent/tests/test_frontend_model_base.py`, `test_qwen2_audio_frontend.py`, `test_qwen3_omni_frontend.py`.
 11. `audio_agent/tests/test_graph_smoke.py`, `test_planner_stages.py`, then other tests.
-12. `SKILL_add_tool.md` for adding new MCP tools.
+12. `tool_preparation/README.md` and `tool_preparation/AGENTS.md` for adding new MCP tools.
 13. `audio_agent/config/settings.py` and `audio_agent/utils/validation.py` only when editing config/validation behavior.

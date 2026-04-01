@@ -20,14 +20,13 @@ audio-agent-download-models --all
 ```
 
 ### 3. Setup Environment
-```bash
-python -m audio_agent.tools.catalog.setup_tool diarizen
-python -m audio_agent.tools.catalog.setup_tool diarizen --verify
-```
 
-If you need to recreate the environment:
 ```bash
-python -m audio_agent.tools.catalog.setup_tool diarizen --force
+# Setup the tool environment (recommended)
+./setup.sh
+
+# Verify it's ready
+./test_env.sh
 ```
 
 ## Usage
@@ -83,7 +82,7 @@ Detected speakers: speaker_0, speaker_3
 ## Troubleshooting
 
 ### Environment not found
-Run setup: `python -m audio_agent.tools.catalog.setup_tool diarizen`
+Run setup: `./setup.sh`
 
 ### Model download fails
 Check HuggingFace access: `huggingface-cli login`
@@ -97,7 +96,8 @@ export DEVICE=cpu
 ### Import errors in server
 Ensure dependencies are installed:
 ```bash
-python -m audio_agent.tools.catalog.setup_tool diarizen --force
+rm -rf .venv
+./setup.sh
 ```
 
 ## References

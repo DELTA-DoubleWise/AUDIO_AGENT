@@ -10,7 +10,7 @@ tags: ["diarization", "speaker", "segmentation", "diarizen"]
 # MCP Server Configuration
 server:
   # IMPORTANT: You MUST pre-create the environment before running!
-  # Run: python -m audio_agent.tools.catalog.setup_tool diarizen
+  # Run: ./setup.sh
   #
   # Using explicit venv Python:
   command: [".venv/bin/python", "server.py"]

@@ -234,7 +234,7 @@ server:
 
 ### Environment Setup
 
-See [`../skill_prepare_tool_env.md`](../skill_prepare_tool_env.md) for complete setup.sh and test_env templates.
+See [`playbooks/env_uv.md`](./playbooks/env_uv.md) for complete setup.sh and test_env templates.
 
 ### Test Your Tool
 
@@ -264,5 +264,3 @@ asyncio.run(test())
 - [Specs](./specs/) - Wrapper contract, model spec template
 - [Contracts](./contracts/) - Validation contracts
 - [Templates](./templates/) - model.spec.yaml, verdict.json, artifact_manifest.json
-- [`../skill_prepare_tool_env.md`](../skill_prepare_tool_env.md) - Environment setup templates
-- [`../SKILL_add_tool.md`](../SKILL_add_tool.md) - High-level tool addition guide

@@ -305,11 +305,11 @@ Before using MCP tools, you must set up their environments:
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Setup tool environments
-python -m audio_agent.tools.catalog.setup_tool asr_qwen3
-python -m audio_agent.tools.catalog.setup_tool diarizen
+cd audio_agent/tools/catalog/asr_qwen3 && ./setup.sh && cd -
+cd audio_agent/tools/catalog/diarizen && ./setup.sh && cd -
 
-# Verify setup
-python -m audio_agent.tools.catalog.setup_tool --list
+# Verify all tools
+./verify_all_tools.sh
 ```
 
 ## References

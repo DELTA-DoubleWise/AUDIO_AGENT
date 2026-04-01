@@ -6,8 +6,10 @@ using the Model Context Protocol (MCP).
 
 Utilities provided:
 - loader: Load tool configurations with path resolution
-- setup_tool: Set up isolated environments for tools using uv
 - register_all_mcp_tools: Auto-register all MCP tools from catalog
+
+For tool onboarding, see tool_preparation/README.md (harness-first workflow).
+For manual setup, use ./setup.sh in each tool directory.
 """
 
 from audio_agent.tools.catalog.loader import (

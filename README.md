@@ -59,7 +59,6 @@ audio_agent/
 │   │   └── schemas.py     # MCP data models
 │   └── catalog/           # MCP tool catalog
 │       ├── loader.py      # Auto-discovery and registration
-│       ├── setup_tool.py  # CLI for tool environment setup
 │       ├── _template/     # Template for new tools
 │       ├── asr_qwen3/     # Qwen3-ASR-1.7B speech recognition
 │       ├── diarizen/      # Speaker diarization
@@ -450,7 +449,14 @@ user_prompt = load_prompt("plan_user").format(question="What is being said?")
 
 ### Adding an MCP Tool
 
-See [SKILL_add_tool.md](./SKILL_add_tool.md) and [skill_prepare_tool_env.md](./skill_prepare_tool_env.md) for detailed instructions. Quick start:
+For new tool onboarding, use the **Harness-First Agent Workflow** (recommended):
+
+```bash
+# See tool_preparation/README.md for the complete workflow
+cat tool_preparation/README.md
+```
+
+For manual tool development, see the [Tool Preparation Guide](./tool_preparation/README.md). Quick start:
 
 ```bash
 # 1. Copy template
@@ -458,7 +464,7 @@ cp -r audio_agent/tools/catalog/_template audio_agent/tools/catalog/my_tool
 
 # 2. Edit pyproject.toml, server.py, config.yaml
 
-# 3. Create setup.sh and test_env.sh (see skill_prepare_tool_env.md for templates)
+# 3. Create setup.sh and test_env.sh (see tool_preparation/playbooks/env_uv.md for templates)
 
 # 4. Setup environment
 cd audio_agent/tools/catalog/my_tool && ./setup.sh

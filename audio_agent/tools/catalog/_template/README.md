@@ -20,11 +20,11 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 ### 2. Setup Environment (REQUIRED)
 
 ```bash
-# Setup this tool's environment
-python -m audio_agent.tools.catalog.setup_tool template_tool
+# Setup this tool's environment (recommended)
+./setup.sh
 
 # Verify it's ready
-python -m audio_agent.tools.catalog.setup_tool template_tool --verify
+./test_env.sh
 ```
 
 ### 3. Test the Server
@@ -71,17 +71,18 @@ dependencies = [
 Then recreate the environment:
 
 ```bash
-python -m audio_agent.tools.catalog.setup_tool template_tool --force
+rm -rf .venv
+./setup.sh
 ```
 
 ### Checking Environment Status
 
 ```bash
-# List all tool environments
-python -m audio_agent.tools.catalog.setup_tool --list
+# Verify all tools
+./verify_all_tools.sh
 
 # Verify this tool is ready
-python -m audio_agent.tools.catalog.setup_tool template_tool --verify
+./test_env.sh
 ```
 
 ## Usage
@@ -162,21 +163,22 @@ asyncio.run(test())
 
 You forgot to setup the environment:
 ```bash
-python -m audio_agent.tools.catalog.setup_tool template_tool
+./setup.sh
 ```
 
 ### "Python executable failed" error
 
 The environment may be corrupted. Recreate it:
 ```bash
-python -m audio_agent.tools.catalog.setup_tool template_tool --force
+rm -rf .venv
+./setup.sh
 ```
 
 ### Import errors
 
 Ensure dependencies are correctly specified in `pyproject.toml` and the environment is up to date:
 ```bash
-python -m audio_agent.tools.catalog.setup_tool template_tool --verify
+./test_env.sh
 ```
 
 ## See Also

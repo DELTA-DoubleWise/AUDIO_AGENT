@@ -98,5 +98,5 @@ py-modules = ["server", "model"]  # Exclude test_env.py
 
 ## 参考
 
-- For complete setup.sh templates, see [`../../skill_prepare_tool_env.md`](../../skill_prepare_tool_env.md).
+- For complete setup.sh templates, see Section 3 below.
 - For persistent uv configuration, see project root `setup_tools_uv_persistent.sh`.

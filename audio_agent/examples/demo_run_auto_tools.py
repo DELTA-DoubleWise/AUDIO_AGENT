@@ -199,7 +199,7 @@ async def amain() -> int:
         if not registered_tools:
             print("\nWarning: No MCP tools were registered!")
             print("Make sure tools are set up:")
-            print("  python -m audio_agent.tools.catalog.setup_tool <tool_name>")
+            print("  cd audio_agent/tools/catalog/<tool_name> && ./setup.sh")
         
         # Create agent
         agent = AudioAgent(

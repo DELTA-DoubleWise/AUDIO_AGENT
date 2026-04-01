@@ -26,11 +26,11 @@ audio-agent-download-models --all
 ### 3. Setup Tool Environment
 
 ```bash
-# Setup the tool environment
-python -m audio_agent.tools.catalog.setup_tool asr_qwen3
+# Setup the tool environment (recommended)
+./setup.sh
 
 # Verify it's ready
-python -m audio_agent.tools.catalog.setup_tool asr_qwen3 --verify
+./test_env.sh
 ```
 
 ## Overview
@@ -56,10 +56,10 @@ This tool provides speech-to-text transcription using Alibaba's Qwen3-ASR-1.7B m
 
 ```bash
 # Setup environment
-python -m audio_agent.tools.catalog.setup_tool asr_qwen3
+./setup.sh
 
 # Verify setup
-python -m audio_agent.tools.catalog.setup_tool asr_qwen3 --verify
+./test_env.sh
 ```
 
 ### Test Server
@@ -170,7 +170,7 @@ asyncio.run(test())
 
 You forgot to setup:
 ```bash
-python -m audio_agent.tools.catalog.setup_tool asr_qwen3
+./setup.sh
 ```
 
 ### Model download fails

@@ -32,7 +32,7 @@ echo "  uv version: $(uv --version)"
 echo ""
 
 # List of tools
-TOOLS=("asr_qwen3" "diarizen" "omni_captioner")
+TOOLS=("asr_qwen3" "diarizen" "ffmpeg" "librosa" "omni_captioner" "snakers4_silero-vad")
 TOTAL=${#TOOLS[@]}
 CURRENT=0
 FAILED=()

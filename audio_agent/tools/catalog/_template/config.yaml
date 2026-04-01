@@ -12,7 +12,7 @@ server:
   # Command to start the MCP server
   # 
   # IMPORTANT: You MUST pre-create the environment before running!
-  # Run: python -m audio_agent.tools.catalog.setup_tool template_tool
+  # Run: ./setup.sh
   #
   # Using explicit venv Python (recommended for production):
   command: [".venv/bin/python", "server.py"]
