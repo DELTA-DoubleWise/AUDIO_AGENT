@@ -5,7 +5,7 @@
 - Main use case: answer user questions about an audio file/URI by iteratively gathering and fusing evidence.
 - Core architectural idea: inject four replaceable components (`frontend`, `planner`, `tool registry/executor`, `evidence fuser`) into a fixed graph orchestration layer.
 - Current frontend design: question-guided captioning only (no frontend planning/final answering), with strict output contract `question_guided_caption`.
-- Runtime flow detail: `frontend_evidence_node -> planner_node -> route_after_planner` and either `answer_node`, `failure_node`, or `tool_executor_node -> evidence_fusion_node -> planner_node` loop.
+- Runtime flow detail: `frontend_evidence_node -> planner_node -> route_after_planner` and either `answer_node`, `failure_node`, `verification_node -> planner_node` (for answer verification), or `tool_executor_node -> evidence_fusion_node -> planner_node` loop.
 
 ## 2. Top-level directory guide
 - `audio_agent/`: all source code; runtime code root; classification `core`.
@@ -48,7 +48,7 @@
 ### Workflow orchestration
 - `audio_agent/graph/builder.py`: compiles graph and wires loop/terminal transitions.
 - `audio_agent/graph/nodes.py`: node behavior; frontend node now appends a single caption evidence item from `question_guided_caption`.
-- `audio_agent/graph/routing.py`: routing after planner and terminal checks.
+- `audio_agent/graph/routing.py`: routing after planner (including verification routing) and terminal checks.
 
 ### Frontend subsystem
 - `audio_agent/frontend/base.py`: base frontend interfaces plus template-method model frontend with shared logic:

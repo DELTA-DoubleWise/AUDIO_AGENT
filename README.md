@@ -20,8 +20,11 @@ START
   -> [routing based on decision]
      - ANSWER -> answer_node -> END
      - CALL_TOOL -> tool_executor_node -> evidence_fusion_node -> planner_node (loop)
+     - VERIFY -> verification_node (frontend reviews draft answer) -> planner_node (loop)
      - FAIL -> failure_node -> END
 ```
+
+**Verification Node**: The planner can optionally request verification for subjective or high-stakes answers. The frontend (audio model) acts as a skeptic to review the draft answer against the audio. If flaws are detected, the critique is added as evidence and planning continues.
 
 ## Project Structure
 
@@ -85,7 +88,9 @@ audio_agent/
 │   ├── answer_system.md   # Planner answer system prompt
 │   ├── answer_user.md     # Planner answer user instruction
 │   ├── clarify_system.md  # Planner clarify system prompt
-│   └── clarify_user.md    # Planner clarify user instruction
+│   ├── clarify_user.md    # Planner clarify user instruction
+│   ├── verification_system.md  # Verification: system prompt for answer review
+│   └── verification_user.md    # Verification: user instruction template
 ├── config/                # Configuration
 │   └── settings.py       # AgentConfig
 ├── utils/                 # Utilities

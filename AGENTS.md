@@ -23,6 +23,7 @@ START
      - ANSWER -> answer_node -> END
      - CALL_TOOL -> tool_executor_node (auto-injects audio_path) 
        -> evidence_fusion_node -> planner_decision_node (loop)
+     - VERIFY -> verification_node (frontend reviews draft answer) -> planner_decision_node (loop)
      - CLARIFY -> intent_clarification_node -> planner_decision_node
      - FAIL -> failure_node -> END
      - EXHAUSTED (max_steps reached) -> failure_node -> END
@@ -32,8 +33,9 @@ START
 - **Initial Planning**: Planner's `plan()` method generates a high-level approach based only on the question (no audio context yet)
 - **Tool Execution**: Tool executor automatically injects `audio_path` from state for tools that need it
 - **Intent Clarification**: When planner returns CLARIFY action, the intent_clarification_node refines the question before continuing
+- **Answer Verification**: Planner can optionally request VERIFY to have the frontend (audio model) review a draft answer before finalizing. If flaws are found, the critique is added as evidence and planning continues.
 - **Final Step**: On the last step (`step_count >= max_steps - 1`), planner's `answer()` method generates final answer directly
-- **Evidence Accumulation**: Frontend output and all tool results are fused into evidence_log for planner context
+- **Evidence Accumulation**: Frontend output, tool results, and verification critiques are fused into evidence_log for planner context
 
 ## Technology Stack
 
@@ -139,7 +141,9 @@ audio_agent/
 │   ├── answer_system.md      # Planner: answer generation system prompt
 │   ├── answer_user.md        # Planner: answer generation user instruction
 │   ├── clarify_system.md     # Planner: intent clarification system prompt
-│   └── clarify_user.md       # Planner: intent clarification user instruction
+│   ├── clarify_user.md       # Planner: intent clarification user instruction
+│   ├── verification_system.md # Verification: system prompt for answer review
+│   └── verification_user.md   # Verification: user instruction template
 ├── fusion/                    # Evidence fusion
 │   ├── base.py               # BaseEvidenceFuser ABC
 │   └── default_fuser.py      # DefaultEvidenceFuser implementation
@@ -769,20 +773,27 @@ validate_state_has_fields(
 
 9. **Intent Clarification**: The planner can return a CLARIFY action when the question is unclear. This triggers the intent_clarification_node which refines the question before continuing.
 
-10. **AgentConfig Fields**: Some fields (`planner_name`, `frontend_name`, `fail_on_tool_error`) exist in config but are not fully wired into orchestration logic yet.
+10. **Answer Verification**: The planner can optionally request a VERIFY action to have the frontend (audio model) review a draft answer before finalizing. This is useful when:
+    - The planner is not fully confident in the answer
+    - The answer relies on subjective interpretation (emotions, intent)
+    - Tool results seem ambiguous or potentially misleading
+    The verification model acts as a skeptic - if flaws are found, the critique is added as evidence and planning continues. Configure via `AgentConfig(enable_verification=True, max_verifications=2)`.
 
-11. **Checkpointer Support**: `build_graph_with_config()` exists but is not used by default `AudioAgent` constructor.
+11. **AgentConfig Fields**: Some fields (`planner_name`, `frontend_name`, `fail_on_tool_error`) exist in config but are not fully wired into orchestration logic yet.
 
-12. **Conda Initialization**: Remember to run `source /lihaoyu/.conda.path.sh` before using conda commands on this system.
+12. **Checkpointer Support**: `build_graph_with_config()` exists but is not used by default `AudioAgent` constructor.
 
-13. **Run Logging**: The framework automatically logs each run to a Markdown file in the `logs/` directory. This includes:
+13. **Conda Initialization**: Remember to run `source /lihaoyu/.conda.path.sh` before using conda commands on this system.
+
+14. **Run Logging**: The framework automatically logs each run to a Markdown file in the `logs/` directory. This includes:
     - Complete AgentState with all evidence, tool calls, and planner decisions
     - Frontend output and initial plan
     - Final answer with output audio information
+    - Verification results and critiques
     - All errors and metadata
     Configure via `AgentConfig(log_dir="./logs", enable_run_logging=True)`.
 
-14. **Audio Output Handling**: For tasks that produce audio files (e.g., trimming, conversion), the framework:
+15. **Audio Output Handling**: For tasks that produce audio files (e.g., trimming, conversion), the framework:
     - Detects audio output requirements at planning stage (`requires_audio_output` flag)
     - Tracks generated audio files in `audio_list`
     - Copies output audio to a dedicated `output/` directory
