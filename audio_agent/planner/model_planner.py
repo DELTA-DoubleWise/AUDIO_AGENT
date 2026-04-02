@@ -99,6 +99,8 @@ class BaseModelPlanner(BasePlanner):
         evidence_log = state.get("evidence_log", [])
         tool_history = state.get("tool_call_history", [])
         audio_list = state.get("audio_list", [])
+        verification_result = state.get("verification_result")
+        verification_count = state.get("verification_count", 0)
 
         evidence_summary = [
             {
@@ -131,16 +133,33 @@ class BaseModelPlanner(BasePlanner):
             for a in audio_list
         ]
 
-        # Load and parse decision rules from markdown
+        # Load decision rules from markdown
+        # Use raw rules text to preserve multi-line formatting and bullet points
         rules_text = load_prompt("decide_rules")
-        rules = [
-            line.strip()[2:].strip()
-            for line in rules_text.split("\n")
-            if line.strip() and line.strip()[0].isdigit()
-        ]
 
+        # Build verification context if applicable
+        verification_context = None
+        if verification_result is not None:
+            verification_context = {
+                "passed": verification_result.passed,
+                "confidence": verification_result.confidence,
+                "critique": verification_result.critique,
+            }
+
+        # Build payload with decision rules FIRST so LLM sees them before evidence
+        # This helps the model prioritize following the rules over getting distracted by evidence
         payload = {
             "question": state["question"],
+            "decision_rules": rules_text,
+            "expected_output_format": {
+                "action": "answer | call_tool | clarify_intent | verify | fail",
+                "rationale": "str - detailed rationale explaining: (a) Why this action was chosen, (b) What evidence supports it, (c) For VERIFY: why verification is needed (see Rule 11), (d) For ANSWER: why confident in the answer (see Rule 1)",
+                "selected_tool_name": "str | null - REQUIRED for call_tool, must be a valid tool name",
+                "selected_tool_args": "dict - arguments for the tool when using call_tool. MUST be {} (empty dict) for answer/verify/clarify_intent/fail actions, never null",
+                "selected_audio_id": "str | null - REQUIRED for call_tool, must be a valid audio_id from Available Audio Files",
+                "draft_answer": "str | null - REQUIRED for answer AND verify actions, your proposed answer",
+                "confidence": "float - 0.0 to 1.0",
+            },
             "frontend_caption": frontend_output.question_guided_caption,
             "initial_plan": initial_plan.model_dump(mode="json"),
             "evidence_log": evidence_summary,
@@ -149,17 +168,10 @@ class BaseModelPlanner(BasePlanner):
             "available_tools": tool_summary,
             "step_count": state.get("step_count", 0),
             "max_steps": state.get("max_steps", 10),
-            "decision_rules": rules,
-            "required_output": {
-                "action": "answer | call_tool | clarify_intent | fail",
-                "rationale": "str - explain your decision",
-                "selected_tool_name": "str | null - REQUIRED for call_tool, must be a valid tool name",
-                "selected_tool_args": "dict - arguments for the tool when using call_tool. MUST be {} (empty dict) for answer/clarify_intent/fail actions, never null",
-                "selected_audio_id": "str | null - REQUIRED for call_tool, must be a valid audio_id from Available Audio Files",
-                "draft_answer": "str | null - REQUIRED for answer, your final response to the question",
-                "confidence": "float - 0.0 to 1.0",
-            },
+            "verification_count": verification_count,
+            "verification_result": verification_context,
         }
+        
         return json.dumps(payload, ensure_ascii=True)
 
     def build_api_model_input_for_plan(self, question: str) -> UnifiedPlannerInput:
@@ -408,7 +420,9 @@ class BaseModelPlanner(BasePlanner):
                 f"Planner model call failed during decision phase: {type(e).__name__}: {e}",
                 details={"planner": self.name},
             ) from e
-        return self.normalize_decision_output(raw_output)
+        
+        decision = self.normalize_decision_output(raw_output)
+        return decision
 
     def answer(self, state: AgentState) -> str:
         """Generate final answer using the model."""
