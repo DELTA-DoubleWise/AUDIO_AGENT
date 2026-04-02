@@ -17,6 +17,7 @@ from audio_agent.core.schemas import (
     FinalAnswer,
     ToolResult,
     AudioItem,
+    VerificationResult,
 )
 from audio_agent.core.constants import AgentStatus
 
@@ -88,6 +89,10 @@ class AgentState(TypedDict, total=False):
     clarified_intent: str | None
     expected_output_format: str | None
     
+    # Verification (optional verification before final answer)
+    verification_result: VerificationResult | None
+    verification_count: int  # Track number of verifications to prevent loops
+    
     # Final outputs
     final_answer: FinalAnswer | None
     error_message: str | None
@@ -143,6 +148,8 @@ def create_initial_state(
         latest_tool_result=None,
         clarified_intent=None,
         expected_output_format=None,
+        verification_result=None,
+        verification_count=0,
         final_answer=None,
         error_message=None,
         step_count=0,
