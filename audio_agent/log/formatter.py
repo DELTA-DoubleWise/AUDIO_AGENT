@@ -94,6 +94,30 @@ def format_initial_plan(plan: Any) -> str:
         lines.append(f"| Possible Tool Types | {', '.join(tool_types)} |")
     
     lines.append("")
+    
+    # Add detailed plan if present
+    detailed_plan = getattr(plan, 'detailed_plan', [])
+    if detailed_plan:
+        lines.append("### Detailed Execution Plan")
+        lines.append("")
+        lines.append("| Step | Description | Tool Type | Expected Output |")
+        lines.append("|------|-------------|-----------|-----------------|")
+        
+        for step in detailed_plan:
+            step_num = getattr(step, 'step_number', 0)
+            description = getattr(step, 'description', '')
+            tool_type = getattr(step, 'tool_type', '') or '-'
+            expected = getattr(step, 'expected_output', '') or '-'
+            
+            # Escape pipe characters and truncate if needed
+            description = str(description).replace('|', '\\|')[:80]
+            tool_type = str(tool_type).replace('|', '\\|')[:20]
+            expected = str(expected).replace('|', '\\|')[:40]
+            
+            lines.append(f"| {step_num} | {description} | {tool_type} | {expected} |")
+        
+        lines.append("")
+    
     return "\n".join(lines)
 
 

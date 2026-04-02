@@ -175,12 +175,33 @@ class PlannerInput(BaseModel):
     max_steps: int
 
 
+class ExecutionStep(BaseModel):
+    """
+    A single step in the execution plan.
+    
+    Part of InitialPlan.detailed_plan for complex questions requiring multi-step reasoning.
+    """
+    step_number: int = Field(..., ge=1, description="Step order (1, 2, 3...)")
+    description: str = Field(..., min_length=1, description="What this step does")
+    tool_type: str | None = Field(default=None, description="Suggested tool type (e.g., 'asr', 'diarization')")
+    expected_output: str | None = Field(default=None, description="What we expect from this step")
+    
+    model_config = {"extra": "forbid"}
+    
+    @model_validator(mode="after")
+    def validate_step(self) -> "ExecutionStep":
+        """Fail-fast validation for execution step."""
+        if not self.description.strip():
+            raise ValueError("ExecutionStep.description must be non-empty")
+        return self
+
+
 class InitialPlan(BaseModel):
     """
     Initial high-level plan generated from the question only.
 
     This plan guides downstream action decisions but is not itself a tool call decision.
-    Includes clarified intent and expected output format extracted from the question.
+    Includes clarified intent, expected output format, and optional detailed execution steps.
     """
 
     approach: str = Field(..., min_length=1, description="High-level strategy for answering")
@@ -204,6 +225,10 @@ class InitialPlan(BaseModel):
     requires_audio_output: bool = Field(
         default=False,
         description="Whether the task requires/produces an audio file as output",
+    )
+    detailed_plan: list[ExecutionStep] = Field(
+        default_factory=list,
+        description="Optional todo list for complex questions. Leave empty for simple questions.",
     )
     timestamp: datetime = Field(default_factory=datetime.now)
     model_config = {"extra": "forbid"}
