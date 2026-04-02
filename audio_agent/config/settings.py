@@ -23,6 +23,8 @@ class AgentConfig(BaseModel):
         copy_output_to_dir: Copy final output audio to output_dir for easy access
         log_dir: Directory for run logs
         enable_run_logging: Enable run logging to markdown files
+        enable_verification: Allow planner to use VERIFY action for answer verification
+        max_verifications: Maximum number of verifications allowed per run
     """
     max_steps: int = Field(default=10, ge=1, le=100)
     debug: bool = Field(default=False)
@@ -35,6 +37,16 @@ class AgentConfig(BaseModel):
     copy_output_to_dir: bool = Field(default=True, description="Copy output audio to output_dir")
     log_dir: str = Field(default="./logs", description="Directory for run logs")
     enable_run_logging: bool = Field(default=True, description="Enable run logging to markdown files")
+    enable_verification: bool = Field(
+        default=True,
+        description="Allow planner to use VERIFY action for answer verification"
+    )
+    max_verifications: int = Field(
+        default=2,
+        ge=0,
+        le=10,
+        description="Maximum number of verifications allowed per run"
+    )
     
     model_config = {
         "frozen": False,  # Allow modification after creation
