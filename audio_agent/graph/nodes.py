@@ -16,6 +16,7 @@ from audio_agent.core.schemas import (
     FinalAnswer,
     AudioItem,
     AudioOutput,
+    VerificationResult,
 )
 from audio_agent.core.constants import AgentStatus
 from audio_agent.core.errors import (
@@ -513,6 +514,132 @@ def create_evidence_fusion_node(fuser: BaseEvidenceFuser):
     return evidence_fusion_node
 
 
+def create_verification_node(frontend: BaseFrontend):
+    """
+    Factory to create a verification node.
+    
+    Uses the frontend (audio model) to verify a proposed answer by
+    reviewing it against the audio content.
+    
+    Args:
+        frontend: Frontend instance with verify_answer capability
+    
+    Returns:
+        Node function compatible with LangGraph
+    """
+    def verification_node(state: AgentState) -> dict:
+        """
+        Verify the proposed answer in current_decision.
+        
+        Validates:
+        - current_decision exists and is VERIFY
+        - draft_answer is present (the answer to verify)
+        - audio_0 (original audio) exists
+        
+        Updates:
+        - verification_result
+        - verification_count (increments)
+        - evidence_log (appends verification result as evidence if failed)
+        """
+        log_node_start("verification_node")
+        
+        validate_state_has_fields(
+            state,
+            ["current_decision", "audio_list", "question"],
+            context="verification_node",
+        )
+        
+        decision: PlannerDecision = state["current_decision"]
+        audio_list: list[AudioItem] = state["audio_list"]
+        question: str = state["question"]
+        
+        if decision.action != PlannerActionType.VERIFY:
+            raise StateValidationError(
+                f"verification_node called with non-VERIFY action: {decision.action}",
+                details={"action": decision.action.value}
+            )
+        
+        if not decision.draft_answer:
+            raise StateValidationError(
+                "VERIFY decision has no draft_answer",
+                details={"decision": decision.model_dump()}
+            )
+        
+        # Find audio_0 (original audio) in the list
+        original_audio = next(
+            (a for a in audio_list if a.audio_id == "audio_0"),
+            None
+        )
+        if original_audio is None:
+            raise StateValidationError(
+                "audio_0 (original audio) not found in audio_list",
+                details={"audio_ids": [a.audio_id for a in audio_list]}
+            )
+        
+        audio_path = original_audio.path
+        proposed_answer = decision.draft_answer
+        
+        # Call frontend to verify the answer
+        try:
+            verification_result = frontend.verify_answer(
+                question=question,
+                audio_path_or_uri=audio_path,
+                proposed_answer=proposed_answer,
+            )
+        except FrontendError:
+            raise
+        except Exception as e:
+            log_error("verification_node", e)
+            raise FrontendError(
+                f"Verification failed: {e}",
+                details={"frontend": frontend.name}
+            ) from e
+        
+        if verification_result is None:
+            raise FrontendError(
+                "Frontend returned None for verification",
+                details={"frontend": frontend.name}
+            )
+        
+        # Update verification count
+        current_count = state.get("verification_count", 0)
+        new_count = current_count + 1
+        
+        # Prepare return updates
+        updates: dict = {
+            "verification_result": verification_result,
+            "verification_count": new_count,
+        }
+        
+        # If verification failed, add critique as evidence
+        if not verification_result.passed and verification_result.critique:
+            critique_evidence = EvidenceItem(
+                source=f"verification:{frontend.name}",
+                content=f"Verification failed: {verification_result.critique}",
+                evidence_type="verification_critique",
+                confidence=verification_result.confidence,
+                metadata={
+                    "proposed_answer": proposed_answer[:200],  # Truncate for metadata
+                    "verification_passed": verification_result.passed,
+                },
+            )
+            updates["evidence_log"] = [critique_evidence]
+            log_node_end("verification_node", {
+                "passed": verification_result.passed,
+                "confidence": verification_result.confidence,
+                "critique": verification_result.critique[:100],
+            })
+        else:
+            log_node_end("verification_node", {
+                "passed": verification_result.passed,
+                "confidence": verification_result.confidence,
+            })
+        
+        return updates
+    
+    return verification_node
+
+
 def create_intent_clarification_node(planner: BasePlanner):
     """
     Factory to create an intent clarification node.
@@ -743,4 +870,5 @@ planner_decision_node = create_planner_decision_node
 planner_node = create_planner_decision_node  # Backward-compatible alias
 tool_executor_node = create_tool_executor_node
 evidence_fusion_node = create_evidence_fusion_node
+verification_node = create_verification_node
 intent_clarification_node = create_intent_clarification_node

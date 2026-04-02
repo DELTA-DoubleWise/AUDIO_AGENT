@@ -14,11 +14,13 @@ from audio_agent.graph.nodes import (
     create_tool_executor_node,
     create_evidence_fusion_node,
     create_intent_clarification_node,
+    create_verification_node,
     answer_node,
     failure_node,
 )
 from audio_agent.graph.routing import (
     route_after_planner_decision,
+    route_after_verification,
     NODE_ANSWER,
     NODE_TOOL_EXECUTOR,
     NODE_FAILURE,
@@ -26,6 +28,7 @@ from audio_agent.graph.routing import (
     NODE_INITIAL_PLAN,
     NODE_PLANNER_DECISION,
     NODE_INTENT_CLARIFICATION,
+    NODE_VERIFICATION,
 )
 from audio_agent.frontend.base import BaseFrontend
 from audio_agent.planner.base import BasePlanner
@@ -52,6 +55,8 @@ def build_graph(
       -> [conditional routing based on decision]
          - ANSWER -> answer_node -> END
          - CALL_TOOL -> tool_executor_node -> evidence_fusion_node -> planner_decision_node (loop)
+         - VERIFY -> verification_node -> planner_decision_node (loop)
+         - CLARIFY_INTENT -> intent_clarification_node -> planner_decision_node (loop)
          - FAIL -> failure_node -> END
     
     Args:
@@ -82,6 +87,7 @@ def build_graph(
     tool_executor_node_fn = create_tool_executor_node(executor)
     evidence_fusion_node_fn = create_evidence_fusion_node(fuser)
     intent_clarification_node_fn = create_intent_clarification_node(planner)
+    verification_node_fn = create_verification_node(frontend)
     
     # Build the graph
     graph = StateGraph(AgentState)
@@ -93,6 +99,7 @@ def build_graph(
     graph.add_node(NODE_TOOL_EXECUTOR, tool_executor_node_fn)
     graph.add_node(NODE_EVIDENCE_FUSION, evidence_fusion_node_fn)
     graph.add_node(NODE_INTENT_CLARIFICATION, intent_clarification_node_fn)
+    graph.add_node(NODE_VERIFICATION, verification_node_fn)
     graph.add_node(NODE_ANSWER, answer_node)
     graph.add_node(NODE_FAILURE, failure_node)
     
@@ -114,6 +121,7 @@ def build_graph(
             NODE_ANSWER: NODE_ANSWER,
             NODE_TOOL_EXECUTOR: NODE_TOOL_EXECUTOR,
             NODE_INTENT_CLARIFICATION: NODE_INTENT_CLARIFICATION,
+            NODE_VERIFICATION: NODE_VERIFICATION,
             NODE_FAILURE: NODE_FAILURE,
         }
     )
@@ -126,6 +134,15 @@ def build_graph(
     
     # intent_clarification_node -> planner_decision_node (loop back)
     graph.add_edge(NODE_INTENT_CLARIFICATION, NODE_PLANNER_DECISION)
+    
+    # verification_node -> conditional routing based on result
+    graph.add_conditional_edges(
+        NODE_VERIFICATION,
+        route_after_verification,
+        {
+            NODE_PLANNER_DECISION: NODE_PLANNER_DECISION,
+        }
+    )
     
     # Terminal nodes -> END
     graph.add_edge(NODE_ANSWER, END)
@@ -176,6 +193,7 @@ def build_graph_with_config(
     tool_executor_node_fn = create_tool_executor_node(executor)
     evidence_fusion_node_fn = create_evidence_fusion_node(fuser)
     intent_clarification_node_fn = create_intent_clarification_node(planner)
+    verification_node_fn = create_verification_node(frontend)
     
     graph = StateGraph(AgentState)
     
@@ -185,6 +203,7 @@ def build_graph_with_config(
     graph.add_node(NODE_TOOL_EXECUTOR, tool_executor_node_fn)
     graph.add_node(NODE_EVIDENCE_FUSION, evidence_fusion_node_fn)
     graph.add_node(NODE_INTENT_CLARIFICATION, intent_clarification_node_fn)
+    graph.add_node(NODE_VERIFICATION, verification_node_fn)
     graph.add_node(NODE_ANSWER, answer_node)
     graph.add_node(NODE_FAILURE, failure_node)
     
@@ -199,6 +218,7 @@ def build_graph_with_config(
             NODE_ANSWER: NODE_ANSWER,
             NODE_TOOL_EXECUTOR: NODE_TOOL_EXECUTOR,
             NODE_INTENT_CLARIFICATION: NODE_INTENT_CLARIFICATION,
+            NODE_VERIFICATION: NODE_VERIFICATION,
             NODE_FAILURE: NODE_FAILURE,
         }
     )
@@ -206,6 +226,15 @@ def build_graph_with_config(
     graph.add_edge(NODE_TOOL_EXECUTOR, NODE_EVIDENCE_FUSION)
     graph.add_edge(NODE_EVIDENCE_FUSION, NODE_PLANNER_DECISION)
     graph.add_edge(NODE_INTENT_CLARIFICATION, NODE_PLANNER_DECISION)
+    
+    graph.add_conditional_edges(
+        NODE_VERIFICATION,
+        route_after_verification,
+        {
+            NODE_PLANNER_DECISION: NODE_PLANNER_DECISION,
+        }
+    )
+    
     graph.add_edge(NODE_ANSWER, END)
     graph.add_edge(NODE_FAILURE, END)
     
