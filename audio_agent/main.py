@@ -19,6 +19,7 @@ from audio_agent.frontend.base import BaseFrontend
 from audio_agent.planner.base import BasePlanner
 from audio_agent.tools.registry import ToolRegistry
 from audio_agent.fusion.base import BaseEvidenceFuser
+from audio_agent.log import RunLogger
 
 
 class AudioAgent:
@@ -70,6 +71,11 @@ class AudioAgent:
         
         # Build the graph
         self._graph = build_graph(frontend, planner, registry, fuser)
+        
+        # Set up run logger
+        self._run_logger: RunLogger | None = None
+        if self.config.enable_run_logging:
+            self._run_logger = RunLogger(log_dir=self.config.log_dir)
     
     def _setup_temp_dir(self, audio_path: str) -> tuple[str, list[AudioItem]]:
         """
@@ -252,6 +258,12 @@ class AudioAgent:
                 if updated_audio and updated_audio.path != final_answer.output_audio.path:
                     # Update the final_state with the new output_audio path
                     final_answer.output_audio = updated_audio
+            
+            # Log the run
+            if self._run_logger:
+                log_path = self._run_logger.log_run(final_state)
+                if log_path:
+                    log_info("run_logged", {"log_file": log_path})
             
             return final_state
         finally:

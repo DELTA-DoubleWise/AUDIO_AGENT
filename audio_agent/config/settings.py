@@ -21,6 +21,8 @@ class AgentConfig(BaseModel):
         cleanup_temp_on_exit: Whether to clean up temp files after run() completes
         output_dir: Directory for final output files (audio results)
         copy_output_to_dir: Copy final output audio to output_dir for easy access
+        log_dir: Directory for run logs
+        enable_run_logging: Enable run logging to markdown files
     """
     max_steps: int = Field(default=10, ge=1, le=100)
     debug: bool = Field(default=False)
@@ -31,6 +33,8 @@ class AgentConfig(BaseModel):
     cleanup_temp_on_exit: bool = Field(default=True, description="Clean up temp files after run()")
     output_dir: str = Field(default="./output", description="Directory for final output files")
     copy_output_to_dir: bool = Field(default=True, description="Copy output audio to output_dir")
+    log_dir: str = Field(default="./logs", description="Directory for run logs")
+    enable_run_logging: bool = Field(default=True, description="Enable run logging to markdown files")
     
     model_config = {
         "frozen": False,  # Allow modification after creation

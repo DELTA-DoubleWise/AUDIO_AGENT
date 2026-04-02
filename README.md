@@ -70,6 +70,10 @@ audio_agent/
 │   ├── builder.py        # Graph construction
 │   ├── nodes.py          # Node functions
 │   └── routing.py        # Routing logic
+├── log/                   # Run logging
+│   ├── __init__.py       # Exports: RunLogger, log_run
+│   ├── logger.py         # RunLogger class for markdown logs
+│   └── formatter.py      # Markdown formatting utilities
 ├── prompts/               # Markdown prompt files
 │   ├── frontend_system.md # Frontend system prompt
 │   ├── frontend_user.md   # Frontend user instruction

@@ -50,6 +50,8 @@ models/
 
 # Demo / runtime artifacts
 output.wav
+output/
+logs/
 audio_agent/tools/catalog/diarizen/diarizen_src/
 
 # Server-specific files (do not push to remote)
