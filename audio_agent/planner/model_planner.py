@@ -441,6 +441,7 @@ class BaseModelPlanner(BasePlanner):
         """Build model input for final answer generation."""
         question = state["question"]
         evidence_log = state.get("evidence_log", [])
+        initial_plan = state.get("initial_plan")
 
         # Build evidence summary
         evidence_text = "\n".join(
@@ -448,11 +449,21 @@ class BaseModelPlanner(BasePlanner):
             for item in evidence_log
         )
 
+        # Check if audio output is expected
+        requires_audio_output = (
+            initial_plan.requires_audio_output if initial_plan else False
+        )
+
         system_prompt = load_prompt("answer_system")
         user_text = load_prompt("answer_user").format(
             question=question,
             evidence_text=evidence_text,
         )
+
+        # Add audio output context if applicable
+        if requires_audio_output:
+            user_text += "\n\n**Task Type:** This task requires producing an audio file output."
+            user_text += "\nPlease confirm the audio processing was completed successfully."
 
         return UnifiedPlannerInput(
             system_prompt=system_prompt,
@@ -463,7 +474,11 @@ class BaseModelPlanner(BasePlanner):
                 {"role": "user", "content": user_text},
             ],
             user_payload={"question": question, "task": "final_answer"},
-            metadata={"planner_name": self.name, "task_type": "final_answer"},
+            metadata={
+                "planner_name": self.name,
+                "task_type": "final_answer",
+                "requires_audio_output": requires_audio_output,
+            },
         )
 
     def build_clarify_intent_model_input(self, state: AgentState) -> UnifiedPlannerInput:

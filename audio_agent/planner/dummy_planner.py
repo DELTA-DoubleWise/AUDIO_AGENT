@@ -34,13 +34,42 @@ class DummyPlanner(BasePlanner):
     def plan(self, question: str) -> InitialPlan:
         """Produce deterministic initial plan from question only."""
         question = self.validate_question(question)
-        return InitialPlan(
-            approach="Start with speech transcription, then synthesize direct evidence for the question.",
-            focus_points=[
+        
+        # Simple keyword-based detection for audio output requirements
+        audio_processing_keywords = [
+            "trim", "cut", "crop", "slice", "extract", "split",
+            "merge", "mix", "concatenate", "join", "combine",
+            "convert", "resample", "change format",
+            "normalize", "denoise", "enhance", "filter", "eq",
+            "pitch", "speed", "tempo", "stretch",
+            "volume", "amplify", "compress", "limit",
+            "save", "output", "export", "generate",
+        ]
+        question_lower = question.lower()
+        requires_audio_output = any(kw in question_lower for kw in audio_processing_keywords)
+        
+        # Adjust approach based on audio output requirement
+        if requires_audio_output:
+            approach = "Process the audio as requested and produce the transformed audio file."
+            focus_points = [
+                "Identify the specific audio processing required",
+                "Apply the correct transformation to the audio",
+                "Ensure output audio is properly generated and saved",
+            ]
+            possible_tool_types = ["ffmpeg", "audio_processing"]
+        else:
+            approach = "Start with speech transcription, then synthesize direct evidence for the question."
+            focus_points = [
                 "Identify question-relevant speech content",
                 "Keep answer grounded in observed audio evidence",
-            ],
-            possible_tool_types=["asr", "event_detection"],
+            ]
+            possible_tool_types = ["asr", "event_detection"]
+        
+        return InitialPlan(
+            approach=approach,
+            focus_points=focus_points,
+            possible_tool_types=possible_tool_types,
+            requires_audio_output=requires_audio_output,
             notes=f"[DummyPlanner] Initial plan generated for question: {question}",
         )
     

@@ -123,6 +123,10 @@ class MCPToolAdapter(BaseTool):
                     text_parts.append(item.text)
             output["text"] = "\n".join(text_parts)
             
+            # Try to extract structured data from text (e.g., JSON output)
+            # This handles tools that return JSON with output_path, etc.
+            self._extract_structured_output(output)
+            
             return ToolResult(
                 tool_name=self.spec.name,
                 success=True,
@@ -136,6 +140,41 @@ class MCPToolAdapter(BaseTool):
                 output={},
                 error_message=f"MCP tool invocation failed: {e}",
             )
+    
+    def _extract_structured_output(self, output: dict) -> None:
+        """
+        Extract structured data from text content.
+        
+        Parses JSON from text fields to extract fields like:
+        - output_path: Set as generated_audio_path for audio processing tools
+        - duration, sample_rate, channels: Audio metadata
+        """
+        import json
+        
+        # Try to parse JSON from the combined text
+        text = output.get("text", "")
+        if not text:
+            return
+        
+        try:
+            # Try parsing the entire text as JSON
+            data = json.loads(text)
+            if isinstance(data, dict):
+                # If there's an output_path, also set it as generated_audio_path
+                # This allows tool_executor_node to track the generated audio
+                if "output_path" in data and "generated_audio_path" not in output:
+                    output["generated_audio_path"] = data["output_path"]
+                
+                # Copy other common audio metadata fields
+                for key in ["duration", "sample_rate", "channels", "format"]:
+                    if key in data and key not in output:
+                        output[key] = data[key]
+                
+                # Store the parsed data for convenience
+                output["parsed_data"] = data
+        except json.JSONDecodeError:
+            # Not valid JSON, ignore
+            pass
     
     def validate_request(self, request: ToolCallRequest) -> None:
         """

@@ -10,3 +10,5 @@
 5. action='answer' REQUIRES: draft_answer (non-empty)
 6. action='clarify_intent' uses reasoning only - do not call tools.
 7. Do NOT use action='call_tool' if you are ready to answer - use action='answer' instead.
+8. **Audio Output Rule:** If the task requires producing an audio file (requires_audio_output is true), verify that a new audio file has been generated before answering. Check Available Audio Files for audio entries with source != 'original'. Only answer when the output audio exists.
+9. **Answer Content Rule:** In draft_answer, do NOT include raw file paths (/tmp/... or /output/...). Instead, reference output audio by ID (e.g., "available as audio_1") or say "the output audio file". The exact path will be provided separately.

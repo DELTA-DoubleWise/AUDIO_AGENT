@@ -15,6 +15,7 @@ from audio_agent.core.schemas import (
     ToolCallRecord,
     FinalAnswer,
     AudioItem,
+    AudioOutput,
 )
 from audio_agent.core.constants import AgentStatus
 from audio_agent.core.errors import (
@@ -30,6 +31,7 @@ from audio_agent.core.logging import (
     log_planner_decision,
     log_error,
     log_state_transition,
+    log_warning,
 )
 from audio_agent.utils.validation import validate_state_has_fields
 from audio_agent.frontend.base import BaseFrontend
@@ -606,7 +608,7 @@ def answer_node(state: AgentState) -> dict:
     - draft_answer is present
     
     Updates:
-    - final_answer
+    - final_answer (with output_audio if applicable)
     - status (to ANSWERED)
     """
     log_node_start("answer_node")
@@ -644,12 +646,39 @@ def answer_node(state: AgentState) -> dict:
         for i, d in enumerate(planner_trace)
     )
     
+    # Determine output audio
+    output_audio = None
+    initial_plan = state.get("initial_plan")
+    audio_list = state.get("audio_list", [])
+    
+    # Check if audio output is expected and available
+    if initial_plan and initial_plan.requires_audio_output and audio_list:
+        # Find the last non-original audio (most likely the output)
+        generated_audios = [a for a in audio_list if a.source != "original"]
+        if generated_audios:
+            last_audio = generated_audios[-1]
+            output_audio = AudioOutput(
+                audio_id=last_audio.audio_id,
+                path=last_audio.path,
+                description=last_audio.description,
+                metadata=last_audio.metadata,
+            )
+    
+    # Build final answer with output_audio
     final_answer = FinalAnswer(
         answer=decision.draft_answer,
         confidence=decision.confidence,
         evidence_summary=evidence_summary,
         reasoning_trace=reasoning_trace,
+        output_audio=output_audio,
     )
+    
+    # Log warning if audio was expected but not found
+    if initial_plan and initial_plan.requires_audio_output and not output_audio:
+        log_warning(
+            "answer_node",
+            {"message": "Audio output was expected but not found in audio_list"}
+        )
     
     log_state_transition(
         state.get("status", AgentStatus.RUNNING).value,
@@ -657,7 +686,10 @@ def answer_node(state: AgentState) -> dict:
         "Planner provided final answer",
     )
     
-    log_node_end("answer_node", {"answer_length": len(final_answer.answer)})
+    log_node_end("answer_node", {
+        "answer_length": len(final_answer.answer),
+        "has_output_audio": output_audio is not None,
+    })
     
     return {
         "final_answer": final_answer,

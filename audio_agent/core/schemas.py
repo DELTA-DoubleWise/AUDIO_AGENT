@@ -199,6 +199,10 @@ class InitialPlan(BaseModel):
         default=None,
         description="Expected format of the final answer (extracted from question)",
     )
+    requires_audio_output: bool = Field(
+        default=False,
+        description="Whether the task requires/produces an audio file as output",
+    )
     timestamp: datetime = Field(default_factory=datetime.now)
     model_config = {"extra": "forbid"}
 
@@ -259,6 +263,20 @@ class PlannerDecision(BaseModel):
 
 
 # =============================================================================
+# Audio Output Schema
+# =============================================================================
+
+class AudioOutput(BaseModel):
+    """Output audio file information for final answer."""
+    audio_id: str = Field(..., description="Reference ID (e.g., audio_3)")
+    path: str = Field(..., description="Absolute path to the audio file")
+    description: str = Field(..., description="Description of what this audio represents")
+    metadata: dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
+    
+    model_config = {"extra": "forbid"}
+
+
+# =============================================================================
 # Final Answer Schema
 # =============================================================================
 
@@ -268,4 +286,8 @@ class FinalAnswer(BaseModel):
     confidence: float = Field(default=0.0, ge=0.0, le=1.0)
     evidence_summary: str = Field(default="")
     reasoning_trace: str = Field(default="")
+    output_audio: AudioOutput | None = Field(
+        default=None,
+        description="Output audio file if the task produces one",
+    )
     timestamp: datetime = Field(default_factory=datetime.now)

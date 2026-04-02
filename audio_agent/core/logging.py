@@ -130,3 +130,12 @@ def log_info(event: str, details: dict[str, Any] | None = None) -> None:
     if details:
         msg += f" | Details: {details}"
     logger.info(msg)
+
+
+def log_warning(event: str, details: dict[str, Any] | None = None) -> None:
+    """Log a warning event."""
+    logger = get_logger()
+    msg = f"WARNING: {event}"
+    if details:
+        msg += f" | Details: {details}"
+    logger.warning(msg)

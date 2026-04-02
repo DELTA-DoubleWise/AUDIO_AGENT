@@ -11,7 +11,7 @@ from pathlib import Path
 
 from audio_agent.core.state import AgentState, create_initial_state
 from audio_agent.core.constants import AgentStatus
-from audio_agent.core.schemas import FinalAnswer, AudioItem
+from audio_agent.core.schemas import FinalAnswer, AudioItem, AudioOutput
 from audio_agent.core.logging import setup_logger, set_debug_mode, log_info
 from audio_agent.config.settings import AgentConfig
 from audio_agent.graph.builder import build_graph
@@ -128,6 +128,65 @@ class AudioAgent:
             except Exception as e:
                 log_info("temp_dir_cleanup_failed", {"path": self._temp_dir, "error": str(e)})
     
+    def _setup_output_dir(self) -> str:
+        """
+        Create output directory if it doesn't exist.
+        
+        Returns:
+            Absolute path to the output directory
+        """
+        output_dir = os.path.abspath(self.config.output_dir)
+        os.makedirs(output_dir, exist_ok=True)
+        log_info("output_dir_ready", {"path": output_dir})
+        return output_dir
+    
+    def _copy_output_audio(self, final_answer: FinalAnswer) -> AudioOutput | None:
+        """
+        Copy output audio to output_dir if configured.
+        
+        Args:
+            final_answer: The final answer containing output_audio
+            
+        Returns:
+            Updated AudioOutput with the new path, or None if no copy was made
+        """
+        if not self.config.copy_output_to_dir:
+            return final_answer.output_audio
+        
+        if not final_answer.output_audio:
+            return None
+        
+        src_path = final_answer.output_audio.path
+        if not os.path.exists(src_path):
+            log_info("output_audio_source_not_found", {"path": src_path})
+            return final_answer.output_audio
+        
+        # Generate timestamped filename
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        original_name = Path(src_path).stem
+        ext = Path(src_path).suffix
+        filename = f"{original_name}_{timestamp}{ext}"
+        dest_path = os.path.join(self.config.output_dir, filename)
+        
+        try:
+            shutil.copy2(src_path, dest_path)
+            log_info("output_audio_copied", {"source": src_path, "dest": dest_path})
+            
+            # Return updated AudioOutput with new path
+            return AudioOutput(
+                audio_id=final_answer.output_audio.audio_id,
+                path=dest_path,
+                description=final_answer.output_audio.description,
+                metadata={
+                    **final_answer.output_audio.metadata,
+                    "original_path": src_path,
+                    "copied_to_output": True,
+                }
+            )
+        except Exception as e:
+            log_info("output_audio_copy_failed", {"source": src_path, "error": str(e)})
+            return final_answer.output_audio
+    
     def run(
         self,
         question: str,
@@ -170,8 +229,9 @@ class AudioAgent:
         """
         effective_max_steps = max_steps if max_steps is not None else self.config.max_steps
         
-        # Setup temp directory and copy audio
+        # Setup directories
         temp_dir, audio_list = self._setup_temp_dir(audio_path_or_uri)
+        self._setup_output_dir()
         
         initial_state = create_initial_state(
             question=question,
@@ -184,6 +244,15 @@ class AudioAgent:
         try:
             # Execute the graph asynchronously
             final_state = await self._graph.ainvoke(initial_state)
+            
+            # Copy output audio if present
+            final_answer = final_state.get("final_answer")
+            if final_answer and final_answer.output_audio:
+                updated_audio = self._copy_output_audio(final_answer)
+                if updated_audio and updated_audio.path != final_answer.output_audio.path:
+                    # Update the final_state with the new output_audio path
+                    final_answer.output_audio = updated_audio
+            
             return final_state
         finally:
             # Cleanup if enabled

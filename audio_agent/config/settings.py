@@ -19,6 +19,8 @@ class AgentConfig(BaseModel):
         fail_on_tool_error: Whether to fail the agent on tool errors
         temp_dir_base: Base directory for temporary audio file storage
         cleanup_temp_on_exit: Whether to clean up temp files after run() completes
+        output_dir: Directory for final output files (audio results)
+        copy_output_to_dir: Copy final output audio to output_dir for easy access
     """
     max_steps: int = Field(default=10, ge=1, le=100)
     debug: bool = Field(default=False)
@@ -27,6 +29,8 @@ class AgentConfig(BaseModel):
     fail_on_tool_error: bool = Field(default=True)
     temp_dir_base: str = Field(default="./temp", description="Base directory for temp folders")
     cleanup_temp_on_exit: bool = Field(default=True, description="Clean up temp files after run()")
+    output_dir: str = Field(default="./output", description="Directory for final output files")
+    copy_output_to_dir: bool = Field(default=True, description="Copy output audio to output_dir")
     
     model_config = {
         "frozen": False,  # Allow modification after creation

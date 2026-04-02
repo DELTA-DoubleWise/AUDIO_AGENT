@@ -20,6 +20,12 @@ Max Steps: {max_steps}
 Decision Rules:
 {decision_rules}
 
+**Important Notes for draft_answer:**
+- Do NOT include raw file paths (/tmp/... or /output/...) in your answer
+- Reference output audio by ID (e.g., "available as audio_1") or say "the output audio file"
+- The exact file path will be provided separately in the structured output
+- Focus on describing WHAT was done and the RESULT
+
 Required Output Format:
 {{
     "action": "answer | call_tool | clarify_intent | fail",

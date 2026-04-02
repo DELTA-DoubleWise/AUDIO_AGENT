@@ -251,6 +251,13 @@ async def amain() -> int:
         print_separator("Final Answer")
         print(f"\n{final_answer.answer}")
         print(f"\nConfidence: {final_answer.confidence:.2f}")
+        
+        # Print output audio if present
+        if final_answer.output_audio:
+            print(f"\nOutput Audio:")
+            print(f"  ID: {final_answer.output_audio.audio_id}")
+            print(f"  Path: {final_answer.output_audio.path}")
+            print(f"  Description: {final_answer.output_audio.description}")
     
     # Print error if any
     error_message = final_state.get("error_message")
