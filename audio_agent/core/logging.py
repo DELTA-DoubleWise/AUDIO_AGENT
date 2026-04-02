@@ -61,7 +61,11 @@ def get_logger() -> logging.Logger:
 def set_debug_mode(enabled: bool = True) -> None:
     """Enable or disable debug logging."""
     logger = get_logger()
-    logger.setLevel(logging.DEBUG if enabled else logging.INFO)
+    level = logging.DEBUG if enabled else logging.INFO
+    logger.setLevel(level)
+    # Also update all handlers
+    for handler in logger.handlers:
+        handler.setLevel(level)
 
 
 # =============================================================================
