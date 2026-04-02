@@ -39,7 +39,7 @@
 ## 4. Important modules and file responsibilities
 
 ### Core contracts and state
-- `audio_agent/core/schemas.py`: defines Pydantic contracts; notable current frontend contract is `FrontendOutput(question_guided_caption, timestamp)` with strict validation (`extra=forbid`).
+- `audio_agent/core/schemas.py`: defines Pydantic contracts; notable schemas include `FrontendOutput(question_guided_caption, timestamp)`, `InitialPlan(approach, focus_points, detailed_plan)`, `ExecutionStep(step_number, description, tool_type, expected_output)`, and `VerificationResult(passed, critique, confidence)` with strict validation (`extra=forbid`).
 - `audio_agent/core/state.py`: defines `AgentState` schema and `create_initial_state(...)`.
 - `audio_agent/core/errors.py`: exception taxonomy (`FrontendError`, `PlannerError`, etc.).
 - `audio_agent/core/constants.py`: `AgentStatus` enum and defaults.

@@ -578,6 +578,8 @@ All prompts are externalized as markdown files in `audio_agent/prompts/`. This a
 | `answer_user.md` | Planner answer user instruction | `{question}`, `{evidence_text}` |
 | `clarify_system.md` | Planner clarify system prompt | None |
 | `clarify_user.md` | Planner clarify user instruction | `{question}`, `{clarified_intent}`, `{expected_format}`, `{evidence_text}` |
+| `verification_system.md` | Verification: system prompt for answer review | None |
+| `verification_user.md` | Verification: user instruction template | `{question}`, `{proposed_answer}` |
 
 **Loading Prompts:**
 
