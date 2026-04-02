@@ -10,7 +10,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 
 from audio_agent.core.errors import FrontendError
-from audio_agent.core.schemas import FrontendOutput
+from audio_agent.core.schemas import FrontendOutput, VerificationResult
 
 
 class BaseFrontend(ABC):
@@ -46,6 +46,35 @@ class BaseFrontend(ABC):
             FrontendError: If processing fails or input is invalid
         """
         raise NotImplementedError
+
+    def verify_answer(
+        self,
+        question: str,
+        audio_path_or_uri: str,
+        proposed_answer: str,
+    ) -> VerificationResult:
+        """
+        Verify a proposed answer by reviewing it against the audio.
+
+        This method acts as a skeptic to check for apparent flaws in the
+        proposed answer based on the audio content. Only speaks up if
+        confident there's a problem.
+
+        Args:
+            question: The original user question about the audio
+            audio_path_or_uri: Path or URI to the audio file
+            proposed_answer: The answer to be verified
+
+        Returns:
+            VerificationResult with passed status, critique (if failed), and confidence
+
+        Raises:
+            FrontendError: If verification fails or input is invalid
+            NotImplementedError: If this frontend doesn't support verification
+        """
+        raise NotImplementedError(
+            f"Frontend {self.name} does not support answer verification"
+        )
 
     def validate_inputs(self, question: str, audio_path_or_uri: str) -> None:
         """

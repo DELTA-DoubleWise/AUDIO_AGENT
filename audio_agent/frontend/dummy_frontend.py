@@ -4,6 +4,7 @@ Dummy frontend implementation for testing and development.
 This frontend returns canned responses without real audio processing.
 """
 
+from audio_agent.core.schemas import VerificationResult
 from audio_agent.frontend.model_frontend import BaseModelFrontend, UnifiedFrontendInput
 
 
@@ -38,4 +39,21 @@ class DummyFrontend(BaseModelFrontend):
             f"'{model_input.question}'. "
             "There may also be background sounds, but exact lexical details are unclear "
             "from this initial frontend pass."
+        )
+
+    def verify_answer(
+        self,
+        question: str,
+        audio_path_or_uri: str,
+        proposed_answer: str,
+    ) -> VerificationResult:
+        """
+        Return mock verification result (always passes).
+        
+        This allows testing the verification flow without real model calls.
+        """
+        return VerificationResult(
+            passed=True,
+            critique=None,
+            confidence=0.8,
         )

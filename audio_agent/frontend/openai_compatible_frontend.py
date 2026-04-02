@@ -13,11 +13,13 @@ from pathlib import Path
 from typing import Any
 
 from audio_agent.core.errors import FrontendError
+from audio_agent.core.schemas import VerificationResult
 from audio_agent.frontend.model_frontend import (
     BaseModelFrontend,
     FrontendInputFormat,
     UnifiedFrontendInput,
 )
+from audio_agent.utils.model_io import parse_json_object_text
 from audio_agent.utils.prompt_io import load_prompt
 
 
@@ -247,3 +249,114 @@ class OpenAICompatibleFrontend(BaseModelFrontend):
             )
 
         return text_response.strip()
+
+    def verify_answer(
+        self,
+        question: str,
+        audio_path_or_uri: str,
+        proposed_answer: str,
+    ) -> VerificationResult:
+        """
+        Verify a proposed answer by reviewing it against the audio.
+
+        Uses the same audio model but with different prompts to act as a
+        skeptic checking for apparent flaws in the proposed answer.
+
+        Args:
+            question: The original user question about the audio
+            audio_path_or_uri: Path or URI to the audio file
+            proposed_answer: The answer to be verified
+
+        Returns:
+            VerificationResult with passed status, critique (if failed), and confidence
+        """
+        self.validate_inputs(question, audio_path_or_uri)
+        if not proposed_answer or not proposed_answer.strip():
+            raise FrontendError(
+                "Proposed answer must be non-empty",
+                details={"proposed_answer": proposed_answer},
+            )
+
+        # Encode audio to base64
+        audio_data_url, audio_format = self._encode_audio(audio_path_or_uri)
+
+        # Load verification prompts
+        system_prompt = load_prompt("verification_system")
+        user_text = load_prompt("verification_user").format(
+            question=question,
+            proposed_answer=proposed_answer,
+        )
+
+        # Build messages with audio
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": user_text},
+                    {
+                        "type": "input_audio",
+                        "input_audio": {
+                            "data": audio_data_url,
+                            "format": audio_format,
+                        }
+                    }
+                ]
+            }
+        ]
+
+        # Make API call
+        client = self.model_handle
+        try:
+            completion = client.chat.completions.create(
+                model=self._model,
+                messages=messages,
+                temperature=0.3,  # Lower temperature for more consistent verification
+                max_tokens=1024,
+                stream=True,
+                stream_options={"include_usage": True},
+            )
+        except Exception as e:
+            raise FrontendError(
+                f"API call failed for verification: {e}",
+                details={"model": self._model, "error_type": type(e).__name__},
+            ) from e
+
+        # Process streaming response
+        text_response = ""
+        try:
+            for chunk in completion:
+                if chunk.choices and chunk.choices[0].delta.content:
+                    text_response += chunk.choices[0].delta.content
+        except Exception as e:
+            raise FrontendError(
+                f"Error processing verification response: {e}",
+                details={"model": self._model},
+            ) from e
+
+        if not text_response.strip():
+            raise FrontendError(
+                "API returned empty verification response",
+                details={"model": self._model},
+            )
+
+        # Parse the JSON response
+        parsed = parse_json_object_text(
+            text_response.strip(),
+            error_cls=FrontendError,
+            subject="Verification",
+        )
+
+        # Extract fields with defaults
+        passed = parsed.get("passed", True)  # Default to passed if unclear
+        critique = parsed.get("critique")
+        confidence = float(parsed.get("confidence", 0.5))
+
+        # Validate and clamp confidence
+        confidence = max(0.0, min(1.0, confidence))
+
+        return VerificationResult(
+            passed=passed,
+            critique=critique if not passed else None,  # Only include critique if failed
+            confidence=confidence,
+        )

@@ -17,7 +17,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from audio_agent.core.errors import FrontendError
-from audio_agent.core.schemas import FrontendOutput
+from audio_agent.core.schemas import FrontendOutput, VerificationResult
 from audio_agent.frontend.base import BaseFrontend
 from audio_agent.utils.model_io import parse_json_object_text, validate_message_sequence
 from audio_agent.utils.prompt_io import load_prompt
@@ -275,3 +275,102 @@ class BaseModelFrontend(BaseFrontend):
                 details={"frontend": self.name},
             ) from e
         return self.normalize_model_output(raw_output, model_input)
+
+    def verify_answer(
+        self,
+        question: str,
+        audio_path_or_uri: str,
+        proposed_answer: str,
+    ) -> VerificationResult:
+        """
+        Verify a proposed answer by reviewing it against the audio.
+
+        This base implementation builds verification model input using the
+        local multimodal format and calls the model. Subclasses can override
+        for provider-specific optimizations.
+
+        Args:
+            question: The original user question about the audio
+            audio_path_or_uri: Path or URI to the audio file
+            proposed_answer: The answer to be verified
+
+        Returns:
+            VerificationResult with passed status, critique (if failed), and confidence
+        """
+        self.validate_inputs(question, audio_path_or_uri)
+        if not proposed_answer or not proposed_answer.strip():
+            raise FrontendError(
+                "Proposed answer must be non-empty",
+                details={"proposed_answer": proposed_answer},
+            )
+
+        # Build verification input using local multimodal format
+        system_prompt = load_prompt("verification_system")
+        user_text = load_prompt("verification_user").format(
+            question=question,
+            proposed_answer=proposed_answer,
+        )
+
+        model_input = UnifiedFrontendInput(
+            system_prompt=system_prompt,
+            question=question,
+            audio_path_or_uri=audio_path_or_uri,
+            user_payload={
+                "question": question,
+                "audio": {"kind": "path_or_uri", "value": audio_path_or_uri},
+                "proposed_answer": proposed_answer,
+                "task": "answer_verification",
+            },
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": user_text},
+                        {"type": "audio", "audio": audio_path_or_uri},
+                    ],
+                },
+            ],
+            metadata={
+                "frontend_name": self.name,
+                "input_format": FrontendInputFormat.LOCAL_MULTIMODAL.value,
+                "task": "verification",
+            },
+        )
+
+        try:
+            raw_output = self.call_model(model_input)
+        except FrontendError:
+            raise
+        except Exception as e:
+            raise FrontendError(
+                f"Verification model call failed: {type(e).__name__}: {e}",
+                details={"frontend": self.name},
+            ) from e
+
+        # Parse the JSON response
+        if isinstance(raw_output, str):
+            parsed = parse_json_object_text(
+                raw_output.strip(),
+                error_cls=FrontendError,
+                subject="Verification",
+            )
+        else:
+            raise FrontendError(
+                "Verification model returned non-string output",
+                details={"output_type": type(raw_output).__name__},
+            )
+
+        # Extract fields with defaults
+        passed = parsed.get("passed", True)  # Default to passed if unclear
+        critique = parsed.get("critique")
+        confidence = float(parsed.get("confidence", 0.5))
+
+        # Validate and clamp confidence
+        confidence = max(0.0, min(1.0, confidence))
+
+        return VerificationResult(
+            passed=passed,
+            critique=critique if not passed else None,  # Only include critique if failed
+            confidence=confidence,
+        )
