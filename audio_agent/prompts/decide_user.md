@@ -1,6 +1,10 @@
 Question: {question}
 Frontend Caption: {frontend_caption}
 Initial Plan: {initial_plan}
+
+Decision Rules:
+{decision_rules}
+
 Evidence Log: {evidence_log}
 Tool Call History: {tool_call_history}
 
@@ -17,9 +21,6 @@ Available Tools: {available_tools}
 Step Count: {step_count}
 Max Steps: {max_steps}
 
-Decision Rules:
-{decision_rules}
-
 **Important Notes for draft_answer:**
 - Do NOT include raw file paths (/tmp/... or /output/...) in your answer
 - Reference output audio by ID (e.g., "available as audio_1") or say "the output audio file"
@@ -28,11 +29,11 @@ Decision Rules:
 
 Required Output Format:
 {{
-    "action": "answer | call_tool | clarify_intent | fail",
-    "rationale": "str - explain your decision",
+    "action": "answer | call_tool | clarify_intent | verify | fail",
+    "rationale": "str - explain your decision in detail. Include: 1) Why you chose this action, 2) What evidence supports this decision, 3) For VERIFY: why this task needs verification, 4) For ANSWER: why you are confident in the answer",
     "selected_tool_name": "str | null - REQUIRED for call_tool, must be a valid tool name",
-    "selected_tool_args": "dict - arguments for the tool when using call_tool. MUST be {} (empty dict) for answer/clarify_intent/fail actions, never null",
+    "selected_tool_args": "dict - arguments for the tool when using call_tool. MUST be {} (empty dict) for answer/verify/clarify_intent/fail actions, never null",
     "selected_audio_id": "str | null - REQUIRED for call_tool, must be a valid audio_id from Available Audio Files above",
-    "draft_answer": "str | null - REQUIRED for answer, your final response to the question",
+    "draft_answer": "str | null - REQUIRED for answer AND verify actions (the answer or the answer to be verified)",
     "confidence": "float - 0.0 to 1.0"
 }}
