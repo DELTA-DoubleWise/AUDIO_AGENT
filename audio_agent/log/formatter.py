@@ -349,6 +349,58 @@ def format_audio_list(audio_list: list[Any]) -> str:
     return "\n".join(lines)
 
 
+def format_verification_result(verification_result: Any) -> str:
+    """Format verification result as Markdown."""
+    if not verification_result:
+        return "## Verification Result\n\n*No verification performed*\n\n"
+    
+    lines = ["## Verification Result", ""]
+    
+    passed = getattr(verification_result, 'passed', False)
+    critique = getattr(verification_result, 'critique', None)
+    confidence = getattr(verification_result, 'confidence', 0.0)
+    
+    status = "✅ Passed" if passed else "❌ Failed"
+    lines.append(f"- **Status**: {status}")
+    lines.append(f"- **Confidence**: {confidence:.2f}")
+    
+    if critique:
+        lines.append("")
+        lines.append("**Critique**:")
+        lines.append("```")
+        lines.append(critique)
+        lines.append("```")
+    
+    lines.append("")
+    return "\n".join(lines)
+
+
+def format_format_check_result(format_check_result: Any) -> str:
+    """Format format check result as Markdown."""
+    if not format_check_result:
+        return "## Format Check Result\n\n*No format check performed*\n\n"
+    
+    lines = ["## Format Check Result", ""]
+    
+    passed = getattr(format_check_result, 'passed', False)
+    critique = getattr(format_check_result, 'critique', None)
+    confidence = getattr(format_check_result, 'confidence', 0.0)
+    
+    status = "✅ Passed" if passed else "❌ Failed"
+    lines.append(f"- **Status**: {status}")
+    lines.append(f"- **Confidence**: {confidence:.2f}")
+    
+    if critique:
+        lines.append("")
+        lines.append("**Format Critique**:")
+        lines.append("```")
+        lines.append(critique)
+        lines.append("```")
+    
+    lines.append("")
+    return "\n".join(lines)
+
+
 def format_error(error_message: str | None) -> str:
     """Format error section as Markdown."""
     lines = ["## Errors", ""]

@@ -25,6 +25,8 @@ class AgentConfig(BaseModel):
         enable_run_logging: Enable run logging to markdown files
         enable_verification: Allow planner to use VERIFY action for answer verification
         max_verifications: Maximum number of verifications allowed per run
+        enable_format_check: Enable mandatory format checking before final answer
+        max_format_checks: Maximum number of format checks allowed per run
     """
     max_steps: int = Field(default=10, ge=1, le=100)
     debug: bool = Field(default=False)
@@ -46,6 +48,16 @@ class AgentConfig(BaseModel):
         ge=0,
         le=10,
         description="Maximum number of verifications allowed per run"
+    )
+    enable_format_check: bool = Field(
+        default=True,
+        description="Enable mandatory format checking before final answer"
+    )
+    max_format_checks: int = Field(
+        default=2,
+        ge=0,
+        le=10,
+        description="Maximum number of format checks allowed per run"
     )
     
     model_config = {

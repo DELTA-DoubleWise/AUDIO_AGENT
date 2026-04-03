@@ -324,6 +324,35 @@ class VerificationResult(BaseModel):
 
 
 # =============================================================================
+# Format Check Schema
+# =============================================================================
+
+class FormatCheckResult(BaseModel):
+    """
+    Result of checking the proposed answer against format requirements.
+    
+    The format check ensures the answer follows the expected output format
+    without evaluating the content correctness (which is done by verification).
+    """
+    passed: bool = Field(
+        ...,
+        description="True if format check passed, False if format violations detected"
+    )
+    critique: str | None = Field(
+        default=None,
+        description="Explanation of format violations if failed, null if passed"
+    )
+    confidence: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1.0,
+        description="Confidence in the format check assessment"
+    )
+    timestamp: datetime = Field(default_factory=datetime.now)
+    model_config = {"extra": "forbid"}
+
+
+# =============================================================================
 # Audio Output Schema
 # =============================================================================
 

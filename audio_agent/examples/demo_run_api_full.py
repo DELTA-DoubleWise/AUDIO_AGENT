@@ -54,7 +54,6 @@ from audio_agent.tools.registry import ToolRegistry
 from audio_agent.tools.mcp import MCPServerManager
 from audio_agent.tools.catalog import register_all_mcp_tools, list_available_tools
 
-
 def print_separator(title: str = "") -> None:
     """Print a visual separator."""
     line = "=" * 60

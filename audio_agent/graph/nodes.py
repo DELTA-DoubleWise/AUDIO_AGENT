@@ -17,6 +17,7 @@ from audio_agent.core.schemas import (
     AudioItem,
     AudioOutput,
     VerificationResult,
+    FormatCheckResult,
 )
 from audio_agent.core.constants import AgentStatus
 from audio_agent.core.errors import (
@@ -863,6 +864,120 @@ def failure_node(state: AgentState) -> dict:
     }
 
 
+def create_format_check_node(planner: BasePlanner):
+    """
+    Factory to create a format check node.
+    
+    Uses the planner (text LLM) to check if the proposed answer follows
+    the expected output format requirements.
+    
+    Args:
+        planner: Planner instance with check_format capability
+    
+    Returns:
+        Node function compatible with LangGraph
+    """
+    def format_check_node(state: AgentState) -> dict:
+        """
+        Check the format of the proposed answer in current_decision.
+        
+        Validates:
+        - current_decision exists and is ANSWER
+        - draft_answer is present (the answer to check)
+        
+        Updates:
+        - format_check_result
+        - format_check_count (increments)
+        - evidence_log (appends format critique as evidence if failed)
+        """
+        log_node_start("format_check_node")
+        
+        validate_state_has_fields(
+            state,
+            ["current_decision", "question"],
+            context="format_check_node",
+        )
+        
+        decision: PlannerDecision = state["current_decision"]
+        question: str = state["question"]
+        
+        if decision.action != PlannerActionType.ANSWER:
+            raise StateValidationError(
+                f"format_check_node called with non-ANSWER action: {decision.action}",
+                details={"action": decision.action.value}
+            )
+        
+        if not decision.draft_answer:
+            raise StateValidationError(
+                "ANSWER decision has no draft_answer for format check",
+                details={"decision": decision.model_dump()}
+            )
+        
+        proposed_answer = decision.draft_answer
+        expected_format = state.get("expected_output_format")
+        
+        # Call planner to check format
+        try:
+            format_check_result = planner.check_format(
+                proposed_answer=proposed_answer,
+                expected_format=expected_format,
+                question=question,
+            )
+        except PlannerError:
+            raise
+        except Exception as e:
+            log_error("format_check_node", e)
+            raise PlannerError(
+                f"Format check failed: {e}",
+                details={"planner": planner.name}
+            ) from e
+        
+        if format_check_result is None:
+            raise PlannerError(
+                "Planner returned None for format check",
+                details={"planner": planner.name}
+            )
+        
+        # Update format check count
+        current_count = state.get("format_check_count", 0)
+        new_count = current_count + 1
+        
+        # Prepare return updates
+        updates: dict = {
+            "format_check_result": format_check_result,
+            "format_check_count": new_count,
+        }
+        
+        # If format check failed, add critique as evidence
+        if not format_check_result.passed and format_check_result.critique:
+            critique_evidence = EvidenceItem(
+                source=f"format_check:{planner.name}",
+                content=f"Format check failed: {format_check_result.critique}",
+                evidence_type="format_critique",
+                confidence=format_check_result.confidence,
+                metadata={
+                    "proposed_answer": proposed_answer[:200],  # Truncate for metadata
+                    "format_check_passed": format_check_result.passed,
+                    "expected_format": expected_format,
+                },
+            )
+            updates["evidence_log"] = [critique_evidence]
+            log_node_end("format_check_node", {
+                "passed": format_check_result.passed,
+                "confidence": format_check_result.confidence,
+                "critique": format_check_result.critique[:100],
+            })
+        else:
+            log_node_end("format_check_node", {
+                "passed": format_check_result.passed,
+                "confidence": format_check_result.confidence,
+            })
+        
+        return updates
+    
+    return format_check_node
+
+
 # Convenience aliases for node creation
 frontend_evidence_node = create_frontend_evidence_node
 initial_plan_node = create_initial_plan_node
@@ -871,4 +986,5 @@ planner_node = create_planner_decision_node  # Backward-compatible alias
 tool_executor_node = create_tool_executor_node
 evidence_fusion_node = create_evidence_fusion_node
 verification_node = create_verification_node
+format_check_node = create_format_check_node
 intent_clarification_node = create_intent_clarification_node

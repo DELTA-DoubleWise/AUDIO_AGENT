@@ -28,50 +28,50 @@ For simple questions, use: `"detailed_plan": []`
 For complex questions requiring multiple steps, provide an array of ExecutionStep objects:
 
 ```json
-{
+{{
   "step_number": 1,
   "description": "Transcribe audio to get speaker content and timing",
   "tool_type": "asr",
   "expected_output": "Transcript with speaker turn timestamps"
-}
+}}
 ```
 
 **Example Simple Question:**
 Question: "What is the sample rate of this audio?"
-Output: `{ "detailed_plan": [] }`
+Output: `{{ "detailed_plan": [] }}`
 
 **Example Complex Question:**
 Question: "What emotions does each speaker express?"
 Output:
 ```json
-{
+{{
   "detailed_plan": [
-    {
+    {{
       "step_number": 1,
       "description": "Transcribe audio to identify speaker turns and content",
       "tool_type": "asr",
       "expected_output": "Transcript with speaker timestamps"
-    },
-    {
+    }},
+    {{
       "step_number": 2,
       "description": "Separate speakers to isolate individual audio streams",
       "tool_type": "diarization",
       "expected_output": "Speaker segments with labels"
-    },
-    {
+    }},
+    {{
       "step_number": 3,
       "description": "Analyze emotional tone of each speaker's segments",
       "tool_type": "emotion_analysis",
       "expected_output": "Emotion labels per speaker per segment"
-    },
-    {
+    }},
+    {{
       "step_number": 4,
       "description": "Synthesize emotion findings into final answer",
       "tool_type": null,
       "expected_output": "Summary of emotions per speaker"
-    }
+    }}
   ]
-}
+}}
 ```
 
 If the intent is unclear, express uncertainty in focus_points or notes.

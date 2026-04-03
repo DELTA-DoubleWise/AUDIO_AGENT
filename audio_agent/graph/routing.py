@@ -21,6 +21,7 @@ NODE_FAILURE = "failure_node"
 NODE_EVIDENCE_FUSION = "evidence_fusion_node"
 NODE_INTENT_CLARIFICATION = "intent_clarification_node"
 NODE_VERIFICATION = "verification_node"
+NODE_FORMAT_CHECK = "format_check_node"
 NODE_PLANNER = NODE_PLANNER_DECISION  # Backward-compatible alias
 END = "__end__"
 
@@ -30,7 +31,7 @@ def route_after_planner_decision(state: AgentState) -> str:
     Route after the planner decision node based on its decision.
     
     Routes:
-    - ANSWER -> answer_node
+    - ANSWER -> format_check_node (format check is mandatory before answer)
     - CALL_TOOL -> tool_executor_node
     - CLARIFY_INTENT -> intent_clarification_node
     - VERIFY -> verification_node
@@ -62,8 +63,9 @@ def route_after_planner_decision(state: AgentState) -> str:
     action = decision.action
     
     if action == PlannerActionType.ANSWER:
-        logger.info(f"ROUTING: action={action.value} -> {NODE_ANSWER}")
-        return NODE_ANSWER
+        # Format check is mandatory before final answer
+        logger.info(f"ROUTING: action={action.value} -> {NODE_FORMAT_CHECK}")
+        return NODE_FORMAT_CHECK
     
     elif action == PlannerActionType.CALL_TOOL:
         tool_name = decision.selected_tool_name
@@ -188,6 +190,43 @@ def route_after_intent_clarification(state: AgentState) -> str:
     logger = get_logger()
     logger.info(f"ROUTING: after intent clarification -> {NODE_PLANNER_DECISION}")
     return NODE_PLANNER_DECISION
+
+
+def route_after_format_check(state: AgentState) -> str:
+    """
+    Route after format check based on the result.
+    
+    Routes:
+    - format check passed -> answer_node (finalize the answer)
+    - format check failed -> planner_decision_node (adds critique as evidence)
+    
+    Args:
+        state: Current agent state
+    
+    Returns:
+        Name of the next node
+    
+    Raises:
+        GraphRoutingError: If routing cannot be determined
+    """
+    logger = get_logger()
+    
+    # Get format check result
+    format_check_result = state.get("format_check_result")
+    
+    if format_check_result is None:
+        raise GraphRoutingError(
+            "Cannot route after format check: format_check_result is None"
+        )
+    
+    if format_check_result.passed:
+        logger.info(f"ROUTING: format check passed -> {NODE_ANSWER}")
+        return NODE_ANSWER
+    else:
+        # Format check failed - critique was added as evidence
+        # Loop back to planner to regenerate answer with format feedback
+        logger.info(f"ROUTING: format check failed (critique added) -> {NODE_PLANNER_DECISION}")
+        return NODE_PLANNER_DECISION
 
 
 def is_terminal_state(state: AgentState) -> bool:

@@ -15,12 +15,14 @@ from audio_agent.graph.nodes import (
     create_evidence_fusion_node,
     create_intent_clarification_node,
     create_verification_node,
+    create_format_check_node,
     answer_node,
     failure_node,
 )
 from audio_agent.graph.routing import (
     route_after_planner_decision,
     route_after_verification,
+    route_after_format_check,
     NODE_ANSWER,
     NODE_TOOL_EXECUTOR,
     NODE_FAILURE,
@@ -29,6 +31,7 @@ from audio_agent.graph.routing import (
     NODE_PLANNER_DECISION,
     NODE_INTENT_CLARIFICATION,
     NODE_VERIFICATION,
+    NODE_FORMAT_CHECK,
 )
 from audio_agent.frontend.base import BaseFrontend
 from audio_agent.planner.base import BasePlanner
@@ -53,7 +56,9 @@ def build_graph(
       -> initial_plan_node
       -> planner_decision_node
       -> [conditional routing based on decision]
-         - ANSWER -> answer_node -> END
+         - ANSWER -> format_check_node -> [conditional]
+            * Format OK -> answer_node -> END
+            * Format Failed -> planner_decision_node (loop with critique)
          - CALL_TOOL -> tool_executor_node -> evidence_fusion_node -> planner_decision_node (loop)
          - VERIFY -> verification_node -> planner_decision_node (loop)
          - CLARIFY_INTENT -> intent_clarification_node -> planner_decision_node (loop)
@@ -88,6 +93,7 @@ def build_graph(
     evidence_fusion_node_fn = create_evidence_fusion_node(fuser)
     intent_clarification_node_fn = create_intent_clarification_node(planner)
     verification_node_fn = create_verification_node(frontend)
+    format_check_node_fn = create_format_check_node(planner)
     
     # Build the graph
     graph = StateGraph(AgentState)
@@ -100,6 +106,7 @@ def build_graph(
     graph.add_node(NODE_EVIDENCE_FUSION, evidence_fusion_node_fn)
     graph.add_node(NODE_INTENT_CLARIFICATION, intent_clarification_node_fn)
     graph.add_node(NODE_VERIFICATION, verification_node_fn)
+    graph.add_node(NODE_FORMAT_CHECK, format_check_node_fn)
     graph.add_node(NODE_ANSWER, answer_node)
     graph.add_node(NODE_FAILURE, failure_node)
     
@@ -114,15 +121,26 @@ def build_graph(
     graph.add_edge(NODE_INITIAL_PLAN, NODE_PLANNER_DECISION)
     
     # planner_decision_node -> conditional routing
+    # Note: ANSWER now routes to format_check_node first (mandatory format check)
     graph.add_conditional_edges(
         NODE_PLANNER_DECISION,
         route_after_planner_decision,
         {
-            NODE_ANSWER: NODE_ANSWER,
+            NODE_FORMAT_CHECK: NODE_FORMAT_CHECK,
             NODE_TOOL_EXECUTOR: NODE_TOOL_EXECUTOR,
             NODE_INTENT_CLARIFICATION: NODE_INTENT_CLARIFICATION,
             NODE_VERIFICATION: NODE_VERIFICATION,
             NODE_FAILURE: NODE_FAILURE,
+        }
+    )
+    
+    # format_check_node -> conditional routing based on result
+    graph.add_conditional_edges(
+        NODE_FORMAT_CHECK,
+        route_after_format_check,
+        {
+            NODE_ANSWER: NODE_ANSWER,
+            NODE_PLANNER_DECISION: NODE_PLANNER_DECISION,
         }
     )
     
@@ -194,6 +212,7 @@ def build_graph_with_config(
     evidence_fusion_node_fn = create_evidence_fusion_node(fuser)
     intent_clarification_node_fn = create_intent_clarification_node(planner)
     verification_node_fn = create_verification_node(frontend)
+    format_check_node_fn = create_format_check_node(planner)
     
     graph = StateGraph(AgentState)
     
@@ -204,6 +223,7 @@ def build_graph_with_config(
     graph.add_node(NODE_EVIDENCE_FUSION, evidence_fusion_node_fn)
     graph.add_node(NODE_INTENT_CLARIFICATION, intent_clarification_node_fn)
     graph.add_node(NODE_VERIFICATION, verification_node_fn)
+    graph.add_node(NODE_FORMAT_CHECK, format_check_node_fn)
     graph.add_node(NODE_ANSWER, answer_node)
     graph.add_node(NODE_FAILURE, failure_node)
     
@@ -215,11 +235,20 @@ def build_graph_with_config(
         NODE_PLANNER_DECISION,
         route_after_planner_decision,
         {
-            NODE_ANSWER: NODE_ANSWER,
+            NODE_FORMAT_CHECK: NODE_FORMAT_CHECK,
             NODE_TOOL_EXECUTOR: NODE_TOOL_EXECUTOR,
             NODE_INTENT_CLARIFICATION: NODE_INTENT_CLARIFICATION,
             NODE_VERIFICATION: NODE_VERIFICATION,
             NODE_FAILURE: NODE_FAILURE,
+        }
+    )
+    
+    graph.add_conditional_edges(
+        NODE_FORMAT_CHECK,
+        route_after_format_check,
+        {
+            NODE_ANSWER: NODE_ANSWER,
+            NODE_PLANNER_DECISION: NODE_PLANNER_DECISION,
         }
     )
     

@@ -10,6 +10,7 @@ from audio_agent.core.schemas import (
     PlannerDecision,
     PlannerActionType,
     ToolSpec,
+    FormatCheckResult,
 )
 from audio_agent.core.errors import PlannerError
 from audio_agent.planner.base import BasePlanner
@@ -177,4 +178,22 @@ class DummyPlanner(BasePlanner):
         return (
             f"Understand the audio content related to: {question}",
             "concise answer",
+        )
+
+    def check_format(
+        self,
+        proposed_answer: str,
+        expected_format: str | None,
+        question: str,
+    ) -> FormatCheckResult:
+        """
+        Check format compliance using dummy logic.
+        
+        Always passes format check for dummy planner.
+        """
+        # Dummy planner always passes format check
+        return FormatCheckResult(
+            passed=True,
+            critique=None,
+            confidence=1.0,
         )

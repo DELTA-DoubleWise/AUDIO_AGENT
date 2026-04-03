@@ -18,7 +18,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from audio_agent.core.errors import PlannerError
-from audio_agent.core.schemas import InitialPlan, PlannerDecision, ToolSpec
+from audio_agent.core.schemas import InitialPlan, PlannerDecision, ToolSpec, FormatCheckResult
 from audio_agent.core.state import AgentState
 from audio_agent.planner.base import BasePlanner
 from audio_agent.utils.model_io import parse_json_object_text, validate_message_sequence
@@ -343,18 +343,34 @@ class BaseModelPlanner(BasePlanner):
             if missing:
                 raise PlannerError(
                     "Malformed initial plan output: missing required fields",
-                    details={"missing_fields": missing, "output_keys": sorted(keys)},
+                    details={
+                        "missing_fields": missing,
+                        "output_keys": sorted(keys),
+                        "raw_output": raw_output,
+                    },
                 )
+            # Sanitize: remove None values for fields that have defaults
+            fields_with_defaults = {"notes", "clarified_intent", "expected_output_format", 
+                                    "requires_audio_output", "detailed_plan"}
+            sanitized_output = {
+                k: v for k, v in raw_output.items() 
+                if v is not None or k not in fields_with_defaults
+            }
             try:
-                return InitialPlan(**raw_output)
+                return InitialPlan(**sanitized_output)
             except Exception as e:
                 raise PlannerError(
                     "Malformed initial plan output: schema validation failed",
-                    details={"error": str(e), "output_keys": sorted(keys)},
+                    details={
+                        "error": str(e),
+                        "output_keys": sorted(keys),
+                        "raw_output": raw_output,
+                        "sanitized_output": sanitized_output,
+                    },
                 ) from e
         raise PlannerError(
             "Malformed initial plan output: expected dict, JSON text, or InitialPlan",
-            details={"output_type": type(raw_output).__name__},
+            details={"output_type": type(raw_output).__name__, "raw_output": str(raw_output)[:1000]},
         )
 
     def normalize_decision_output(self, raw_output: Any) -> PlannerDecision:
@@ -374,18 +390,35 @@ class BaseModelPlanner(BasePlanner):
             if missing:
                 raise PlannerError(
                     "Malformed planner decision output: missing required fields",
-                    details={"missing_fields": missing, "output_keys": sorted(keys)},
+                    details={
+                        "missing_fields": missing,
+                        "output_keys": sorted(keys),
+                        "raw_output": raw_output,
+                    },
                 )
+            # Sanitize: remove None values for fields that have defaults
+            # This allows Pydantic to use the default values instead of failing validation
+            fields_with_defaults = {"confidence", "selected_tool_args", "selected_tool_name", 
+                                    "selected_audio_id", "draft_answer"}
+            sanitized_output = {
+                k: v for k, v in raw_output.items() 
+                if v is not None or k not in fields_with_defaults
+            }
             try:
-                return PlannerDecision(**raw_output)
+                return PlannerDecision(**sanitized_output)
             except Exception as e:
                 raise PlannerError(
                     "Malformed planner decision output: schema validation failed",
-                    details={"error": str(e), "output_keys": sorted(keys)},
+                    details={
+                        "error": str(e),
+                        "output_keys": sorted(keys),
+                        "raw_output": raw_output,
+                        "sanitized_output": sanitized_output,
+                    },
                 ) from e
         raise PlannerError(
             "Malformed planner decision output: expected dict, JSON text, or PlannerDecision",
-            details={"output_type": type(raw_output).__name__},
+            details={"output_type": type(raw_output).__name__, "raw_output": str(raw_output)[:1000]},
         )
 
     def plan(self, question: str) -> InitialPlan:
@@ -544,12 +577,18 @@ class BaseModelPlanner(BasePlanner):
             if clarified_intent is None:
                 raise PlannerError(
                     "Malformed clarify_intent output: missing clarified_intent",
-                    details={"output_keys": sorted(raw_output.keys())},
+                    details={
+                        "output_keys": sorted(raw_output.keys()),
+                        "raw_output": raw_output,
+                    },
                 )
             return clarified_intent, expected_format
         raise PlannerError(
             "Malformed clarify_intent output: expected dict, JSON text, or tuple",
-            details={"output_type": type(raw_output).__name__},
+            details={
+                "output_type": type(raw_output).__name__,
+                "raw_output": str(raw_output)[:1000],
+            },
         )
 
     def clarify_intent(self, state: AgentState) -> tuple[str, str | None]:
@@ -570,3 +609,133 @@ class BaseModelPlanner(BasePlanner):
                 details={"planner": self.name},
             ) from e
         return self.normalize_clarify_intent_output(raw_output)
+
+    # =============================================================================
+    # Format Check Methods
+    # =============================================================================
+
+    def build_format_check_system_prompt(self) -> str:
+        """Build system prompt for format checking phase."""
+        return load_prompt("format_check_system")
+
+    def build_format_check_user_instruction(
+        self,
+        proposed_answer: str,
+        expected_format: str | None,
+        question: str,
+    ) -> str:
+        """Build user instruction for format checking phase."""
+        return load_prompt("format_check_user").format(
+            question=question,
+            expected_format=expected_format or "No specific format required",
+            proposed_answer=proposed_answer,
+        )
+
+    def build_format_check_model_input(
+        self,
+        proposed_answer: str,
+        expected_format: str | None,
+        question: str,
+    ) -> UnifiedPlannerInput:
+        """Build model input for format checking."""
+        system_prompt = self.build_format_check_system_prompt()
+        user_text = self.build_format_check_user_instruction(
+            proposed_answer, expected_format, question
+        )
+        return UnifiedPlannerInput(
+            system_prompt=system_prompt,
+            task_type="format_check",
+            question=question,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_text},
+            ],
+            user_payload={
+                "question": question,
+                "task": "format_check",
+                "expected_format": expected_format,
+            },
+            metadata={
+                "planner_name": self.name,
+                "task_type": "format_check",
+            },
+        )
+
+    def normalize_format_check_output(self, raw_output: Any) -> FormatCheckResult:
+        """Normalize model output into FormatCheckResult."""
+        if isinstance(raw_output, FormatCheckResult):
+            return raw_output
+        if isinstance(raw_output, str):
+            raw_output = parse_json_object_text(
+                raw_output,
+                error_cls=PlannerError,
+                subject="Planner",
+            )
+        if isinstance(raw_output, dict):
+            required = {"passed"}
+            keys = set(raw_output.keys())
+            missing = sorted(required - keys)
+            if missing:
+                raise PlannerError(
+                    "Malformed format check output: missing required fields",
+                    details={
+                        "missing_fields": missing,
+                        "output_keys": sorted(keys),
+                        "raw_output": raw_output,
+                    },
+                )
+            # Sanitize: remove None values for fields that have defaults
+            fields_with_defaults = {"critique", "confidence"}
+            sanitized_output = {
+                k: v for k, v in raw_output.items() 
+                if v is not None or k not in fields_with_defaults
+            }
+            try:
+                return FormatCheckResult(**sanitized_output)
+            except Exception as e:
+                raise PlannerError(
+                    "Malformed format check output: schema validation failed",
+                    details={
+                        "error": str(e),
+                        "output_keys": sorted(keys),
+                        "raw_output": raw_output,
+                        "sanitized_output": sanitized_output,
+                    },
+                ) from e
+        raise PlannerError(
+            "Malformed format check output: expected dict, JSON text, or FormatCheckResult",
+            details={"output_type": type(raw_output).__name__, "raw_output": str(raw_output)[:1000]},
+        )
+
+    def check_format(
+        self,
+        proposed_answer: str,
+        expected_format: str | None,
+        question: str,
+    ) -> FormatCheckResult:
+        """
+        Check if the proposed answer follows the expected output format.
+        
+        Validates format compliance only - does NOT check content correctness.
+        """
+        # If no format specified and answer is non-empty, auto-pass
+        if not expected_format and proposed_answer and proposed_answer.strip():
+            return FormatCheckResult(
+                passed=True,
+                critique=None,
+                confidence=1.0,
+            )
+        
+        model_input = self.build_format_check_model_input(
+            proposed_answer, expected_format, question
+        )
+        try:
+            raw_output = self.call_model(model_input)
+        except PlannerError:
+            raise
+        except Exception as e:
+            raise PlannerError(
+                f"Planner model call failed during format check: {type(e).__name__}: {e}",
+                details={"planner": self.name},
+            ) from e
+        return self.normalize_format_check_output(raw_output)

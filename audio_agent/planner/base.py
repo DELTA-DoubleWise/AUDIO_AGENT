@@ -8,7 +8,7 @@ based on accumulated evidence and available tools.
 from abc import ABC, abstractmethod
 
 from audio_agent.core.state import AgentState
-from audio_agent.core.schemas import InitialPlan, PlannerDecision, ToolSpec
+from audio_agent.core.schemas import InitialPlan, PlannerDecision, ToolSpec, FormatCheckResult
 from audio_agent.core.errors import PlannerError
 
 
@@ -112,6 +112,34 @@ class BasePlanner(ABC):
             
         Raises:
             PlannerError: If clarification fails
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def check_format(
+        self,
+        proposed_answer: str,
+        expected_format: str | None,
+        question: str,
+    ) -> FormatCheckResult:
+        """
+        Check if the proposed answer follows the expected output format.
+        
+        This method validates format compliance only - it does NOT check
+        content correctness (which is done by verification). The format check
+        ensures the answer adheres to any structural or formatting requirements
+        specified in the question or initial plan.
+        
+        Args:
+            proposed_answer: The answer to check for format compliance
+            expected_format: The expected output format (may be None if not specified)
+            question: The original user question (for context)
+            
+        Returns:
+            FormatCheckResult indicating whether format requirements are met
+            
+        Raises:
+            PlannerError: If format check fails
         """
         raise NotImplementedError
     

@@ -20,7 +20,9 @@ START
   -> initial_plan_node (question-only planning, generates approach and focus points)
   -> planner_decision_node (LLM decides action or generates final answer on last step)
   -> [conditional routing based on decision]
-     - ANSWER -> answer_node -> END
+     - ANSWER -> format_check_node (mandatory format validation) -> [conditional]
+        * Format OK -> answer_node -> END
+        * Format Failed -> planner_decision_node (loop with critique as evidence)
      - CALL_TOOL -> tool_executor_node (auto-injects audio_path) 
        -> evidence_fusion_node -> planner_decision_node (loop)
      - VERIFY -> verification_node (frontend reviews draft answer) -> planner_decision_node (loop)
@@ -34,8 +36,9 @@ START
 - **Tool Execution**: Tool executor automatically injects `audio_path` from state for tools that need it
 - **Intent Clarification**: When planner returns CLARIFY action, the intent_clarification_node refines the question before continuing
 - **Answer Verification**: Planner can optionally request VERIFY to have the frontend (audio model) review a draft answer before finalizing. If flaws are found, the critique is added as evidence and planning continues.
+- **Format Checking**: Mandatory format validation occurs before final answer. The planner (text LLM) checks if the proposed answer follows the expected output format. If format violations are found, the critique is added as evidence and planning continues.
 - **Final Step**: On the last step (`step_count >= max_steps - 1`), planner's `answer()` method generates final answer directly
-- **Evidence Accumulation**: Frontend output, tool results, and verification critiques are fused into evidence_log for planner context
+- **Evidence Accumulation**: Frontend output, tool results, verification critiques, and format check critiques are fused into evidence_log for planner context
 
 ## Technology Stack
 
@@ -143,7 +146,9 @@ audio_agent/
 │   ├── clarify_system.md     # Planner: intent clarification system prompt
 │   ├── clarify_user.md       # Planner: intent clarification user instruction
 │   ├── verification_system.md # Verification: system prompt for answer review
-│   └── verification_user.md   # Verification: user instruction template
+│   ├── verification_user.md   # Verification: user instruction template
+│   ├── format_check_system.md # Format check: system prompt for format validation
+│   └── format_check_user.md   # Format check: user instruction template
 ├── fusion/                    # Evidence fusion
 │   ├── base.py               # BaseEvidenceFuser ABC
 │   └── default_fuser.py      # DefaultEvidenceFuser implementation
@@ -558,6 +563,10 @@ When you modify code in these locations, update the corresponding documentation:
 2. Add routing logic in `audio_agent/graph/routing.py` if needed
 3. Wire in `audio_agent/graph/builder.py`
 4. Update `AgentState` in `audio_agent/core/state.py` if new fields needed
+5. **Update logging module** in `audio_agent/log/` if the node produces results that should be logged:
+   - Add formatter function in `formatter.py` (e.g., `format_<node_name>_result()`)
+   - Update `logger.py` to include the new section in `_build_markdown()`
+   - See existing examples: `format_verification_result()`, `format_format_check_result()`
 
 ### Customizing Prompts
 
@@ -580,6 +589,8 @@ All prompts are externalized as markdown files in `audio_agent/prompts/`. This a
 | `clarify_user.md` | Planner clarify user instruction | `{question}`, `{clarified_intent}`, `{expected_format}`, `{evidence_text}` |
 | `verification_system.md` | Verification: system prompt for answer review | None |
 | `verification_user.md` | Verification: user instruction template | `{question}`, `{proposed_answer}` |
+| `format_check_system.md` | Format check: system prompt for format validation | None |
+| `format_check_user.md` | Format check: user instruction template | `{question}`, `{expected_format}`, `{proposed_answer}` |
 
 **Loading Prompts:**
 
@@ -781,21 +792,28 @@ validate_state_has_fields(
     - Tool results seem ambiguous or potentially misleading
     The verification model acts as a skeptic - if flaws are found, the critique is added as evidence and planning continues. Configure via `AgentConfig(enable_verification=True, max_verifications=2)`.
 
-11. **AgentConfig Fields**: Some fields (`planner_name`, `frontend_name`, `fail_on_tool_error`) exist in config but are not fully wired into orchestration logic yet.
+11. **Format Checking**: Mandatory format validation occurs before final answer. The planner (text LLM) checks if the proposed answer follows the expected output format (from `initial_plan.expected_output_format`). This is different from verification:
+    - Format check validates structure/format compliance only, NOT content correctness
+    - Format check uses the text LLM (planner), not the audio model
+    - If format violations are found, the critique is added as evidence and planning continues
+    Configure via `AgentConfig(enable_format_check=True, max_format_checks=2)`.
 
-12. **Checkpointer Support**: `build_graph_with_config()` exists but is not used by default `AudioAgent` constructor.
+12. **AgentConfig Fields**: Some fields (`planner_name`, `frontend_name`, `fail_on_tool_error`) exist in config but are not fully wired into orchestration logic yet.
 
-13. **Conda Initialization**: Remember to run `source /lihaoyu/.conda.path.sh` before using conda commands on this system.
+13. **Checkpointer Support**: `build_graph_with_config()` exists but is not used by default `AudioAgent` constructor.
 
-14. **Run Logging**: The framework automatically logs each run to a Markdown file in the `logs/` directory. This includes:
+14. **Conda Initialization**: Remember to run `source /lihaoyu/.conda.path.sh` before using conda commands on this system.
+
+15. **Run Logging**: The framework automatically logs each run to a Markdown file in the `logs/` directory. This includes:
     - Complete AgentState with all evidence, tool calls, and planner decisions
     - Frontend output and initial plan
     - Final answer with output audio information
     - Verification results and critiques
+    - Format check results and critiques
     - All errors and metadata
     Configure via `AgentConfig(log_dir="./logs", enable_run_logging=True)`.
 
-15. **Audio Output Handling**: For tasks that produce audio files (e.g., trimming, conversion), the framework:
+16. **Audio Output Handling**: For tasks that produce audio files (e.g., trimming, conversion), the framework:
     - Detects audio output requirements at planning stage (`requires_audio_output` flag)
     - Tracks generated audio files in `audio_list`
     - Copies output audio to a dedicated `output/` directory

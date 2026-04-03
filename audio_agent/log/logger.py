@@ -23,6 +23,8 @@ from audio_agent.log.formatter import (
     format_planner_trace,
     format_final_answer,
     format_audio_list,
+    format_verification_result,
+    format_format_check_result,
     format_error,
     sanitize_filename,
 )
@@ -169,6 +171,14 @@ class RunLogger:
         # Planner Trace
         planner_trace = state.get("planner_trace", [])
         sections.append(format_planner_trace(planner_trace))
+        
+        # Verification Result
+        verification_result = state.get("verification_result")
+        sections.append(format_verification_result(verification_result))
+        
+        # Format Check Result
+        format_check_result = state.get("format_check_result")
+        sections.append(format_format_check_result(format_check_result))
         
         # Final Answer
         final_answer = state.get("final_answer")
