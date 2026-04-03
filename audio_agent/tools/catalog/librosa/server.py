@@ -240,25 +240,6 @@ class LibrosaMCPServer:
                     "required": ["audio_path"]
                 }
             },
-            {
-                "name": "analyze_structure",
-                "description": "Analyze musical structure (sections like verse, chorus) using recurrence matrix.",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "audio_path": {
-                            "type": "string",
-                            "description": "Path to the audio file to analyze."
-                        },
-                        "n_segments": {
-                            "type": "integer",
-                            "default": 4,
-                            "description": "Number of distinct section types to detect."
-                        }
-                    },
-                    "required": ["audio_path"]
-                }
-            },
             # =========================================================================
             # UTILITY
             # =========================================================================
@@ -461,12 +442,6 @@ class LibrosaMCPServer:
                     raise ValueError("audio_path is required")
                 top_db = arguments.get("top_db", 40)
                 result = self._get_wrapper().segment_audio(audio_path, top_db).to_dict()
-            
-            elif tool_name == "analyze_structure":
-                if not audio_path:
-                    raise ValueError("audio_path is required")
-                n_segments = arguments.get("n_segments", 4)
-                result = self._get_wrapper().analyze_structure(audio_path, n_segments).to_dict()
             
             # UTILITY
             elif tool_name == "get_audio_info":

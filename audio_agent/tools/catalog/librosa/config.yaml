@@ -151,20 +151,6 @@ tools:
           description: "Threshold in dB for silence detection."
       required: ["audio_path"]
   
-  - name: "analyze_structure"
-    description: "Analyze musical structure using recurrence matrix and clustering."
-    input_schema:
-      type: object
-      properties:
-        audio_path:
-          type: string
-          description: "Path to the audio file to analyze."
-        n_segments:
-          type: integer
-          default: 4
-          description: "Number of structure segments to identify."
-      required: ["audio_path"]
-  
   # =========================================================================
   # AUDIO TRANSFORMATION (4 tools)
   # =========================================================================
@@ -256,12 +242,12 @@ tools:
       properties: {}
 
 notes: |
-  Comprehensive librosa-based audio analysis and transformation tools (17 tools):
+  Comprehensive librosa-based audio analysis and transformation tools (16 tools):
   
   Rhythm Analysis (2): analyze_beats, analyze_onsets
   Timbre & Spectral (4): extract_mfcc, analyze_spectral_features, extract_rms_energy, extract_zcr
   Harmonic Analysis (4): extract_chroma, detect_key, estimate_tuning, analyze_pitch
-  Segmentation (2): segment_audio, analyze_structure
+  Segmentation (1): segment_audio
   Transformations (4): apply_pitch_shift, apply_time_stretch, remove_silence, separate_harmonic_percussive
   Utility (1): get_audio_info
   

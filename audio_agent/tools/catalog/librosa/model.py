@@ -173,24 +173,6 @@ class SegmentResult:
 
 
 @dataclass
-class StructureSection:
-    label: int
-    start: float
-    end: float
-    duration: float
-
-
-@dataclass
-class StructureResult:
-    sections: list[dict[str, Any]]
-    unique_sections: int
-    total_duration: float
-
-    def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
-
-
-@dataclass
 class AudioInfoResult:
     duration_seconds: float
     sample_rate: int
@@ -546,33 +528,6 @@ class ModelWrapper:
             total_speech_duration=payload['total_speech_duration'],
             total_silence_duration=payload['total_silence_duration']
         )
-
-    def analyze_structure(self, audio_path: str | Path, n_segments: int = 4) -> StructureResult:
-        """Analyze musical structure using recurrence matrix."""
-        input_path = Path(audio_path).resolve()
-        code = (
-            "import json, librosa, sys, numpy as np, sklearn.cluster; "
-            "audio_path, n_segments = sys.argv[1], int(sys.argv[2]); "
-            "y, sr = librosa.load(audio_path, sr=None); "
-            "chroma = librosa.feature.chroma_cqt(y=y, sr=sr); "
-            "R = librosa.segment.recurrence_matrix(chroma, mode='affinity'); "
-            "kmeans = sklearn.cluster.KMeans(n_clusters=n_segments, random_state=42, n_init=10); "
-            "labels = kmeans.fit_predict(chroma.T); "
-            "hop_length = 512; "
-            "frame_times = librosa.frames_to_time(np.arange(len(labels)), sr=sr, hop_length=hop_length); "
-            "sections = []; current_label = labels[0]; start_time = 0; "
-            "for i, label in enumerate(labels[1:], 1): "
-            "    if label != current_label: "
-            "        sections.append({'label': int(current_label), 'start': round(float(start_time), 3), "
-            "        'end': round(float(frame_times[i-1]), 3), 'duration': round(float(frame_times[i-1] - start_time), 3)}); "
-            "        current_label = label; start_time = frame_times[i-1]; "
-            "sections.append({'label': int(current_label), 'start': round(float(start_time), 3), "
-            "'end': round(float(frame_times[-1]), 3), 'duration': round(float(frame_times[-1] - start_time), 3)}); "
-            "print(json.dumps({'sections': sections, 'unique_sections': len(set(labels)), "
-            "'total_duration': round(float(frame_times[-1]), 3)}))"
-        )
-        payload = self._run_librosa_code(code, input_path, str(n_segments))
-        return StructureResult(**payload)
 
     def get_audio_info(self, audio_path: str | Path) -> AudioInfoResult:
         """Get basic audio file information."""
