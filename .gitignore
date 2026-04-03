@@ -52,6 +52,7 @@ models/
 output.wav
 output/
 logs/
+assets/
 audio_agent/tools/catalog/diarizen/diarizen_src/
 
 # Server-specific files (do not push to remote)
