@@ -65,3 +65,19 @@ tools:
           description: "Path to save the generated audio response"
           default: ""
       required: ["audio_path"]
+  
+  - name: "verify_audio_quality"
+    description: "Verify audio quality after enhancement/processing by analyzing spectrogram with VLM. Generates spectrogram and checks for artifacts, distortion, or quality issues."
+    input_schema:
+      type: object
+      properties:
+        audio_path:
+          type: string
+          description: "Path to the processed/enhanced audio file to verify (REQUIRED)"
+        reference_audio_path:
+          type: string
+          description: "Optional: Path to original audio for comparison"
+        verification_prompt:
+          type: string
+          description: "Specific instructions on what to check (e.g., 'Check for denoising artifacts', 'Compare with reference for content loss')"
+      required: ["audio_path", "verification_prompt"]

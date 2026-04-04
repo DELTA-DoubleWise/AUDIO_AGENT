@@ -82,6 +82,28 @@ class OmniCaptionerServer:
                     },
                     "required": ["audio_path"]
                 }
+            },
+            {
+                "name": "verify_audio_quality",
+                "description": "Verify audio quality after enhancement/processing by analyzing spectrogram with VLM. Generates spectrogram and checks for artifacts, distortion, or quality issues.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "audio_path": {
+                            "type": "string",
+                            "description": "Path to the processed/enhanced audio file to verify (REQUIRED)"
+                        },
+                        "reference_audio_path": {
+                            "type": "string",
+                            "description": "Optional: Path to original audio for comparison"
+                        },
+                        "verification_prompt": {
+                            "type": "string",
+                            "description": "Specific instructions on what to check (e.g., 'Check for denoising artifacts', 'Compare with reference for content loss')"
+                        }
+                    },
+                    "required": ["audio_path", "verification_prompt"]
+                }
             }
         ]
     
@@ -198,6 +220,8 @@ class OmniCaptionerServer:
             return self._omni_caption(arguments, generate_audio=False)
         elif tool_name == "omni_caption_with_audio":
             return self._omni_caption(arguments, generate_audio=True)
+        elif tool_name == "verify_audio_quality":
+            return self._verify_audio_quality(arguments)
         else:
             raise ValueError(f"Unknown tool: {tool_name}")
     
@@ -251,6 +275,79 @@ class OmniCaptionerServer:
             traceback.print_exc(file=sys.stderr)
             raise RuntimeError(f"API call failed: {e}") from e
     
+    def _verify_audio_quality(self, arguments: dict) -> dict[str, Any]:
+        """Verify audio quality using VLM analysis of spectrograms."""
+        from model import OmniCaptionerModel
+        
+        audio_path = arguments.get("audio_path", "")
+        verification_prompt = arguments.get("verification_prompt", "")
+        reference_audio_path = arguments.get("reference_audio_path", "")
+        
+        if not audio_path:
+            raise ValueError("audio_path is required")
+        if not verification_prompt:
+            raise ValueError("verification_prompt is required")
+        
+        if not Path(audio_path).exists():
+            raise FileNotFoundError(f"Audio file not found: {audio_path}")
+        
+        print(f"Verifying audio quality: {audio_path}", file=sys.stderr)
+        
+        try:
+            model = OmniCaptionerModel(
+                api_key=self._api_key,
+                base_url=self._base_url,
+                model=self._default_model,
+            )
+            
+            result = model.verify_audio_quality(
+                audio_path=audio_path,
+                verification_prompt=verification_prompt,
+                reference_audio_path=reference_audio_path if reference_audio_path else None,
+            )
+            
+            # Build response
+            status_emoji = "✅" if result.verification_passed else "❌"
+            quality_emoji = {
+                "Good": "🟢",
+                "Acceptable": "🟡",
+                "Poor": "🔴"
+            }.get(result.quality_assessment, "⚪")
+            
+            result_text = f"""{status_emoji} Audio Quality Verification Result
+
+**Verification Passed:** {result.verification_passed}
+**Quality Assessment:** {quality_emoji} {result.quality_assessment}
+
+**Issues Found:**
+"""
+            if result.issues_found:
+                for issue in result.issues_found:
+                    result_text += f"- {issue}\n"
+            else:
+                result_text += "- None\n"
+            
+            result_text += "\n**Recommendations:**\n"
+            if result.recommendations:
+                for rec in result.recommendations:
+                    result_text += f"- {rec}\n"
+            else:
+                result_text += "- None\n"
+            
+            result_text += f"\n**Analysis:**\n{result.analysis}\n"
+            result_text += f"\n[Spectrogram saved to: {result.spectrogram_path}]"
+            
+            return {
+                "content": [{"type": "text", "text": result_text}],
+                "isError": False
+            }
+            
+        except Exception as e:
+            print(f"Verification failed: {e}", file=sys.stderr)
+            import traceback
+            traceback.print_exc(file=sys.stderr)
+            raise RuntimeError(f"Verification failed: {e}") from e
+
     def _handle_shutdown(self, request_id: Any) -> dict[str, Any]:
         """Handle shutdown request."""
         return {"jsonrpc": "2.0", "id": request_id, "result": {}}

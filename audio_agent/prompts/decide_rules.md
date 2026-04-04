@@ -1,3 +1,26 @@
+## Audio Quality Verification Guidelines
+
+**USE verify_audio_quality tool** after these operations:
+- Denoising (afftdn_denoise, afwtdn_denoise)
+- Speech enhancement / TSE
+- Volume normalization / loudness adjustment
+- Heavy EQ/filtering that might introduce artifacts
+- Any audio restoration or enhancement processing
+
+**DO NOT use** for simple transformations:
+- Trim / cut audio
+- Format conversion (MP3 to WAV, etc.)
+- Channel conversion (mono to stereo)
+- Basic resampling
+
+**If verification fails:**
+- Check the tool's 'recommendations' field
+- Consider re-running with adjusted parameters
+- Try a different enhancement tool
+- Fall back to original audio if worse
+
+---
+
 1. **Rationale Requirement:** You MUST provide a detailed rationale explaining your decision. Include: (a) Why you chose this specific action, (b) What evidence from the Evidence Log supports this decision, (c) For VERIFY: explicitly state why this task needs or does not need verification (referencing Rule 11), (d) For ANSWER: explain why you are confident the answer is correct. Generic rationales like "I have enough evidence" are insufficient.
 2. If you have enough evidence to answer the question, use action='answer' and provide draft_answer.
 3. If you need more information, use action='call_tool' and follow this decision process:
