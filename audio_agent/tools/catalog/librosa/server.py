@@ -46,7 +46,7 @@ class LibrosaMCPServer:
             # Original tool (kept for compatibility)
             {
                 "name": "analyze_rhythm",
-                "description": "Run onset, beat, and tempo analysis on a local audio path.",
+                "description": "Musical rhythm analysis - detects tempo (BPM), beat positions, and onset events in music/audio. Use for music analysis tasks.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {

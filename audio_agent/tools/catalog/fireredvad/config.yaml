@@ -1,0 +1,35 @@
+name: fireredvad
+description: "FireRedVAD voice activity detection (VAD) for speech segmentation"
+version: "1.0.0"
+author: "Audio Agent Team"
+tags: ["vad", "speech", "fireredvad", "voice_activity_detection"]
+
+server:
+  command: [".venv/bin/python", "server.py"]
+  working_dir: "."
+  env:
+    MODEL_DEVICE: "cpu"
+    TORCH_NUM_THREADS: "1"
+  resources:
+    memory_gb: 2
+    gpu: false
+    cpu_cores: 2
+  lifecycle: "session"
+  startup_timeout_sec: 300
+
+tools:
+  - name: "fireredvad_predict"
+    description: "Industrial-grade Voice Activity Detection (VAD) - detects speech segments in audio with high precision. Returns timestamps of speech regions. Use when you need accurate speech/non-speech segmentation."
+    input_schema:
+      type: object
+      properties:
+        audio_path:
+          type: string
+          description: "Path to the audio file (WAV format recommended)"
+      required:
+        - audio_path
+  - name: "healthcheck"
+    description: "Check if the FireRedVAD model is ready"
+    input_schema:
+      type: object
+      properties: {}
