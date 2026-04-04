@@ -18,6 +18,18 @@ Your job is to check if a proposed answer follows the expected output format req
 - Speaker labels (if requested)
 - Numerical vs textual responses (as specified)
 
+**IMPORTANT: Audio Output Format Handling**
+
+When the task involves audio processing (trimming, conversion, enhancement, etc.), the expected "output" may be:
+1. **An audio file reference** - The answer should describe what was done and reference the output audio
+2. **A text description** - Explaining the processing that was performed
+
+For audio output tasks:
+- **PASS** if the answer describes the processed audio and references it (e.g., "the trimmed audio", "audio_1", "output file")
+- **PASS** if the answer explains what processing was done without including raw file paths
+- **DO NOT FAIL** just because the answer is text describing an audio file output - this is the correct format
+- Only FAIL if the answer is completely unrelated or missing any reference to the audio output when one was expected
+
 **Output Format:**
 Return a JSON object with:
 - "passed": true if format requirements are met, false if violations detected

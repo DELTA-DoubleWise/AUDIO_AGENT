@@ -916,12 +916,17 @@ def create_format_check_node(planner: BasePlanner):
         proposed_answer = decision.draft_answer
         expected_format = state.get("expected_output_format")
         
+        # Check if this is an audio output task
+        initial_plan = state.get("initial_plan")
+        requires_audio_output = initial_plan.requires_audio_output if initial_plan else False
+        
         # Call planner to check format
         try:
             format_check_result = planner.check_format(
                 proposed_answer=proposed_answer,
                 expected_format=expected_format,
                 question=question,
+                requires_audio_output=requires_audio_output,
             )
         except PlannerError:
             raise

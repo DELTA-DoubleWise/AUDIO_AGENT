@@ -623,12 +623,14 @@ class BaseModelPlanner(BasePlanner):
         proposed_answer: str,
         expected_format: str | None,
         question: str,
+        requires_audio_output: bool = False,
     ) -> str:
         """Build user instruction for format checking phase."""
         return load_prompt("format_check_user").format(
             question=question,
             expected_format=expected_format or "No specific format required",
             proposed_answer=proposed_answer,
+            is_audio_output_task="Yes" if requires_audio_output else "No",
         )
 
     def build_format_check_model_input(
@@ -636,11 +638,12 @@ class BaseModelPlanner(BasePlanner):
         proposed_answer: str,
         expected_format: str | None,
         question: str,
+        requires_audio_output: bool = False,
     ) -> UnifiedPlannerInput:
         """Build model input for format checking."""
         system_prompt = self.build_format_check_system_prompt()
         user_text = self.build_format_check_user_instruction(
-            proposed_answer, expected_format, question
+            proposed_answer, expected_format, question, requires_audio_output
         )
         return UnifiedPlannerInput(
             system_prompt=system_prompt,
@@ -712,6 +715,7 @@ class BaseModelPlanner(BasePlanner):
         proposed_answer: str,
         expected_format: str | None,
         question: str,
+        requires_audio_output: bool = False,
     ) -> FormatCheckResult:
         """
         Check if the proposed answer follows the expected output format.
@@ -727,7 +731,7 @@ class BaseModelPlanner(BasePlanner):
             )
         
         model_input = self.build_format_check_model_input(
-            proposed_answer, expected_format, question
+            proposed_answer, expected_format, question, requires_audio_output
         )
         try:
             raw_output = self.call_model(model_input)

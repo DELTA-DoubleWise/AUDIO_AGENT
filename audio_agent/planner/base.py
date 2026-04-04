@@ -121,6 +121,7 @@ class BasePlanner(ABC):
         proposed_answer: str,
         expected_format: str | None,
         question: str,
+        requires_audio_output: bool = False,
     ) -> FormatCheckResult:
         """
         Check if the proposed answer follows the expected output format.
@@ -134,6 +135,7 @@ class BasePlanner(ABC):
             proposed_answer: The answer to check for format compliance
             expected_format: The expected output format (may be None if not specified)
             question: The original user question (for context)
+            requires_audio_output: Whether this task expects an audio file as output
             
         Returns:
             FormatCheckResult indicating whether format requirements are met

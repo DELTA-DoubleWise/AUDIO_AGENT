@@ -185,6 +185,7 @@ class DummyPlanner(BasePlanner):
         proposed_answer: str,
         expected_format: str | None,
         question: str,
+        requires_audio_output: bool = False,
     ) -> FormatCheckResult:
         """
         Check format compliance using dummy logic.
