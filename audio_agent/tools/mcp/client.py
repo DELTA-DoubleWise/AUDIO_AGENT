@@ -48,6 +48,32 @@ class MCPClient:
         self._process: asyncio.subprocess.Process | None = None
         self._request_id = 0
         self._lock = asyncio.Lock()
+        self._stderr_buffer: list[str] = []
+        self._stderr_task: asyncio.Task | None = None
+        
+    async def _read_stderr(self) -> None:
+        """Continuously read stderr and store for debugging."""
+        if self._process is None or self._process.stderr is None:
+            return
+        
+        try:
+            while True:
+                line = await self._process.stderr.readline()
+                if not line:
+                    break
+                stderr_line = line.decode().strip()
+                self._stderr_buffer.append(stderr_line)
+                # Keep only last 100 lines to prevent memory issues
+                if len(self._stderr_buffer) > 100:
+                    self._stderr_buffer.pop(0)
+        except asyncio.CancelledError:
+            pass
+        except Exception:
+            pass
+    
+    def get_stderr_logs(self) -> str:
+        """Get captured stderr logs for debugging."""
+        return "\n".join(self._stderr_buffer)
         
     async def start(self) -> None:
         """
@@ -80,6 +106,9 @@ class MCPClient:
                 details={"command": self._command}
             ) from e
         
+        # Start stderr reader task
+        self._stderr_task = asyncio.create_task(self._read_stderr())
+        
         # Perform initialize handshake
         try:
             await self._send_initialize()
@@ -87,7 +116,7 @@ class MCPClient:
             await self.stop()
             raise ToolExecutionError(
                 f"MCP server initialization failed: {e}",
-                details={"command": self._command}
+                details={"command": self._command, "stderr": self.get_stderr_logs()}
             ) from e
     
     async def _send_initialize(self) -> None:
@@ -225,9 +254,20 @@ class MCPClient:
         
         if response.get("error"):
             error = response["error"]
+            stderr_logs = self.get_stderr_logs()
+            error_msg = error.get('message', 'Unknown error')
+            
+            # Include error data if available (traceback, etc.)
+            error_data = error.get('data')
+            if error_data and isinstance(error_data, dict):
+                if 'traceback' in error_data:
+                    error_msg += f"\n\nTraceback:\n{error_data['traceback']}"
+            
+            if stderr_logs:
+                error_msg += f"\n\nServer stderr:\n{stderr_logs}"
             return MCPCallResult(
                 isError=True,
-                error=f"{error.get('message', 'Unknown error')}"
+                error=error_msg
             )
         
         result = response.get("result", {})
@@ -235,6 +275,15 @@ class MCPClient:
     
     async def stop(self) -> None:
         """Stop the server process gracefully."""
+        # Cancel stderr reader task
+        if self._stderr_task is not None:
+            self._stderr_task.cancel()
+            try:
+                await self._stderr_task
+            except asyncio.CancelledError:
+                pass
+            self._stderr_task = None
+        
         if self._process is None:
             return
         

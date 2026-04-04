@@ -26,16 +26,27 @@ echo ""
 
 # Test wrapper imports
 echo "Testing wrapper imports..."
-$PYTHON_EXE -c "from model import ModelWrapper, VADResult; print('✓ ModelWrapper and VADResult imported successfully')" || exit 1
+$PYTHON_EXE -c "from model import ModelWrapper, VADResult, AEDResult; print('✓ ModelWrapper, VADResult, AEDResult imported successfully')" || exit 1
 echo ""
 
-# Test model loading
-echo "Testing model loading..."
+# Test VAD
+echo "Testing VAD..."
 $PYTHON_EXE -c "
 from model import ModelWrapper
 wrapper = ModelWrapper()
-wrapper.load()
-print('✓ Model loaded successfully')
+result = wrapper.predict('/lihaoyu/workspace/AUDIO_AGENT/sure/tests/fixtures/librispeech/sample_1_367-130732-0006.wav')
+print(f'✓ VAD prediction successful: {len(result.timestamps)} speech segments')
+" || exit 1
+echo ""
+
+# Test AED
+echo "Testing AED..."
+$PYTHON_EXE -c "
+from model import ModelWrapper
+wrapper = ModelWrapper()
+result = wrapper.predict_aed('/lihaoyu/workspace/AUDIO_AGENT/sure/tests/fixtures/librispeech/sample_1_367-130732-0006.wav')
+events = [k for k, v in result.event2timestamps.items() if v]
+print(f'✓ AED prediction successful: detected events - {events}')
 " || exit 1
 echo ""
 

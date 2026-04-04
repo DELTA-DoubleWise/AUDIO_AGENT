@@ -27,7 +27,7 @@ capabilities:
       description: "Convert audio to different format (MP3, WAV, FLAC, AAC, OGG, OPUS, M4A)"
       output_type: audio_file
     - name: resample_audio
-      description: "Resample audio to target sample rate (8000, 16000, 22050, 44100, 48000 Hz)"
+      description: "Resample audio to target sample rate. REQUIRED parameter: 'sample_rate' (Hz). Common values: 16000 (for ML models), 22050, 44100, 48000. Parameter name MUST be 'sample_rate'."
       output_type: audio_file
     - name: change_bit_depth
       description: "Change audio bit depth (8, 16, 24, 32, 64 bits)"

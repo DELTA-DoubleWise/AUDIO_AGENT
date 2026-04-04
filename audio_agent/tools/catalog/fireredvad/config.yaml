@@ -1,8 +1,8 @@
 name: fireredvad
-description: "FireRedVAD voice activity detection (VAD) for speech segmentation"
+description: "FireRedVAD voice activity detection (VAD) and audio event detection (AED) for speech and audio analysis"
 version: "1.0.0"
 author: "Audio Agent Team"
-tags: ["vad", "speech", "fireredvad", "voice_activity_detection"]
+tags: ["vad", "aed", "speech", "fireredvad", "voice_activity_detection", "audio_event_detection"]
 
 server:
   command: [".venv/bin/python", "server.py"]
@@ -28,8 +28,18 @@ tools:
           description: "Path to the audio file (WAV format recommended)"
       required:
         - audio_path
+  - name: "fireredvad_aed"
+    description: "Industrial-grade Audio Event Detection (AED) - detects speech, singing, and music events in audio with high precision. Returns timestamps and ratios for each event type. Use for multi-class audio event detection."
+    input_schema:
+      type: object
+      properties:
+        audio_path:
+          type: string
+          description: "Path to the audio file (WAV format recommended)"
+      required:
+        - audio_path
   - name: "healthcheck"
-    description: "Check if the FireRedVAD model is ready"
+    description: "Check if the FireRedVAD models are ready"
     input_schema:
       type: object
       properties: {}

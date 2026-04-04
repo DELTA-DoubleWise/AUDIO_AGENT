@@ -1,5 +1,5 @@
 tool_id: "FireRedTeam/FireRedVAD"
-tool_name: "FireRedVAD-VAD"
+tool_name: "FireRedVAD-VAD-AED"
 task_type: "vad"
 deployment_type: "local"
 
@@ -20,7 +20,8 @@ environment:
     - ffmpeg
 
 entrypoints:
-  import_test: "from fireredvad import FireRedVad, FireRedVadConfig"
+  # VAD entrypoints
+  import_test: "from fireredvad import FireRedVad, FireRedVadConfig, FireRedAed, FireRedAedConfig"
   load_test: |
     from fireredvad import FireRedVad, FireRedVadConfig
 
@@ -39,6 +40,28 @@ entrypoints:
     vad = FireRedVad.from_pretrained(model_dir, vad_config)
   infer_test: |
     result, probs = vad.detect("tests/fixtures/shared/vad/en_16k_10s.wav")
+  
+  # AED entrypoints
+  aed_load_test: |
+    from fireredvad import FireRedAed, FireRedAedConfig
+
+    model_dir = "/lihaoyu/workspace/AUDIO_AGENT/AUDIO_AGENT/models/fireredvad/AED"
+    aed_config = FireRedAedConfig(
+        use_gpu=False,
+        smooth_window_size=5,
+        speech_threshold=0.4,
+        singing_threshold=0.5,
+        music_threshold=0.5,
+        min_event_frame=20,
+        max_event_frame=2000,
+        min_silence_frame=20,
+        merge_silence_frame=0,
+        extend_speech_frame=0,
+        chunk_max_frame=30000
+    )
+    aed = FireRedAed.from_pretrained(model_dir, aed_config)
+  aed_infer_test: |
+    result, probs = aed.detect("tests/fixtures/shared/vad/en_16k_10s.wav")
 
 fixture:
   audio: "tests/fixtures/shared/vad/en_16k_10s.wav"
