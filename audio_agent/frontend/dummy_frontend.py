@@ -44,7 +44,7 @@ class DummyFrontend(BaseModelFrontend):
     def verify_answer(
         self,
         question: str,
-        audio_path_or_uri: str,
+        audio_paths: list[str],
         proposed_answer: str,
     ) -> VerificationResult:
         """

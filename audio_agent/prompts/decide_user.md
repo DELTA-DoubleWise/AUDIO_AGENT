@@ -21,6 +21,22 @@ Available Tools: {available_tools}
 Step Count: {step_count}
 Max Steps: {max_steps}
 
+**CRITICAL: Tool Argument Rules:**
+- When calling a tool, you MUST use the EXACT parameter names defined in the tool's `input_schema`
+- The `input_schema` shows the required and optional parameters with their exact names
+- Example: If input_schema has `{"enrollment_audio": {...}, "trial_audio": {...}}`, you MUST use those exact names
+
+**CRITICAL: Audio Reference Rule:**
+- When a tool requires an audio file parameter (e.g., `audio_path`, `enrollment_audio`, `trial_audio`), ALWAYS use the `audio_id` from "Available Audio Files" above
+- Use the audio_id directly as the parameter value (e.g., `"audio_path": "audio_0"` or `"enrollment_audio": "audio_1"`)
+- DO NOT construct file paths yourself - the system will automatically resolve audio_ids to the correct file paths
+- Example: If you want to process the original audio, use `"audio_path": "audio_0"`, not `"audio_path": "/some/path/audio_0.wav"`
+
+**CRITICAL: Output Path Rule:**
+- For tools that generate audio files (trim_audio, convert_format, etc.), do NOT provide an `output_path` parameter unless you need a specific filename
+- The system will automatically generate an appropriate output path in the temp directory
+- If you do provide `output_path`, use a simple filename (e.g., "trimmed_segment.wav") - the system will place it in the correct directory
+
 **Important Notes for draft_answer:**
 - Do NOT include raw file paths (/tmp/... or /output/...) in your answer
 - Reference output audio by ID (e.g., "available as audio_1") or say "the output audio file"

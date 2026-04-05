@@ -41,7 +41,7 @@ class WeSpeakerServer:
             {
                 "name": "speaker_verify",
                 "description": "Verify if two audio files are from the same speaker. Returns a similarity score between 0 and 1 (higher = more likely same speaker).",
-                "input_schema": {
+                "inputSchema": {
                     "type": "object",
                     "properties": {
                         "enrollment_audio": {
@@ -59,7 +59,7 @@ class WeSpeakerServer:
             {
                 "name": "healthcheck",
                 "description": "Check if the WeSpeaker model is loaded and ready",
-                "input_schema": {
+                "inputSchema": {
                     "type": "object",
                     "properties": {}
                 }

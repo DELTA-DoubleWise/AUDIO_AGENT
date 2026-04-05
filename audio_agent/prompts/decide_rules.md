@@ -31,6 +31,11 @@
    - Consider the description of each audio to choose the most appropriate one
 4. If the intent or expected output format is unclear, use action='clarify_intent' to reason about it.
 5. action='call_tool' REQUIRES: selected_tool_name (non-empty), selected_audio_id (valid audio_id from Available Audio Files)
+5.5. **Tool Parameter Rule:** When using action='call_tool', you MUST:
+   - Use the EXACT parameter names from the tool's input_schema (case-sensitive, no abbreviations)
+   - For audio file parameters, use the audio_id (e.g., "audio_0", "audio_1") as the value - the system will resolve it to the actual file path
+   - Example: Use `"audio_path": "audio_0"` or `"enrollment_audio": "audio_1"` - NOT full file paths
+   - The system automatically resolves audio_ids to actual file paths with correct extensions
 6. action='answer' REQUIRES: draft_answer (non-empty)
 7. action='clarify_intent' uses reasoning only - do not call tools.
 8. Do NOT use action='call_tool' if you are ready to answer - use action='answer' instead.

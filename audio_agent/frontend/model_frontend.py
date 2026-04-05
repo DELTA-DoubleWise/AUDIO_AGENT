@@ -34,7 +34,7 @@ class UnifiedFrontendInput(BaseModel):
 
     system_prompt: str = Field(..., min_length=1)
     question: str = Field(..., min_length=1)
-    audio_path_or_uri: str = Field(..., min_length=1)
+    audio_paths: list[str] = Field(..., min_length=1)
     user_payload: dict[str, Any] = Field(default_factory=dict)
     messages: list[dict[str, Any]] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
@@ -87,39 +87,41 @@ class BaseModelFrontend(BaseFrontend):
         """
         return FrontendInputFormat.API_MODEL
 
-    def build_frontend_task_instruction(self, question: str, audio_path_or_uri: str) -> str:
+    def build_frontend_task_instruction(self, question: str, audio_paths: list[str]) -> str:
         """Shared instruction text reused across input builders."""
+        audio_list_text = "\n".join([f"- Audio {i}: {path}" for i, path in enumerate(audio_paths)])
         return load_prompt("frontend_user").format(
             question=question,
-            audio_path_or_uri=audio_path_or_uri,
+            audio_list=audio_list_text,
         )
 
-    def _build_common_user_payload(self, question: str, audio_path_or_uri: str) -> dict[str, Any]:
+    def _build_common_user_payload(self, question: str, audio_paths: list[str]) -> dict[str, Any]:
         """Normalized provider-agnostic payload for adapters/logging."""
         return {
             "question": question,
             "audio": {
-                "kind": "path_or_uri",
-                "value": audio_path_or_uri,
+                "kind": "paths",
+                "value": audio_paths,
+                "count": len(audio_paths),
             },
             "task": "question_guided_audio_captioning",
             "output_format": "plain_text_caption",
         }
 
-    def build_api_model_input(self, question: str, audio_path_or_uri: str) -> UnifiedFrontendInput:
+    def build_api_model_input(self, question: str, audio_paths: list[str]) -> UnifiedFrontendInput:
         """
         Build API-hosted chat style input:
         - one system message
-        - one user message with readable task text + audio reference
+        - one user message with readable task text + audio reference(s)
         """
-        user_payload = self._build_common_user_payload(question, audio_path_or_uri)
+        user_payload = self._build_common_user_payload(question, audio_paths)
         system_prompt = load_prompt("frontend_system")
-        user_text = self.build_frontend_task_instruction(question, audio_path_or_uri)
+        user_text = self.build_frontend_task_instruction(question, audio_paths)
 
         return UnifiedFrontendInput(
             system_prompt=system_prompt,
             question=question,
-            audio_path_or_uri=audio_path_or_uri,
+            audio_paths=audio_paths,
             user_payload=user_payload,
             messages=[
                 {"role": "system", "content": system_prompt},
@@ -128,41 +130,45 @@ class BaseModelFrontend(BaseFrontend):
             metadata={
                 "frontend_name": self.name,
                 "input_format": FrontendInputFormat.API_MODEL.value,
+                "audio_count": len(audio_paths),
             },
         )
 
     def build_local_multimodal_model_input(
         self,
         question: str,
-        audio_path_or_uri: str,
+        audio_paths: list[str],
     ) -> UnifiedFrontendInput:
         """
         Build local multimodal style input:
         - system prompt
-        - user content list with text instruction + audio reference
+        - user content list with text instruction + audio reference(s)
         """
-        user_payload = self._build_common_user_payload(question, audio_path_or_uri)
+        user_payload = self._build_common_user_payload(question, audio_paths)
         system_prompt = load_prompt("frontend_system")
-        user_text = self.build_frontend_task_instruction(question, audio_path_or_uri)
+        user_text = self.build_frontend_task_instruction(question, audio_paths)
+
+        # Build content list with text and all audio files
+        content: list[dict[str, Any]] = [{"type": "text", "text": user_text}]
+        for audio_path in audio_paths:
+            content.append({"type": "audio", "audio": audio_path})
 
         return UnifiedFrontendInput(
             system_prompt=system_prompt,
             question=question,
-            audio_path_or_uri=audio_path_or_uri,
+            audio_paths=audio_paths,
             user_payload=user_payload,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {
                     "role": "user",
-                    "content": [
-                        {"type": "text", "text": user_text},
-                        {"type": "audio", "audio": audio_path_or_uri},
-                    ],
+                    "content": content,
                 },
             ],
             metadata={
                 "frontend_name": self.name,
                 "input_format": FrontendInputFormat.LOCAL_MULTIMODAL.value,
+                "audio_count": len(audio_paths),
             },
         )
 
@@ -172,15 +178,18 @@ class BaseModelFrontend(BaseFrontend):
             raise FrontendError("Malformed model input: empty system_prompt")
         if not model_input.question.strip():
             raise FrontendError("Malformed model input: empty question")
-        if not model_input.audio_path_or_uri.strip():
-            raise FrontendError("Malformed model input: empty audio_path_or_uri")
+        if not model_input.audio_paths or len(model_input.audio_paths) == 0:
+            raise FrontendError("Malformed model input: empty audio_paths")
+        for i, path in enumerate(model_input.audio_paths):
+            if not path or not path.strip():
+                raise FrontendError(f"Malformed model input: empty audio path at index {i}")
         validate_message_sequence(
             model_input.messages,
             error_cls=FrontendError,
             context="Malformed model input",
         )
 
-    def build_model_input(self, question: str, audio_path_or_uri: str) -> UnifiedFrontendInput:
+    def build_model_input(self, question: str, audio_paths: list[str]) -> UnifiedFrontendInput:
         """Build model input via explicit format-mode dispatch."""
         mode = self.input_format
         if isinstance(mode, str):
@@ -198,9 +207,9 @@ class BaseModelFrontend(BaseFrontend):
             )
 
         if mode == FrontendInputFormat.API_MODEL:
-            model_input = self.build_api_model_input(question, audio_path_or_uri)
+            model_input = self.build_api_model_input(question, audio_paths)
         elif mode == FrontendInputFormat.LOCAL_MULTIMODAL:
-            model_input = self.build_local_multimodal_model_input(question, audio_path_or_uri)
+            model_input = self.build_local_multimodal_model_input(question, audio_paths)
         else:
             raise FrontendError(
                 "Unsupported frontend input format",
@@ -258,32 +267,62 @@ class BaseModelFrontend(BaseFrontend):
             details={"output_type": type(raw_output).__name__, "question": model_input.question},
         )
 
-    def run(self, question: str, audio_path_or_uri: str) -> FrontendOutput:
+    def run(self, question: str, audio_paths: list[str]) -> FrontendOutput:
         """
         Standardized frontend execution path:
         validate -> build unified input -> call model -> normalize output
+        
+        For multiple audios, makes separate API calls and combines results
+        into a single FrontendOutput (since API models don't support multiple
+        audios in one call).
         """
-        self.validate_inputs(question, audio_path_or_uri)
-        model_input = self.build_model_input(question.strip(), audio_path_or_uri.strip())
-        try:
-            raw_output = self.call_model(model_input)
-        except FrontendError:
-            raise
-        except Exception as e:
-            raise FrontendError(
-                f"Model call failed: {type(e).__name__}: {e}",
-                details={"frontend": self.name},
-            ) from e
-        return self.normalize_model_output(raw_output, model_input)
+        self.validate_inputs(question, audio_paths)
+        # Strip all paths
+        stripped_paths = [p.strip() for p in audio_paths]
+        
+        if len(stripped_paths) == 1:
+            # Single audio - normal processing path
+            model_input = self.build_model_input(question.strip(), stripped_paths)
+            try:
+                raw_output = self.call_model(model_input)
+            except FrontendError:
+                raise
+            except Exception as e:
+                raise FrontendError(
+                    f"Model call failed: {type(e).__name__}: {e}",
+                    details={"frontend": self.name},
+                ) from e
+            return self.normalize_model_output(raw_output, model_input)
+        else:
+            # Multiple audios - separate calls, combine results
+            # API models like qwen3-omni-flash don't support multiple audios in one call
+            captions = []
+            for i, path in enumerate(stripped_paths):
+                single_input = self.build_model_input(question.strip(), [path])
+                try:
+                    raw_output = self.call_model(single_input)
+                except FrontendError:
+                    raise
+                except Exception as e:
+                    raise FrontendError(
+                        f"Model call failed for audio {i}: {type(e).__name__}: {e}",
+                        details={"frontend": self.name, "audio_index": i},
+                    ) from e
+                output = self.normalize_model_output(raw_output, single_input)
+                captions.append(f"Audio {i}: {output.question_guided_caption}")
+            
+            # Combine into single FrontendOutput
+            combined_caption = "\n\n".join(captions)
+            return FrontendOutput(question_guided_caption=combined_caption)
 
     def verify_answer(
         self,
         question: str,
-        audio_path_or_uri: str,
+        audio_paths: list[str],
         proposed_answer: str,
     ) -> VerificationResult:
         """
-        Verify a proposed answer by reviewing it against the audio.
+        Verify a proposed answer by reviewing it against the audio(s).
 
         This base implementation builds verification model input using the
         local multimodal format and calls the model. Subclasses can override
@@ -291,13 +330,13 @@ class BaseModelFrontend(BaseFrontend):
 
         Args:
             question: The original user question about the audio
-            audio_path_or_uri: Path or URI to the audio file
+            audio_paths: List of paths to audio files
             proposed_answer: The answer to be verified
 
         Returns:
             VerificationResult with passed status, critique (if failed), and confidence
         """
-        self.validate_inputs(question, audio_path_or_uri)
+        self.validate_inputs(question, audio_paths)
         if not proposed_answer or not proposed_answer.strip():
             raise FrontendError(
                 "Proposed answer must be non-empty",
@@ -311,13 +350,20 @@ class BaseModelFrontend(BaseFrontend):
             proposed_answer=proposed_answer,
         )
 
+        # Build content list with text and all audio files
+        content: list[dict[str, Any]] = [
+            {"type": "text", "text": user_text},
+        ]
+        for audio_path in audio_paths:
+            content.append({"type": "audio", "audio": audio_path})
+
         model_input = UnifiedFrontendInput(
             system_prompt=system_prompt,
             question=question,
-            audio_path_or_uri=audio_path_or_uri,
+            audio_paths=audio_paths,
             user_payload={
                 "question": question,
-                "audio": {"kind": "path_or_uri", "value": audio_path_or_uri},
+                "audio": {"kind": "paths", "value": audio_paths, "count": len(audio_paths)},
                 "proposed_answer": proposed_answer,
                 "task": "answer_verification",
             },
@@ -325,16 +371,14 @@ class BaseModelFrontend(BaseFrontend):
                 {"role": "system", "content": system_prompt},
                 {
                     "role": "user",
-                    "content": [
-                        {"type": "text", "text": user_text},
-                        {"type": "audio", "audio": audio_path_or_uri},
-                    ],
+                    "content": content,
                 },
             ],
             metadata={
                 "frontend_name": self.name,
                 "input_format": FrontendInputFormat.LOCAL_MULTIMODAL.value,
                 "task": "verification",
+                "audio_count": len(audio_paths),
             },
         )
 

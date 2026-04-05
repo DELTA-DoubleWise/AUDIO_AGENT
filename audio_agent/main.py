@@ -77,15 +77,15 @@ class AudioAgent:
         if self.config.enable_run_logging:
             self._run_logger = RunLogger(log_dir=self.config.log_dir)
     
-    def _setup_temp_dir(self, audio_path: str) -> tuple[str, list[AudioItem]]:
+    def _setup_temp_dir(self, audio_paths: list[str]) -> tuple[str, list[AudioItem]]:
         """
-        Create temp directory and copy original audio.
+        Create temp directory and copy original audio(s).
         
         Creates a temp directory at {temp_dir_base}/agent_{timestamp}_{random}/
-        and copies the original audio as audio_0.wav.
+        and copies the original audio(s) as audio_0, audio_1, etc.
         
         Args:
-            audio_path: Path to the original audio file
+            audio_paths: List of paths to the original audio files
             
         Returns:
             Tuple of (temp_dir_path, audio_list)
@@ -103,22 +103,25 @@ class AudioAgent:
         os.makedirs(temp_dir, exist_ok=True)
         log_info("temp_dir_created", {"path": temp_dir})
         
-        # Copy original audio as audio_0.wav (use absolute path)
-        original_ext = Path(audio_path).suffix or ".wav"
-        dest_path = os.path.join(temp_dir, f"audio_0{original_ext}")
-        shutil.copy2(audio_path, dest_path)
-        log_info("audio_copied", {"source": audio_path, "dest": dest_path})
-        
-        # Create audio item with absolute path
-        audio_item = AudioItem(
-            audio_id="audio_0",
-            path=dest_path,
-            source="original",
-            description="original input audio",
-        )
+        # Copy all original audios
+        audio_list: list[AudioItem] = []
+        for i, audio_path in enumerate(audio_paths):
+            original_ext = Path(audio_path).suffix or ".wav"
+            dest_path = os.path.join(temp_dir, f"audio_{i}{original_ext}")
+            shutil.copy2(audio_path, dest_path)
+            log_info("audio_copied", {"source": audio_path, "dest": dest_path})
+            
+            # Create audio item with absolute path
+            audio_item = AudioItem(
+                audio_id=f"audio_{i}",
+                path=dest_path,
+                source="original",
+                description=f"input audio {i}",
+            )
+            audio_list.append(audio_item)
         
         self._temp_dir = temp_dir
-        return temp_dir, [audio_item]
+        return temp_dir, audio_list
     
     def cleanup(self) -> None:
         """
@@ -196,7 +199,7 @@ class AudioAgent:
     def run(
         self,
         question: str,
-        audio_path_or_uri: str,
+        audio_paths: list[str],
         max_steps: int | None = None,
     ) -> AgentState:
         """
@@ -204,7 +207,7 @@ class AudioAgent:
         
         Args:
             question: User question about the audio
-            audio_path_or_uri: Path or URI to audio file
+            audio_paths: List of paths to audio files (one or more)
             max_steps: Override default max_steps
         
         Returns:
@@ -212,12 +215,12 @@ class AudioAgent:
         """
         import asyncio
         # Use asyncio.run to execute the async version
-        return asyncio.run(self.arun(question, audio_path_or_uri, max_steps))
+        return asyncio.run(self.arun(question, audio_paths, max_steps))
     
     async def arun(
         self,
         question: str,
-        audio_path_or_uri: str,
+        audio_paths: list[str],
         max_steps: int | None = None,
     ) -> AgentState:
         """
@@ -227,7 +230,7 @@ class AudioAgent:
         
         Args:
             question: User question about the audio
-            audio_path_or_uri: Path or URI to audio file
+            audio_paths: List of paths to audio files (one or more)
             max_steps: Override default max_steps
         
         Returns:
@@ -236,12 +239,12 @@ class AudioAgent:
         effective_max_steps = max_steps if max_steps is not None else self.config.max_steps
         
         # Setup directories
-        temp_dir, audio_list = self._setup_temp_dir(audio_path_or_uri)
+        temp_dir, audio_list = self._setup_temp_dir(audio_paths)
         self._setup_output_dir()
         
         initial_state = create_initial_state(
             question=question,
-            audio_path_or_uri=audio_path_or_uri,
+            audio_paths=audio_paths,
             max_steps=effective_max_steps,
             temp_dir=temp_dir,
             audio_list=audio_list,

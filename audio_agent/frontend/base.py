@@ -31,16 +31,16 @@ class BaseFrontend(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def run(self, question: str, audio_path_or_uri: str) -> FrontendOutput:
+    def run(self, question: str, audio_paths: list[str]) -> FrontendOutput:
         """
-        Process audio with the given question and produce initial evidence.
+        Process audio(s) with the given question and produce initial evidence.
 
         Args:
             question: The user's question about the audio
-            audio_path_or_uri: Path or URI to the audio file
+            audio_paths: List of paths to audio files (one or more)
 
         Returns:
-            FrontendOutput with question-guided caption
+            FrontendOutput with question-guided caption covering all audios
 
         Raises:
             FrontendError: If processing fails or input is invalid
@@ -50,11 +50,11 @@ class BaseFrontend(ABC):
     def verify_answer(
         self,
         question: str,
-        audio_path_or_uri: str,
+        audio_paths: list[str],
         proposed_answer: str,
     ) -> VerificationResult:
         """
-        Verify a proposed answer by reviewing it against the audio.
+        Verify a proposed answer by reviewing it against the audio(s).
 
         This method acts as a skeptic to check for apparent flaws in the
         proposed answer based on the audio content. Only speaks up if
@@ -62,7 +62,7 @@ class BaseFrontend(ABC):
 
         Args:
             question: The original user question about the audio
-            audio_path_or_uri: Path or URI to the audio file
+            audio_paths: List of paths to audio files
             proposed_answer: The answer to be verified
 
         Returns:
@@ -76,7 +76,7 @@ class BaseFrontend(ABC):
             f"Frontend {self.name} does not support answer verification"
         )
 
-    def validate_inputs(self, question: str, audio_path_or_uri: str) -> None:
+    def validate_inputs(self, question: str, audio_paths: list[str]) -> None:
         """
         Validate inputs before processing. Called by subclasses.
 
@@ -88,11 +88,17 @@ class BaseFrontend(ABC):
                 "Question must be a non-empty string",
                 details={"question": question},
             )
-        if not audio_path_or_uri or not audio_path_or_uri.strip():
+        if not audio_paths or len(audio_paths) == 0:
             raise FrontendError(
-                "Audio path/URI must be a non-empty string",
-                details={"audio_path_or_uri": audio_path_or_uri},
+                "Audio paths must contain at least one path",
+                details={"audio_paths": audio_paths},
             )
+        for i, path in enumerate(audio_paths):
+            if not path or not path.strip():
+                raise FrontendError(
+                    f"Audio path at index {i} is empty",
+                    details={"index": i},
+                )
 
 
 # Backward-compatible re-exports for existing imports.

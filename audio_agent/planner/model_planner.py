@@ -122,6 +122,7 @@ class BaseModelPlanner(BasePlanner):
             {
                 "name": tool.name,
                 "description": tool.description,
+                "input_schema": tool.input_schema,
                 "tags": tool.tags,
             }
             for tool in available_tools

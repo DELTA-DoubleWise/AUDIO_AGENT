@@ -40,7 +40,17 @@ class PlannerActionType(str, Enum):
 class FrontendInput(BaseModel):
     """Input to the frontend module."""
     question: str = Field(..., min_length=1, description="User question about the audio")
-    audio_path_or_uri: str = Field(..., min_length=1, description="Path or URI to audio file")
+    audio_paths: list[str] = Field(..., min_length=1, description="One or more audio file paths")
+    
+    @model_validator(mode="after")
+    def validate_audio_paths(self) -> "FrontendInput":
+        """Validate that at least one audio path is provided and all exist."""
+        if not self.audio_paths:
+            raise ValueError("At least one audio path must be provided")
+        for path in self.audio_paths:
+            if not path or not path.strip():
+                raise ValueError("Audio paths cannot be empty strings")
+        return self
 
 
 class FrontendOutput(BaseModel):

@@ -93,31 +93,37 @@ class Qwen2AudioFrontend(BaseModelFrontend):
     def build_local_multimodal_model_input(
         self,
         question: str,
-        audio_path_or_uri: str,
+        audio_paths: list[str],
     ) -> UnifiedFrontendInput:
-        """Build Qwen2-Audio-style multimodal input with local/remote audio key selection."""
-        user_payload = self._build_common_user_payload(question, audio_path_or_uri)
+        """Build Qwen2-Audio-style multimodal input with local/remote audio key selection.
+        
+        Note: audio_paths will always have exactly one audio when this is called,
+        since the base run() method iterates through multiple audios separately.
+        """
+        audio_path = audio_paths[0]
+        user_payload = self._build_common_user_payload(question, audio_paths)
+        
+        # Build content with single audio and text
         audio_content: dict[str, str] = {"type": "audio"}
-        if self._is_remote_audio(audio_path_or_uri):
-            audio_content["audio_url"] = audio_path_or_uri
+        if self._is_remote_audio(audio_path):
+            audio_content["audio_url"] = audio_path
         else:
-            audio_content["audio"] = audio_path_or_uri
+            audio_content["audio"] = audio_path
+        
+        content = [
+            audio_content,
+            {"type": "text", "text": self.build_frontend_task_instruction(question, audio_paths)},
+        ]
 
         system_prompt = load_prompt("frontend_system")
         return UnifiedFrontendInput(
             system_prompt=system_prompt,
             question=question,
-            audio_path_or_uri=audio_path_or_uri,
+            audio_paths=audio_paths,
             user_payload=user_payload,
             messages=[
                 {"role": "system", "content": system_prompt},
-                {
-                    "role": "user",
-                    "content": [
-                        audio_content,
-                        {"type": "text", "text": self.build_frontend_task_instruction(question, audio_path_or_uri)},
-                    ],
-                },
+                {"role": "user", "content": content},
             ],
             metadata={
                 "frontend_name": self.name,
@@ -154,7 +160,11 @@ class Qwen2AudioFrontend(BaseModelFrontend):
         return waveform
 
     def call_model(self, model_input: UnifiedFrontendInput) -> str:
-        """Run Qwen2-Audio generation and return raw text output."""
+        """Run Qwen2-Audio generation and return raw text output.
+        
+        Note: This processes a single audio per call. The base run() method
+        handles multiple audios by making separate calls.
+        """
         model = self.model_handle["model"]
         processor = self.model_handle["processor"]
         conversation = model_input.messages
@@ -165,8 +175,10 @@ class Qwen2AudioFrontend(BaseModelFrontend):
                 add_generation_prompt=True,
                 tokenize=False,
             )
+            # Load single audio file
+            audio_path = model_input.audio_paths[0]
             audio_array = self._load_audio(
-                model_input.audio_path_or_uri,
+                audio_path,
                 sampling_rate=processor.feature_extractor.sampling_rate,
             )
 

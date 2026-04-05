@@ -149,24 +149,29 @@ class OpenAICompatibleFrontend(BaseModelFrontend):
                 details={"audio_path": audio_path},
             ) from e
 
-    def build_api_model_input(self, question: str, audio_path_or_uri: str) -> UnifiedFrontendInput:
+    def build_api_model_input(self, question: str, audio_paths: list[str]) -> UnifiedFrontendInput:
         """
         Build API input with audio as base64.
 
         Overrides base to include audio in the messages using the input_audio
         content type supported by OpenAI-compatible APIs.
+        
+        Note: audio_paths will always have exactly one audio when this is called,
+        since the base run() method iterates through multiple audios separately.
         """
-        # Encode audio to base64
-        audio_data_url, audio_format = self._encode_audio(audio_path_or_uri)
+        # Encode audio to base64 (single audio)
+        audio_path = audio_paths[0]
+        audio_data_url, audio_format = self._encode_audio(audio_path)
 
         # Load prompts from markdown files
         system_prompt = load_prompt("frontend_system")
+        audio_list_text = f"- Audio 0: {audio_path}"
         user_text = load_prompt("frontend_user").format(
             question=question,
-            audio_path_or_uri=audio_path_or_uri,
+            audio_list=audio_list_text,
         )
 
-        # Build messages with audio
+        # Build messages with single audio
         messages = [
             {"role": "system", "content": system_prompt},
             {
@@ -187,10 +192,10 @@ class OpenAICompatibleFrontend(BaseModelFrontend):
         return UnifiedFrontendInput(
             system_prompt=system_prompt,
             question=question,
-            audio_path_or_uri=audio_path_or_uri,
+            audio_paths=audio_paths,
             user_payload={
                 "question": question,
-                "audio": {"kind": "path_or_uri", "value": audio_path_or_uri},
+                "audio": {"kind": "path", "value": audio_path},
                 "task": "question_guided_audio_captioning",
                 "output_format": "plain_text_caption",
             },
@@ -253,32 +258,41 @@ class OpenAICompatibleFrontend(BaseModelFrontend):
     def verify_answer(
         self,
         question: str,
-        audio_path_or_uri: str,
+        audio_paths: list[str],
         proposed_answer: str,
     ) -> VerificationResult:
         """
-        Verify a proposed answer by reviewing it against the audio.
+        Verify a proposed answer by reviewing it against the audio(s).
 
         Uses the same audio model but with different prompts to act as a
         skeptic checking for apparent flaws in the proposed answer.
 
         Args:
             question: The original user question about the audio
-            audio_path_or_uri: Path or URI to the audio file
+            audio_paths: List of paths to audio files
             proposed_answer: The answer to be verified
 
         Returns:
             VerificationResult with passed status, critique (if failed), and confidence
         """
-        self.validate_inputs(question, audio_path_or_uri)
+        self.validate_inputs(question, audio_paths)
         if not proposed_answer or not proposed_answer.strip():
             raise FrontendError(
                 "Proposed answer must be non-empty",
                 details={"proposed_answer": proposed_answer},
             )
 
-        # Encode audio to base64
-        audio_data_url, audio_format = self._encode_audio(audio_path_or_uri)
+        # Encode all audios to base64
+        audio_items = []
+        for audio_path in audio_paths:
+            audio_data_url, audio_format = self._encode_audio(audio_path)
+            audio_items.append({
+                "type": "input_audio",
+                "input_audio": {
+                    "data": audio_data_url,
+                    "format": audio_format,
+                }
+            })
 
         # Load verification prompts
         system_prompt = load_prompt("verification_system")
@@ -287,22 +301,13 @@ class OpenAICompatibleFrontend(BaseModelFrontend):
             proposed_answer=proposed_answer,
         )
 
-        # Build messages with audio
+        # Build messages with all audios
+        content: list[dict[str, Any]] = [{"type": "text", "text": user_text}]
+        content.extend(audio_items)
+        
         messages = [
             {"role": "system", "content": system_prompt},
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": user_text},
-                    {
-                        "type": "input_audio",
-                        "input_audio": {
-                            "data": audio_data_url,
-                            "format": audio_format,
-                        }
-                    }
-                ]
-            }
+            {"role": "user", "content": content}
         ]
 
         # Make API call

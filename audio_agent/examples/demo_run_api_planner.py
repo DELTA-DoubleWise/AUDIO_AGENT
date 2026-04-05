@@ -277,10 +277,10 @@ async def amain() -> int:
 
     question = args.question
     # Resolve audio path to absolute path for tools
-    audio_path = str(Path(args.audio).resolve())
+    audio_paths = [str(Path(args.audio).resolve())]
 
     print(f"\nQuestion: {question}")
-    print(f"Audio path: {audio_path}")
+    print(f"Audio path: {audio_paths[0]}")
     print(f"Frontend model: {args.frontend_model_path}")
     print(f"Planner model: {args.planner_model} (API)")
     print(f"Enable thinking: {args.enable_thinking}")
@@ -291,7 +291,7 @@ async def amain() -> int:
     try:
         final_state = await agent.arun(
             question=question,
-            audio_path_or_uri=audio_path,
+            audio_paths=audio_paths,
             max_steps=args.max_steps,
         )
     except Exception as e:

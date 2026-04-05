@@ -126,7 +126,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--audio",
         required=True,
-        help="Path to the input audio file.",
+        nargs="+",
+        help="Path(s) to the input audio file(s). Can specify one or more files for multi-audio comparison tasks.",
     )
     parser.add_argument(
         "--question",
@@ -283,11 +284,16 @@ async def amain() -> int:
         return 1
 
     question = args.question
-    # Resolve audio path to absolute path for tools
-    audio_path = str(Path(args.audio).resolve())
+    # Resolve all audio paths to absolute paths for tools
+    audio_paths = [str(Path(p).resolve()) for p in args.audio]
 
     print(f"\nQuestion: {question}")
-    print(f"Audio path: {audio_path}")
+    if len(audio_paths) == 1:
+        print(f"Audio path: {audio_paths[0]}")
+    else:
+        print(f"Audio paths ({len(audio_paths)}):")
+        for i, path in enumerate(audio_paths, 1):
+            print(f"  [{i}] {path}")
     print(f"Frontend model: {args.frontend_model} (API)")
     print(f"Planner model: {args.planner_model} (API)")
     print(f"Enable thinking: {args.enable_thinking}")
@@ -298,7 +304,7 @@ async def amain() -> int:
     try:
         final_state = await agent.arun(
             question=question,
-            audio_path_or_uri=audio_path,
+            audio_paths=audio_paths,
             max_steps=args.max_steps,
         )
     except Exception as e:
