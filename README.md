@@ -144,10 +144,15 @@ cd audio_agent/tools/catalog/omni_captioner && ./setup.sh && cd -
 # Download models
 audio-agent-download-models --models qwen2-audio qwen2.5 qwen3-asr
 
-# Run the demo with auto tool discovery
+# Run the demo with auto tool discovery (single audio)
 python -m audio_agent.examples.demo_run_auto_tools \
   --audio /path/to/audio.wav \
   --question "What is being said in this audio?"
+
+# Run with multiple audios for comparison tasks (e.g., speaker verification)
+python -m audio_agent.examples.demo_run_auto_tools \
+  --audio /path/to/audio1.wav --audio /path/to/audio2.wav \
+  --question "Is the speaker in the second audio any of the speakers in the first audio?"
 ```
 
 ### Verifying Tool Environments
@@ -172,7 +177,7 @@ If you don't have a local GPU or prefer to use API-based models:
 # Setup MCP tools first (same as above)
 ./verify_all_tools.sh --setup
 
-# Demo with API planner + local frontend
+# Demo with API planner + local frontend (single audio)
 export DASHSCOPE_API_KEY="sk-xxx"
 python -m audio_agent.examples.demo_run_api_planner \
   --audio /path/to/audio.wav \
@@ -182,6 +187,13 @@ python -m audio_agent.examples.demo_run_api_planner \
 python -m audio_agent.examples.demo_run_api_full \
   --audio /path/to/audio.wav \
   --question "What is being said?" \
+  --frontend-model "qwen3-omni-flash" \
+  --planner-model "qwen3.5-plus"
+
+# Multi-audio example with API (speaker verification)
+python -m audio_agent.examples.demo_run_api_full \
+  --audio /path/to/first_audio.wav --audio /path/to/second_audio.wav \
+  --question "Is the speaker in the second audio the same as the first?" \
   --frontend-model "qwen3-omni-flash" \
   --planner-model "qwen3.5-plus"
 ```
@@ -231,9 +243,17 @@ audio-agent-download-models --list
 If you prefer to use HuggingFace Hub paths directly (models will be downloaded to cache):
 
 ```bash
+# Single audio
 python -m audio_agent.examples.demo_run \
   --audio /path/to/audio.wav \
   --question "What is being said?" \
+  --frontend-model-path Qwen/Qwen2-Audio-7B-Instruct \
+  --planner-model-path Qwen/Qwen2.5-7B-Instruct
+
+# Multiple audios for comparison
+python -m audio_agent.examples.demo_run \
+  --audio /path/to/audio1.wav --audio /path/to/audio2.wav \
+  --question "Compare the speakers in these two audio files" \
   --frontend-model-path Qwen/Qwen2-Audio-7B-Instruct \
   --planner-model-path Qwen/Qwen2.5-7B-Instruct
 ```
@@ -242,6 +262,39 @@ python -m audio_agent.examples.demo_run \
 
 ```bash
 pytest audio_agent/tests/ -v
+```
+
+## Multi-Audio Support
+
+The framework supports processing multiple audio files in a single run, enabling tasks like:
+- **Speaker verification**: Compare if two audio files contain the same speaker
+- **Audio comparison**: Compare content, quality, or characteristics across multiple files
+- **Multi-source analysis**: Analyze audio from different sources together
+
+When multiple audios are provided:
+- Each audio is assigned an ID (`audio_0`, `audio_1`, `audio_2`, etc.)
+- The frontend processes all audios and provides a caption for each
+- Tools can reference specific audios by their ID
+- The planner can reason about relationships between audios
+
+### Example: Speaker Verification
+
+```python
+from audio_agent.main import create_api_full_agent
+
+agent = create_api_full_agent(
+    frontend_model="qwen3-omni-flash",
+    planner_model="qwen3.5-plus",
+)
+
+# Pass multiple audio files as a list
+result = agent.run(
+    question="Is the speaker in the second audio any of the speakers in the first audio?",
+    audio_paths=["/path/to/first_audio.wav", "/path/to/second_audio.wav"]
+)
+
+if agent.is_successful(result):
+    print(result["final_answer"].answer)
 ```
 
 ## Design Principles

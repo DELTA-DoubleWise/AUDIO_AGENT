@@ -29,15 +29,29 @@ def format_metadata(
     return "\n".join(lines)
 
 
-def format_input_section(original_audio: str, temp_dir: str) -> str:
+def format_input_section(original_audios: list[str], temp_dir: str) -> str:
     """Format input section as Markdown."""
     lines = [
         "## Input",
         "",
-        f"- **Original Audio**: {original_audio}",
-        f"- **Temp Directory**: {temp_dir}",
-        "",
     ]
+    
+    # Handle multiple audio files
+    if isinstance(original_audios, list) and original_audios:
+        if len(original_audios) == 1:
+            lines.append(f"- **Original Audio**: {original_audios[0]}")
+        else:
+            lines.append(f"- **Original Audios** ({len(original_audios)} files):")
+            for i, audio_path in enumerate(original_audios):
+                lines.append(f"  - audio_{i}: {audio_path}")
+    elif isinstance(original_audios, str):
+        # Backward compatibility for single string
+        lines.append(f"- **Original Audio**: {original_audios}")
+    else:
+        lines.append(f"- **Original Audio**: Unknown")
+    
+    lines.append(f"- **Temp Directory**: {temp_dir}")
+    lines.append("")
     return "\n".join(lines)
 
 

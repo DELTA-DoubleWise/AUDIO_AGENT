@@ -147,9 +147,14 @@ class RunLogger:
         ))
         
         # Input
-        original_audio = state.get("original_audio_path", "Unknown")
+        original_audios = state.get("original_audio_paths", [])
+        if not original_audios:
+            # Backward compatibility: try old field name
+            old_path = state.get("original_audio_path")
+            if old_path:
+                original_audios = [old_path]
         temp_dir = state.get("temp_dir", "Unknown")
-        sections.append(format_input_section(original_audio, temp_dir))
+        sections.append(format_input_section(original_audios, temp_dir))
         
         # Frontend Output
         frontend_output = state.get("initial_frontend_output")

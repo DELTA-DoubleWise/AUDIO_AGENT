@@ -6,7 +6,7 @@ This document provides essential information for AI coding agents working on the
 
 The Audio Agent Framework is a **LangGraph-based framework for audio understanding with iterative tool use**. It provides a clean, extensible architecture for building audio understanding agents that:
 
-1. Process audio with a frontend LALM (Large Audio Language Model)
+1. Process one or more audio files with a frontend LALM (Large Audio Language Model) - supports multi-audio comparison tasks
 2. Use an LLM planner to reason about evidence and decide next actions
 3. Invoke tools iteratively to gather more evidence
 4. Accumulate and fuse evidence from multiple sources
@@ -33,7 +33,7 @@ START
 
 **Key Behaviors:**
 - **Initial Planning**: Planner's `plan()` method generates a high-level approach based only on the question (no audio context yet)
-- **Tool Execution**: Tool executor automatically injects `audio_path` from state for tools that need it
+- **Tool Execution**: Tool executor automatically resolves `audio_id` references to actual paths and injects audio paths for tools that need them
 - **Intent Clarification**: When planner returns CLARIFY action, the intent_clarification_node refines the question before continuing
 - **Answer Verification**: Planner can optionally request VERIFY to have the frontend (audio model) review a draft answer before finalizing. If flaws are found, the critique is added as evidence and planning continues.
 - **Format Checking**: Mandatory format validation occurs before final answer. The planner (text LLM) checks if the proposed answer follows the expected output format. If format violations are found, the critique is added as evidence and planning continues.
@@ -577,7 +577,7 @@ All prompts are externalized as markdown files in `audio_agent/prompts/`. This a
 | File | Purpose | Variables |
 |------|---------|-----------|
 | `frontend_system.md` | Frontend system prompt | None |
-| `frontend_user.md` | Frontend user instruction | `{question}`, `{audio_path_or_uri}` |
+| `frontend_user.md` | Frontend user instruction | `{question}`, `{audio_paths}` |
 | `plan_system.md` | Planner initial planning system prompt | None |
 | `plan_user.md` | Planner initial planning user instruction | `{question}` |
 | `decide_system.md` | Planner decision system prompt | None |
@@ -770,41 +770,43 @@ validate_state_has_fields(
 
 1. **Qwen Models**: The demo uses real Qwen models that require significant GPU resources. Both frontend (Qwen2-Audio-7B) and planner (Qwen2.5-7B) load in one process.
 
-2. **Transformers Version**: Must install transformers from GitHub source for Qwen2-Audio support: `pip install git+https://github.com/huggingface/transformers`
+2. **Multi-Audio Support**: The framework supports processing multiple audio files in a single run. Use `audio_paths: list[str]` instead of a single path. Each audio is assigned an ID (`audio_0`, `audio_1`, etc.) for tool reference. This enables speaker verification, audio comparison, and other multi-source analysis tasks.
 
-3. **MCP Tools**: The framework supports MCP (Model Context Protocol) tools that run in isolated processes. Each tool has its own `setup.sh` and `test_env.sh` for environment management. Use `./verify_all_tools.sh` to bulk-verify all tools.
+3. **Transformers Version**: Must install transformers from GitHub source for Qwen2-Audio support: `pip install git+https://github.com/huggingface/transformers`
 
-4. **Async Support**: When using MCP tools, use `agent.arun()` instead of `agent.run()` for asynchronous execution.
+4. **MCP Tools**: The framework supports MCP (Model Context Protocol) tools that run in isolated processes. Each tool has its own `setup.sh` and `test_env.sh` for environment management. Use `./verify_all_tools.sh` to bulk-verify all tools.
 
-5. **Planner/Tools Status**: Core architecture is complete with real Qwen2.5 planner. Tools include both dummy implementations and real MCP-based tools (asr_qwen3, diarizen, omni_captioner, ffmpeg, librosa, snakers4_silero-vad).
+5. **Async Support**: When using MCP tools, use `agent.arun()` instead of `agent.run()` for asynchronous execution.
 
-6. **Prompt System**: All prompts are externalized in `audio_agent/prompts/` as markdown files. The system uses `load_prompt()` from `audio_agent/utils/prompt_io.py` to load prompts at runtime. This enables easy customization without code changes.
+6. **Planner/Tools Status**: Core architecture is complete with real Qwen2.5 planner. Tools include both dummy implementations and real MCP-based tools (asr_qwen3, diarizen, omni_captioner, ffmpeg, librosa, snakers4_silero-vad).
 
-7. **API Frontend**: The framework now includes `OpenAICompatibleFrontend` for API-based audio understanding (e.g., qwen3-omni-flash via DashScope). This enables fully API-based deployments without local GPU requirements.
+7. **Prompt System**: All prompts are externalized in `audio_agent/prompts/` as markdown files. The system uses `load_prompt()` from `audio_agent/utils/prompt_io.py` to load prompts at runtime. This enables easy customization without code changes.
 
-8. **API Planner**: The framework includes `OpenAICompatiblePlanner` for API-based planning (e.g., qwen3.5-plus, kimi-k2.5 via DashScope or OpenAI). Use `create_openai_planner()` helper function.
+8. **API Frontend**: The framework now includes `OpenAICompatibleFrontend` for API-based audio understanding (e.g., qwen3-omni-flash via DashScope). This enables fully API-based deployments without local GPU requirements.
 
-9. **Intent Clarification**: The planner can return a CLARIFY action when the question is unclear. This triggers the intent_clarification_node which refines the question before continuing.
+9. **API Planner**: The framework includes `OpenAICompatiblePlanner` for API-based planning (e.g., qwen3.5-plus, kimi-k2.5 via DashScope or OpenAI). Use `create_openai_planner()` helper function.
 
-10. **Answer Verification**: The planner can optionally request a VERIFY action to have the frontend (audio model) review a draft answer before finalizing. This is useful when:
+10. **Intent Clarification**: The planner can return a CLARIFY action when the question is unclear. This triggers the intent_clarification_node which refines the question before continuing.
+
+11. **Answer Verification**: The planner can optionally request a VERIFY action to have the frontend (audio model) review a draft answer before finalizing. This is useful when:
     - The planner is not fully confident in the answer
     - The answer relies on subjective interpretation (emotions, intent)
     - Tool results seem ambiguous or potentially misleading
     The verification model acts as a skeptic - if flaws are found, the critique is added as evidence and planning continues. Configure via `AgentConfig(enable_verification=True, max_verifications=2)`.
 
-11. **Format Checking**: Mandatory format validation occurs before final answer. The planner (text LLM) checks if the proposed answer follows the expected output format (from `initial_plan.expected_output_format`). This is different from verification:
+12. **Format Checking**: Mandatory format validation occurs before final answer. The planner (text LLM) checks if the proposed answer follows the expected output format (from `initial_plan.expected_output_format`). This is different from verification:
     - Format check validates structure/format compliance only, NOT content correctness
     - Format check uses the text LLM (planner), not the audio model
     - If format violations are found, the critique is added as evidence and planning continues
     Configure via `AgentConfig(enable_format_check=True, max_format_checks=2)`.
 
-12. **AgentConfig Fields**: Some fields (`planner_name`, `frontend_name`, `fail_on_tool_error`) exist in config but are not fully wired into orchestration logic yet.
+13. **AgentConfig Fields**: Some fields (`planner_name`, `frontend_name`, `fail_on_tool_error`) exist in config but are not fully wired into orchestration logic yet.
 
-13. **Checkpointer Support**: `build_graph_with_config()` exists but is not used by default `AudioAgent` constructor.
+14. **Checkpointer Support**: `build_graph_with_config()` exists but is not used by default `AudioAgent` constructor.
 
-14. **Conda Initialization**: Remember to run `source /lihaoyu/.conda.path.sh` before using conda commands on this system.
+15. **Conda Initialization**: Remember to run `source /lihaoyu/.conda.path.sh` before using conda commands on this system.
 
-15. **Run Logging**: The framework automatically logs each run to a Markdown file in the `logs/` directory. This includes:
+16. **Run Logging**: The framework automatically logs each run to a Markdown file in the `logs/` directory. This includes:
     - Complete AgentState with all evidence, tool calls, and planner decisions
     - Frontend output and initial plan
     - Final answer with output audio information
@@ -813,7 +815,7 @@ validate_state_has_fields(
     - All errors and metadata
     Configure via `AgentConfig(log_dir="./logs", enable_run_logging=True)`.
 
-16. **Audio Output Handling**: For tasks that produce audio files (e.g., trimming, conversion), the framework:
+17. **Audio Output Handling**: For tasks that produce audio files (e.g., trimming, conversion), the framework:
     - Detects audio output requirements at planning stage (`requires_audio_output` flag)
     - Tracks generated audio files in `audio_list`
     - Copies output audio to a dedicated `output/` directory
