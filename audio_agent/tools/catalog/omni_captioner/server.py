@@ -38,7 +38,7 @@ class OmniCaptionerServer:
             {
                 "name": "omni_caption",
                 "description": "Generate text caption for an audio file using Qwen3-Omni",
-                "input_schema": {
+                "inputSchema": {
                     "type": "object",
                     "properties": {
                         "audio_path": {
@@ -57,7 +57,7 @@ class OmniCaptionerServer:
             {
                 "name": "omni_caption_with_audio",
                 "description": "Generate caption + audio response for an audio file",
-                "input_schema": {
+                "inputSchema": {
                     "type": "object",
                     "properties": {
                         "audio_path": {
@@ -86,7 +86,7 @@ class OmniCaptionerServer:
             {
                 "name": "verify_audio_quality",
                 "description": "Verify audio quality after enhancement/processing by analyzing spectrogram with VLM. Generates spectrogram and checks for artifacts, distortion, or quality issues.",
-                "input_schema": {
+                "inputSchema": {
                     "type": "object",
                     "properties": {
                         "audio_path": {
