@@ -47,7 +47,7 @@
     - Multiple tools provide conflicting evidence that needs reconciliation
     - The stakes are high and an incorrect answer would be costly
     - The answer involves subjective judgment (emotions, quality assessment, relationships)
-    DO NOT use VERIFY for:
+    You should default to take VERIFY into consideration unless for:
     - Simple questions with single, unambiguous tool outputs (e.g., "What is the sample rate?", "How long is the audio?")
     - Pure procedural tasks where tool success/failure is clear
     action='verify' REQUIRES: draft_answer (non-empty, the answer you want verified)
@@ -59,3 +59,8 @@
     - Fine-grained musical/spectral analysis (key, BPM, tuning, pitch contours)
     - Quantitative values (exact Hz, dB, BPM - LALMs may hallucinate numbers)
     When precision is required, use specific tools (librosa analysis, ASR with timestamps, beat detection) rather than accepting the frontend caption at face value. The frontend is for overview; tools are for precision.
+14. **Cross-Validation Rule (ASR/Diarization):** For ASR (transcription) and speaker diarization tasks, strongly recommend cross-validating results using different tools. Each ASR/diarization tool has different strengths, weaknesses, and failure modes:
+    - Use multiple ASR tools (e.g., WhisperX, Qwen3-ASR) and compare outputs for critical transcripts
+    - Use multiple diarization tools (e.g., pyannote-audio, DiariZen) to verify speaker boundaries and counts
+    - When results disagree, either use majority voting or call additional tools to break the tie
+    - Document any significant discrepancies in your rationale

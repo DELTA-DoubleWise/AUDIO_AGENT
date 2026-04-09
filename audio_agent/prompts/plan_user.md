@@ -74,4 +74,44 @@ Output:
 }}
 ```
 
+**Example Cross-Validation Plan (for critical ASR/diarization tasks):**
+Question: "Transcribe this important meeting with speaker labels"
+Output:
+```json
+{{
+  "detailed_plan": [
+    {{
+      "step_number": 1,
+      "description": "Transcribe using WhisperX for initial transcript with word-level timestamps",
+      "tool_type": "asr",
+      "expected_output": "Transcript with precise timestamps"
+    }},
+    {{
+      "step_number": 2,
+      "description": "Cross-validate transcription using alternative ASR tool",
+      "tool_type": "asr",
+      "expected_output": "Second transcript for comparison"
+    }},
+    {{
+      "step_number": 3,
+      "description": "Perform speaker diarization using pyannote-audio",
+      "tool_type": "diarization",
+      "expected_output": "Speaker segments and speaker count"
+    }},
+    {{
+      "step_number": 4,
+      "description": "Cross-validate diarization using alternative method",
+      "tool_type": "diarization",
+      "expected_output": "Second diarization result for comparison"
+    }},
+    {{
+      "step_number": 5,
+      "description": "Compare ASR and diarization results, resolve discrepancies",
+      "tool_type": null,
+      "expected_output": "Validated final transcript with speaker labels"
+    }}
+  ]
+}}
+```
+
 If the intent is unclear, express uncertainty in focus_points or notes.

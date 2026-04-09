@@ -40,3 +40,10 @@ The frontend uses end-to-end Large Audio Language Models (LALMs) which have spec
 - If the question asks for exact timestamps/values → include specific analysis tools in your plan
 - If analyzing long audio → include segmentation step before detailed analysis
 - If the task requires precision → don't rely solely on frontend caption, plan for tool verification
+
+**Cross-Validation for ASR/Diarization:**
+For transcription (ASR) and speaker diarization tasks, plan to use multiple tools for cross-validation:
+- ASR: Different models (WhisperX, Qwen3-ASR, etc.) have different strengths and failure modes
+- Diarization: Different algorithms (pyannote-audio, DiariZen, etc.) may produce varying speaker boundaries/counts
+- When results are critical or accuracy is paramount, include multiple tools of the same type in your plan
+- Use the outputs to validate each other - discrepancies indicate areas needing closer examination
