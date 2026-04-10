@@ -29,7 +29,7 @@ class ASRQwen3Server:
         # Tool definitions
         self._tools = [
             {
-                "name": "asr_transcribe",
+                "name": "transcribe_qwenasr",
                 "description": "Transcribe speech in audio to text using Qwen3-ASR-1.7B. Supports 52 languages including English, Chinese, Japanese, Korean, and 22 Chinese dialects.",
                 "inputSchema": {
                     "type": "object",
@@ -40,7 +40,7 @@ class ASRQwen3Server:
                         },
                         "language": {
                             "type": "string",
-                            "description": "Language code (e.g., 'auto', 'zh', 'en', 'ja', 'ko')",
+                            "description": "Language name (e.g., 'auto', 'Chinese', 'English', 'Japanese', 'Korean', 'Cantonese'). Use full language names, NOT ISO codes. Supported: Chinese, English, Cantonese, Arabic, German, French, Spanish, Portuguese, Indonesian, Italian, Korean, Russian, Thai, Vietnamese, Japanese, Turkish, Hindi, Malay, Dutch, Swedish, Danish, Finnish, Polish, Czech, Filipino, Persian, Greek, Romanian, Hungarian, Macedonian",
                             "default": "auto"
                         }
                     },
@@ -48,7 +48,7 @@ class ASRQwen3Server:
                 }
             },
             {
-                "name": "asr_transcribe_with_timestamps",
+                "name": "transcribe_qwenasr_with_timestamps",
                 "description": "Transcribe speech with word-level timestamps using forced alignment",
                 "inputSchema": {
                     "type": "object",
@@ -59,7 +59,7 @@ class ASRQwen3Server:
                         },
                         "language": {
                             "type": "string",
-                            "description": "Language code (e.g., 'zh', 'en', 'ja')",
+                            "description": "Language name (e.g., 'Chinese', 'English', 'Japanese'). Use full language names, NOT ISO codes.",
                             "default": "auto"
                         }
                     },
@@ -206,9 +206,9 @@ class ASRQwen3Server:
         """Execute a tool."""
         self._load_model()
         
-        if tool_name == "asr_transcribe":
+        if tool_name == "transcribe_qwenasr":
             return self._transcribe(arguments)
-        elif tool_name == "asr_transcribe_with_timestamps":
+        elif tool_name == "transcribe_qwenasr_with_timestamps":
             # For now, same as transcribe (timestamps require forced aligner)
             return self._transcribe(arguments, include_timestamps=True)
         else:

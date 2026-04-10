@@ -43,7 +43,7 @@ tools:
           description: "Path to the audio file to transcribe"
         language:
           type: string
-          description: "Language code (e.g., 'auto', 'zh', 'en', 'ja', 'ko'). Use 'auto' for automatic detection."
+          description: "Language name (e.g., 'auto', 'Chinese', 'English', 'Japanese', 'Korean', 'Cantonese'). Use full language names, NOT ISO codes. Supported: Chinese, English, Cantonese, Arabic, German, French, Spanish, Portuguese, Indonesian, Italian, Korean, Russian, Thai, Vietnamese, Japanese, Turkish, Hindi, Malay, Dutch, Swedish, Danish, Finnish, Polish, Czech, Filipino, Persian, Greek, Romanian, Hungarian, Macedonian"
           default: "auto"
       required: ["audio_path"]
   
@@ -57,6 +57,6 @@ tools:
           description: "Path to the audio file"
         language:
           type: string
-          description: "Language code (e.g., 'zh', 'en', 'ja')"
+          description: "Language name (e.g., 'Chinese', 'English', 'Japanese'). Use full language names, NOT ISO codes."
           default: "auto"
       required: ["audio_path"]

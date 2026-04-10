@@ -76,7 +76,7 @@ class WhisperXMCPServer:
             "result": {
                 "tools": [
                     {
-                        "name": "transcribe_audio",
+                        "name": "transcribe_whisperx",
                         "description": "Transcribe speech in audio to text with word-level timestamps using WhisperX. Supports 99 languages. Returns segments with start/end times and text. Strongly recommended to cross-validate results with other ASR/SD tools for critical applications.",
                         "inputSchema": {
                             "type": "object",
@@ -87,14 +87,14 @@ class WhisperXMCPServer:
                                 },
                                 "language": {
                                     "type": "string",
-                                    "description": "Language code (e.g., 'en', 'fr', 'de'). If not provided, auto-detected.",
+                                    "description": "ISO 639-1 language code (e.g., 'en', 'zh', 'fr', 'de', 'ja', 'ko'). Use 2-letter codes, NOT full language names. If not provided, auto-detected.",
                                 },
                             },
                             "required": ["audio_path"],
                         },
                     },
                     {
-                        "name": "transcribe_with_diarization",
+                        "name": "transcribe_whisperx_with_diarization",
                         "description": "Transcribe speech with speaker diarization using WhisperX and pyannote-audio. Identifies who spoke when. Returns segments with speaker labels (SPEAKER_01, SPEAKER_02, etc.). Strongly recommended to cross-validate results with other ASR/SD tools for critical applications.",
                         "inputSchema": {
                             "type": "object",
@@ -105,7 +105,7 @@ class WhisperXMCPServer:
                                 },
                                 "language": {
                                     "type": "string",
-                                    "description": "Language code (e.g., 'en', 'fr', 'de'). If not provided, auto-detected.",
+                                    "description": "ISO 639-1 language code (e.g., 'en', 'zh', 'fr', 'de', 'ja', 'ko'). Use 2-letter codes, NOT full language names. If not provided, auto-detected.",
                                 },
                                 "min_speakers": {
                                     "type": "integer",
@@ -144,7 +144,7 @@ class WhisperXMCPServer:
         try:
             model = self._get_model()
             
-            if tool_name == "transcribe_audio":
+            if tool_name == "transcribe_whisperx":
                 audio_path = arguments.get("audio_path")
                 language = arguments.get("language")
                 
@@ -157,7 +157,7 @@ class WhisperXMCPServer:
                 result = model.predict(audio_path, language=language)
                 return self._result_response(request_id, result)
             
-            elif tool_name == "transcribe_with_diarization":
+            elif tool_name == "transcribe_whisperx_with_diarization":
                 audio_path = arguments.get("audio_path")
                 language = arguments.get("language")
                 min_speakers = arguments.get("min_speakers")

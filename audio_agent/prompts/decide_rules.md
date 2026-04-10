@@ -29,6 +29,12 @@
    - Then, select the specific concrete tool from available_tools that matches the needed capability
    - CRITICAL: You MUST specify selected_audio_id from Available Audio Files to tell the tool which audio to process
    - Consider the description of each audio to choose the most appropriate one
+3.5 **Tool Priority Rule:** When multiple tools of the same type are available, follow this priority order (higher = preferred):
+   - **ASR Tools:** transcribe_qwenasr > transcribe_fireredasr > transcribe_whisperx
+   - **Diarization Tools:** diarize > transcribe_whisperx_with_diarization
+   - **VAD Tools:** vad_fireredvad > vad_snakers4_silero_vad
+   - **Lyrics/Singing:** lyric_asr (preferred for music/lyrics content)
+   Rationale: Different tools have different strengths. Qwen3-ASR has excellent multilingual support, FireRedASR excels at Chinese dialects and singing, WhisperX provides good diarization integration. When the user explicitly requests a specific tool by name, honor that request regardless of priority.
 4. If the intent or expected output format is unclear, use action='clarify_intent' to reason about it.
 5. action='call_tool' REQUIRES: selected_tool_name (non-empty), selected_audio_id (valid audio_id from Available Audio Files)
 5.5. **Tool Parameter Rule:** When using action='call_tool', you MUST:

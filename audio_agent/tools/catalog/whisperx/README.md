@@ -67,7 +67,7 @@ Then send JSON-RPC requests via stdin:
 ```json
 {"jsonrpc": "2.0", "id": 1, "method": "initialize"}
 {"jsonrpc": "2.0", "id": 2, "method": "tools/list"}
-{"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "transcribe_audio", "arguments": {"audio_path": "/path/to/audio.wav"}}}
+{"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "transcribe_whisperx", "arguments": {"audio_path": "/path/to/audio.wav"}}}
 ```
 
 ## Usage

@@ -47,7 +47,7 @@ capabilities:
             description: "Path to the audio file to transcribe"
           language:
             type: string
-            description: "Language code (e.g., 'en', 'fr', 'de'). If not provided, auto-detected."
+            description: "ISO 639-1 language code (e.g., 'en', 'zh', 'fr', 'de', 'ja', 'ko'). Use 2-letter codes, NOT full language names. If not provided, auto-detected."
         required: ["audio_path"]
     
     - name: "transcribe_with_diarization"
@@ -61,7 +61,7 @@ capabilities:
             description: "Path to the audio file to transcribe"
           language:
             type: string
-            description: "Language code (e.g., 'en', 'fr', 'de'). If not provided, auto-detected."
+            description: "ISO 639-1 language code (e.g., 'en', 'zh', 'fr', 'de', 'ja', 'ko'). Use 2-letter codes, NOT full language names. If not provided, auto-detected."
           min_speakers:
             type: integer
             description: "Minimum number of speakers (optional)"
