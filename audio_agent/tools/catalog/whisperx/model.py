@@ -170,8 +170,8 @@ class ModelWrapper:
         
         Args:
             input_data: Path to audio file
-            language: Optional language code (e.g., 'en', 'fr'). If not provided,
-                     language will be auto-detected.
+            language: Optional language code (e.g., 'en', 'fr'). If not provided
+                     or set to 'auto', language will be auto-detected.
         
         Returns:
             Dictionary with segments and detected language
@@ -181,6 +181,10 @@ class ModelWrapper:
         """
         if self._model is None:
             self.load()
+        
+        # Convert 'auto' to None for WhisperX auto-detection
+        if language == "auto":
+            language = None
 
         try:
             # Capture stdout during imports to prevent JSON-RPC pollution
@@ -219,7 +223,7 @@ class ModelWrapper:
                             return_char_alignments=False,
                         )
                         segments = aligned_result.get("segments", segments)
-                    except Exception as align_err:
+                    except (ValueError, Exception) as align_err:
                         # If alignment fails, try falling back to English alignment
                         align_error_msg = str(align_err)
                         if detected_language != "en" and "No default align-model" in align_error_msg:
@@ -292,8 +296,8 @@ class ModelWrapper:
         
         Args:
             input_data: Path to audio file
-            language: Optional language code (e.g., 'en', 'fr'). If not provided,
-                     language will be auto-detected.
+            language: Optional language code (e.g., 'en', 'fr'). If not provided
+                     or set to 'auto', language will be auto-detected.
             min_speakers: Optional minimum number of speakers
             max_speakers: Optional maximum number of speakers
         
@@ -306,6 +310,10 @@ class ModelWrapper:
         """
         if self._model is None:
             self.load()
+        
+        # Convert 'auto' to None for WhisperX auto-detection
+        if language == "auto":
+            language = None
 
         try:
             # Capture stdout during imports to prevent JSON-RPC pollution
@@ -345,7 +353,7 @@ class ModelWrapper:
                             return_char_alignments=False,
                         )
                         segments = aligned_result.get("segments", segments)
-                    except Exception as align_err:
+                    except (ValueError, Exception) as align_err:
                         # If alignment fails, try falling back to English alignment
                         align_error_msg = str(align_err)
                         if detected_language != "en" and "No default align-model" in align_error_msg:
