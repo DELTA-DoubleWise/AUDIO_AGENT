@@ -806,7 +806,7 @@ def create_verification_node(frontend: BaseFrontend):
         try:
             verification_result = frontend.verify_answer(
                 question=question,
-                audio_path_or_uri=audio_path,
+                audio_paths=[audio_path],
                 proposed_answer=proposed_answer,
             )
         except FrontendError:
