@@ -28,7 +28,7 @@ class OmniCaptionerServer:
             "DASHSCOPE_BASE_URL",
             "https://dashscope.aliyuncs.com/compatible-mode/v1"
         )
-        self._default_model = os.environ.get("DEFAULT_MODEL", "qwen3-omni-flash")
+        self._default_model = os.environ.get("DEFAULT_MODEL", "qwen3.5-omni-plus")
         self._default_voice = os.environ.get("DEFAULT_VOICE", "Cherry")
         self._default_audio_format = os.environ.get("DEFAULT_AUDIO_FORMAT", "wav")
         self._default_sample_rate = int(os.environ.get("DEFAULT_SAMPLE_RATE", "24000"))

@@ -41,7 +41,7 @@ class OmniCaptionerModel:
         self,
         api_key: str | None = None,
         base_url: str | None = None,
-        model: str = "qwen3-omni-flash",
+        model: str = "qwen3.5-omni-plus",
         voice: str = "Cherry",
         audio_format: str = "wav",
         sample_rate: int = 24000,
@@ -151,6 +151,12 @@ class OmniCaptionerModel:
             "stream": True,
             "stream_options": {"include_usage": True},
         }
+        
+        # qwen3.5-omni-plus requires modalities parameter
+        if generate_audio:
+            request_params["modalities"] = ["text", "audio"]
+        else:
+            request_params["modalities"] = ["text"]  # Text-only output
         
         if generate_audio:
             request_params["modalities"] = ["text", "audio"]

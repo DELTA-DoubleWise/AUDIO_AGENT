@@ -223,6 +223,7 @@ class OpenAICompatibleFrontend(BaseModelFrontend):
             "max_tokens": self._max_tokens,
             "stream": True,
             "stream_options": {"include_usage": True},
+            "modalities": ["text"],  # Text-only output (disable audio generation)
         }
 
         # Make API call
