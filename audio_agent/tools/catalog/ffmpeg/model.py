@@ -119,6 +119,8 @@ class FFmpegWrapper:
             return {"success": True}
         except subprocess.CalledProcessError as e:
             stderr = e.stderr.decode() if e.stderr else "Unknown error"
+            if "No such filter" in stderr:
+                raise InferenceError(f"FFmpeg unsupported feature: {stderr}")
             raise InferenceError(f"FFmpeg failed: {stderr}")
 
     def _probe_audio(self, audio_path: str) -> dict[str, Any]:
@@ -190,10 +192,21 @@ class FFmpegWrapper:
         self._ensure_loaded()
         if not output_path:
             output_path = self._generate_output_path(f"bd{bit_depth}")
-        
-        sample_fmt = {8: "u8", 16: "s16", 24: "s24", 32: "s32", 64: "dbl"}.get(bit_depth, "s16")
-        cmd = [self._ffmpeg_path, "-y", "-i", input_path, "-sample_fmt", sample_fmt, output_path]
-        
+
+        ext = os.path.splitext(output_path)[1].lower()
+        pcm_codec = {
+            8: "pcm_u8",
+            16: "pcm_s16le",
+            24: "pcm_s24le",
+            32: "pcm_s32le",
+            64: "pcm_f64le",
+        }.get(bit_depth)
+        if ext == ".wav" and pcm_codec is not None:
+            cmd = [self._ffmpeg_path, "-y", "-i", input_path, "-c:a", pcm_codec, output_path]
+        else:
+            sample_fmt = {8: "u8", 16: "s16", 24: "s32", 32: "s32", 64: "dbl"}.get(bit_depth, "s16")
+            cmd = [self._ffmpeg_path, "-y", "-i", input_path, "-sample_fmt", sample_fmt, output_path]
+
         self._run_ffmpeg(cmd, parse_output=False)
         metadata = self._extract_metadata(output_path)
         return AudioProcessResult(output_path=output_path, **metadata).to_dict()
@@ -317,8 +330,8 @@ class FFmpegWrapper:
         self._ensure_loaded()
         if not output_path:
             output_path = self._generate_output_path("limited")
-        
-        filter_str = f"alimiter=limit={limit}:attack={attack}:release={release}"
+
+        filter_str = f"alimiter=limit={limit}:attack={attack}:release={release}:level=false"
         cmd = [self._ffmpeg_path, "-y", "-i", input_path, "-af", filter_str, output_path]
         
         self._run_ffmpeg(cmd, parse_output=False)
@@ -568,8 +581,13 @@ class FFmpegWrapper:
         self._ensure_loaded()
         if not output_path:
             output_path = self._generate_output_path("nosilence")
-        
-        filter_str = f"silenceremove=start_periods=1:start_silence={min_silence_duration}:start_threshold={noise_db}dB"
+
+        filter_str = (
+            f"silenceremove=start_periods=1:start_duration={min_silence_duration}:"
+            f"start_threshold={noise_db}dB:start_silence=0:"
+            f"stop_periods=-1:stop_duration={min_silence_duration}:"
+            f"stop_threshold={noise_db}dB:stop_silence=0"
+        )
         cmd = [self._ffmpeg_path, "-y", "-i", input_path, "-af", filter_str, output_path]
         
         self._run_ffmpeg(cmd, parse_output=False)
@@ -704,7 +722,7 @@ class FFmpegWrapper:
         # Build amix filter
         n_inputs = len(input_paths)
         inputs_str = "".join([f"[{i}:a]" for i in range(n_inputs)])
-        weights_str = f"weights={' '.join([str(w) for w in weights])}" if weights else ""
+        weights_str = f":weights={' '.join([str(w) for w in weights])}" if weights else ""
         filter_str = f"{inputs_str}amix=inputs={n_inputs}:duration=longest:normalize=0{weights_str}"
         
         cmd = [self._ffmpeg_path, "-y"]
@@ -722,8 +740,12 @@ class FFmpegWrapper:
         self._ensure_loaded()
         if not output_path:
             output_path = self._generate_output_path("stereotools")
-        
-        filter_str = f"stereotools=mode={mode}"
+
+        mode_map = {
+            "ms": "lr>ms",
+            "lr": "lr>lr",
+        }
+        filter_str = f"stereotools=mode={mode_map.get(mode, mode)}"
         cmd = [self._ffmpeg_path, "-y", "-i", input_path, "-af", filter_str, output_path]
         
         self._run_ffmpeg(cmd, parse_output=False)
@@ -789,8 +811,8 @@ class FFmpegWrapper:
         self._ensure_loaded()
         if not output_path:
             output_path = self._generate_output_path("chorus")
-        
-        filter_str = "chorus=0.7:0.9:55|60|65:0.4|0.32|0.3"
+
+        filter_str = "chorus=0.7:0.9:55|60|65:0.4|0.32|0.3:0.25|0.4|0.3:2|2.3|1.3"
         cmd = [self._ffmpeg_path, "-y", "-i", input_path, "-af", filter_str, output_path]
         
         self._run_ffmpeg(cmd, parse_output=False)
@@ -803,8 +825,8 @@ class FFmpegWrapper:
         self._ensure_loaded()
         if not output_path:
             output_path = self._generate_output_path("flanger")
-        
-        filter_str = f"flanger=delay={delay}|{delay+depth}:depth=0|{depth}:regen={regen}"
+
+        filter_str = f"flanger=delay={delay}:depth={depth}:regen={regen}"
         cmd = [self._ffmpeg_path, "-y", "-i", input_path, "-af", filter_str, output_path]
         
         self._run_ffmpeg(cmd, parse_output=False)
@@ -859,8 +881,10 @@ class FFmpegWrapper:
         self._ensure_loaded()
         if not output_path:
             output_path = self._generate_output_path("deessed")
-        
-        filter_str = f"deesser=i={intensity}:m=0:f={frequency}"
+
+        sample_rate = self._extract_metadata(input_path).get("sample_rate") or 44100
+        normalized_frequency = min(max(frequency / (sample_rate / 2), 0.0), 1.0)
+        filter_str = f"deesser=i={intensity}:m=0:f={normalized_frequency}"
         cmd = [self._ffmpeg_path, "-y", "-i", input_path, "-af", filter_str, output_path]
         
         self._run_ffmpeg(cmd, parse_output=False)
@@ -1001,15 +1025,16 @@ class FFmpegWrapper:
         # Extract overall stats from the output
         stats = {}
         for line in stderr.split("\n"):
-            if "Parsed_astats" in line and "=" in line:
-                parts = line.split()
-                for part in parts:
-                    if "=" in part:
-                        key, val = part.split("=", 1)
-                        try:
-                            stats[key] = float(val)
-                        except ValueError:
-                            stats[key] = val
+            if "Parsed_astats" in line and ":" in line:
+                match = re.search(r"\]\s+([^:]+):\s+(.+)$", line)
+                if not match:
+                    continue
+                key = match.group(1).strip().lower().replace(" ", "_")
+                val = match.group(2).strip()
+                try:
+                    stats[key] = float(val)
+                except ValueError:
+                    stats[key] = val
         
         return AnalysisResult(data={
             "overall_statistics": stats,
@@ -1087,17 +1112,20 @@ class FFmpegWrapper:
         with open(concat_file, "w") as f:
             for inp in input_paths:
                 f.write(f"file '{inp}'\n")
-        
-        cmd = [
-            self._ffmpeg_path, "-y",
-            "-f", "concat", "-safe", "0",
-            "-i", concat_file,
-            "-c", "copy",
-            output_path
-        ]
-        
-        self._run_ffmpeg(cmd, parse_output=False)
-        os.remove(concat_file)
+
+        try:
+            cmd = [
+                self._ffmpeg_path, "-y",
+                "-f", "concat", "-safe", "0",
+                "-i", concat_file,
+                "-c", "copy",
+                output_path
+            ]
+
+            self._run_ffmpeg(cmd, parse_output=False)
+        finally:
+            if os.path.exists(concat_file):
+                os.remove(concat_file)
         
         metadata = self._extract_metadata(output_path)
         return AudioProcessResult(output_path=output_path, **metadata).to_dict()
