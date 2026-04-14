@@ -15,16 +15,27 @@ This framework provides a clean architecture for building audio understanding ag
 
 ```
 START
-  -> frontend_evidence_node (LALM processes audio)
-  -> planner_node (LLM decides action)
-  -> [routing based on decision]
-     - ANSWER -> answer_node -> END
-     - CALL_TOOL -> tool_executor_node -> evidence_fusion_node -> planner_node (loop)
-     - VERIFY -> verification_node (frontend reviews draft answer) -> planner_node (loop)
+  -> frontend_evidence_node (LALM processes audio, generates initial caption)
+  -> initial_plan_node (question-only planning)
+  -> planner_decision_node (LLM decides action; on last step forces ANSWER)
+  -> [conditional routing based on decision]
+     - ANSWER -> evidence_summarization_node (neutral summary of all evidence)
+       -> final_answer_node (frontend model generates answer from audio + context)
+       -> format_check_node (mandatory validation)
+         * Format OK -> answer_node -> END
+         * Format Failed -> planner_decision_node (loop with critique as evidence)
+     - CALL_TOOL -> tool_executor_node (auto-injects audio_path)
+       -> evidence_fusion_node -> planner_decision_node (loop)
+     - CLARIFY_INTENT -> intent_clarification_node -> planner_decision_node (loop)
      - FAIL -> failure_node -> END
 ```
 
-**Verification Node**: The planner can optionally request verification for subjective or high-stakes answers. The frontend (audio model) acts as a skeptic to review the draft answer against the audio. If flaws are detected, the critique is added as evidence and planning continues.
+**Key Behaviors:**
+- **Initial Planning**: Planner generates a high-level approach based only on the question.
+- **Evidence Summarization**: Before final answer, a text-LLM compresses all evidence, planner trace, and tool history into a single neutral narrative. This prevents the frontend model from being overwhelmed by verbose raw tool outputs.
+- **Frontend Final Answer**: The frontend (audio-capable) model generates the final answer directly from the original audio(s) and summarized context, rather than the text planner producing the answer.
+- **Format Checking**: Mandatory format validation occurs before finalizing. If the format is wrong, a critique is added as evidence and planning continues.
+- **Tool Contracts**: Low-level signal/metadata tools cannot override the frontend's semantic judgments.
 
 ## Project Structure
 
@@ -78,19 +89,21 @@ audio_agent/
 │   ├── logger.py         # RunLogger class for markdown logs
 │   └── formatter.py      # Markdown formatting utilities
 ├── prompts/               # Markdown prompt files
-│   ├── frontend_system.md # Frontend system prompt
-│   ├── frontend_user.md   # Frontend user instruction
-│   ├── plan_system.md     # Planner planning system prompt
-│   ├── plan_user.md       # Planner planning user instruction
-│   ├── decide_system.md   # Planner decision system prompt
-│   ├── decide_user.md     # Planner decision user instruction
-│   ├── decide_rules.md    # Planner decision rules
-│   ├── answer_system.md   # Planner answer system prompt
-│   ├── answer_user.md     # Planner answer user instruction
-│   ├── clarify_system.md  # Planner clarify system prompt
-│   ├── clarify_user.md    # Planner clarify user instruction
-│   ├── verification_system.md  # Verification: system prompt for answer review
-│   └── verification_user.md    # Verification: user instruction template
+│   ├── frontend_system.md           # Frontend system prompt
+│   ├── frontend_user.md             # Frontend user instruction
+│   ├── frontend_final_answer_system.md  # Frontend final answer system prompt
+│   ├── frontend_final_answer_user.md    # Frontend final answer user instruction
+│   ├── plan_system.md               # Planner planning system prompt
+│   ├── plan_user.md                 # Planner planning user instruction
+│   ├── decide_system.md             # Planner decision system prompt
+│   ├── decide_user.md               # Planner decision user instruction
+│   ├── decide_rules.md              # Planner decision rules
+│   ├── clarify_system.md            # Planner clarify system prompt
+│   ├── clarify_user.md              # Planner clarify user instruction
+│   ├── format_check_system.md       # Format check system prompt
+│   ├── format_check_user.md         # Format check user instruction
+│   ├── evidence_summary_system.md   # Evidence summarization system prompt
+│   └── evidence_summary_user.md     # Evidence summarization user instruction
 ├── config/                # Configuration
 │   └── settings.py       # AgentConfig
 ├── utils/                 # Utilities
@@ -368,12 +381,11 @@ class RealLALMFrontend(BaseFrontend):
     def name(self) -> str:
         return "real_lalm"
     
-    def run(self, question: str, audio_path_or_uri: str) -> FrontendOutput:
-        self.validate_inputs(question, audio_path_or_uri)
+    def run(self, question: str, audio_paths: list[str]) -> FrontendOutput:
+        self.validate_inputs(question, audio_paths)
         # Your implementation here
         return FrontendOutput(
-            caption="...",
-            confidence=0.9,
+            question_guided_caption="...",
         )
 ```
 
@@ -416,9 +428,13 @@ class OpenAIPlanner(BasePlanner):
         # Your implementation here
         return PlannerDecision(...)
     
-    def answer(self, state) -> str:
-        # Generate final answer from accumulated evidence
-        return "Based on the evidence..."
+    def summarize_evidence(self, state) -> str:
+        # Summarize accumulated evidence into a neutral narrative
+        return "Summary of evidence..."
+    
+    def check_format(self, proposed_answer, expected_format, question) -> FormatCheckResult:
+        # Validate format compliance only
+        return FormatCheckResult(passed=True)
 ```
 
 ### Using MCP Tools
@@ -450,7 +466,7 @@ async def run_with_tools():
     agent = AudioAgent(frontend, planner, registry, fuser)
     result = await agent.arun(
         question="What is being said?",
-        audio_path_or_uri="/path/to/audio.wav"
+        audio_paths=["/path/to/audio.wav"]
     )
     
     # Cleanup
@@ -470,15 +486,19 @@ All prompts are now externalized as markdown files in `audio_agent/prompts/`. Yo
 |------|---------|-----------|
 | `frontend_system.md` | Frontend system prompt | None |
 | `frontend_user.md` | Frontend user instruction | `{question}`, `{audio_path_or_uri}` |
+| `frontend_final_answer_system.md` | Frontend final answer system prompt | None |
+| `frontend_final_answer_user.md` | Frontend final answer user instruction | `{question}`, `{expected_output_format}`, `{initial_plan_text}`, `{frontend_direct_text}`, `{evidence_and_history_text}`, `{audio_summary}`, `{format_critique_section}` |
 | `plan_system.md` | Planner initial planning system prompt | None |
 | `plan_user.md` | Planner initial planning user instruction | `{question}` |
 | `decide_system.md` | Planner decision system prompt | None |
 | `decide_user.md` | Planner decision user instruction | `{question}`, `{frontend_caption}`, `{initial_plan}`, `{evidence_log}`, `{tool_call_history}`, `{available_tools}`, `{step_count}`, `{max_steps}` |
 | `decide_rules.md` | Planner decision rules | None |
-| `answer_system.md` | Planner answer system prompt | None |
-| `answer_user.md` | Planner answer user instruction | `{question}`, `{evidence_text}` |
 | `clarify_system.md` | Planner clarify system prompt | None |
 | `clarify_user.md` | Planner clarify user instruction | `{question}`, `{clarified_intent}`, `{expected_format}`, `{evidence_text}` |
+| `format_check_system.md` | Format check system prompt | None |
+| `format_check_user.md` | Format check user instruction | `{question}`, `{expected_format}`, `{proposed_answer}` |
+| `evidence_summary_system.md` | Evidence summarization system prompt | None |
+| `evidence_summary_user.md` | Evidence summarization user instruction | `{question}`, `{frontend_caption}`, `{evidence_text}`, `{planner_trace_text}`, `{tool_history_text}`, `{clarified_intent}`, `{expected_output_format}` |
 
 **Example: Customizing the frontend system prompt:**
 
