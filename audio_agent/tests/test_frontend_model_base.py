@@ -180,3 +180,59 @@ class TestDummyFrontendWithModelBase:
         from audio_agent.frontend.base import BaseModelFrontend as ReexportedBaseModelFrontend
 
         assert ReexportedBaseModelFrontend is BaseModelFrontend
+
+
+class TestBaseModelFrontendRetries:
+    """Tests for retry behavior on frontend model output parsing errors."""
+
+    def test_retry_recovers_after_transient_failure(self):
+        """A frontend that fails once then succeeds should return the correct output."""
+        class FlakyFrontend(EchoModelFrontend):
+            def __init__(self, fail_count: int = 1):
+                self._fail_count = fail_count
+                self._call_count = 0
+                super().__init__()
+
+            def call_model(self, model_input: UnifiedFrontendInput):
+                self._call_count += 1
+                if self._call_count <= self._fail_count:
+                    return "   "  # Empty caption triggers validation error
+                return super().call_model(model_input)
+
+        frontend = FlakyFrontend(fail_count=1)
+        result = frontend.run("Question", ["/tmp/audio.wav"])
+        assert isinstance(result, FrontendOutput)
+        assert result.question_guided_caption.startswith("Echo:")
+        assert frontend._call_count == 2  # 1 failure + 1 success
+
+    def test_retry_exhausts_and_raises(self):
+        """A frontend that always fails should raise after max_retries + 1 attempts."""
+        class AlwaysBadFrontend(EchoModelFrontend):
+            def __init__(self):
+                self._call_count = 0
+                super().__init__(max_retries=2)
+
+            def call_model(self, model_input: UnifiedFrontendInput):
+                self._call_count += 1
+                return "   "  # Always empty
+
+        frontend = AlwaysBadFrontend()
+        with pytest.raises(FrontendError, match="failed after 3 attempts"):
+            frontend.run("Question", ["/tmp/audio.wav"])
+        assert frontend._call_count == 3  # initial + 2 retries
+
+    def test_zero_retries_raises_immediately(self):
+        """With max_retries=0, the first failure should raise immediately."""
+        class AlwaysBadFrontend(EchoModelFrontend):
+            def __init__(self):
+                self._call_count = 0
+                super().__init__(max_retries=0)
+
+            def call_model(self, model_input: UnifiedFrontendInput):
+                self._call_count += 1
+                return "   "  # Always empty
+
+        frontend = AlwaysBadFrontend()
+        with pytest.raises(FrontendError, match="failed after 1 attempt"):
+            frontend.run("Question", ["/tmp/audio.wav"])
+        assert frontend._call_count == 1

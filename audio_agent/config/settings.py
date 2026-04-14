@@ -59,6 +59,12 @@ class AgentConfig(BaseModel):
         le=10,
         description="Maximum number of format checks allowed per run"
     )
+    max_model_output_retries: int = Field(
+        default=3,
+        ge=0,
+        le=10,
+        description="Maximum retries for planner/frontend model output parsing errors"
+    )
     
     model_config = {
         "frozen": False,  # Allow modification after creation

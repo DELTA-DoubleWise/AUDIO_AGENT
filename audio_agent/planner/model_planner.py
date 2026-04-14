@@ -18,6 +18,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from audio_agent.core.errors import PlannerError
+from audio_agent.core.logging import get_logger
 from audio_agent.core.schemas import InitialPlan, PlannerDecision, ToolSpec, FormatCheckResult
 from audio_agent.core.state import AgentState
 from audio_agent.planner.base import BasePlanner
@@ -57,8 +58,10 @@ class BaseModelPlanner(BasePlanner):
     def __init__(
         self,
         model_config: dict[str, Any] | None = None,
+        max_retries: int = 3,
     ) -> None:
         self.model_config = model_config or {}
+        self.max_retries = max_retries
         self.model_handle = self.initialize_model()
 
     @property
@@ -422,20 +425,46 @@ class BaseModelPlanner(BasePlanner):
             details={"output_type": type(raw_output).__name__, "raw_output": str(raw_output)[:1000]},
         )
 
+    def _call_with_retries(self, callable, context: str):
+        """Call model and normalize output with retries on PlannerError."""
+        logger = get_logger()
+        last_error = None
+        for attempt in range(self.max_retries + 1):
+            try:
+                return callable()
+            except PlannerError as e:
+                last_error = e
+                if attempt < self.max_retries:
+                    logger.warning(
+                        f"{context} failed (attempt {attempt + 1}/{self.max_retries + 1}), retrying: {e}"
+                    )
+                    import time
+                    time.sleep(0.5 * (2 ** attempt))
+                else:
+                    logger.error(f"{context} exhausted all retries: {e}")
+        raise PlannerError(
+            f"{context} failed after {self.max_retries + 1} attempts",
+            details={"last_error": str(last_error), "retries": self.max_retries},
+        ) from last_error
+
     def plan(self, question: str) -> InitialPlan:
         """Question-only initial planning phase."""
         question = self.validate_question(question)
         model_input = self.build_plan_model_input(question)
-        try:
-            raw_output = self.call_model(model_input)
-        except PlannerError:
-            raise
-        except Exception as e:
-            raise PlannerError(
-                f"Planner model call failed during initial planning: {type(e).__name__}: {e}",
-                details={"planner": self.name},
-            ) from e
-        return self.normalize_plan_output(raw_output)
+
+        def _call():
+            try:
+                raw_output = self.call_model(model_input)
+            except PlannerError:
+                raise
+            except Exception as e:
+                raise PlannerError(
+                    f"Planner model call failed during initial planning: {type(e).__name__}: {e}",
+                    details={"planner": self.name},
+                ) from e
+            return self.normalize_plan_output(raw_output)
+
+        return self._call_with_retries(_call, "plan()")
 
     def decide(
         self,
@@ -445,45 +474,51 @@ class BaseModelPlanner(BasePlanner):
         """Action decision phase using state + available tools."""
         self.validate_state(state)
         model_input = self.build_decision_model_input(state, available_tools)
-        try:
-            raw_output = self.call_model(model_input)
-        except PlannerError:
-            raise
-        except Exception as e:
-            raise PlannerError(
-                f"Planner model call failed during decision phase: {type(e).__name__}: {e}",
-                details={"planner": self.name},
-            ) from e
-        
-        decision = self.normalize_decision_output(raw_output)
-        return decision
+
+        def _call():
+            try:
+                raw_output = self.call_model(model_input)
+            except PlannerError:
+                raise
+            except Exception as e:
+                raise PlannerError(
+                    f"Planner model call failed during decision phase: {type(e).__name__}: {e}",
+                    details={"planner": self.name},
+                ) from e
+            return self.normalize_decision_output(raw_output)
+
+        return self._call_with_retries(_call, "decide()")
 
     def answer(self, state: AgentState) -> str:
         """Generate final answer using the model."""
         model_input = self.build_answer_model_input(state)
-        try:
-            raw_output = self.call_model(model_input)
-        except PlannerError:
-            raise
-        except Exception as e:
-            raise PlannerError(
-                f"Planner model call failed during answer generation: {type(e).__name__}: {e}",
-                details={"planner": self.name},
-            ) from e
 
-        # Treat output as plain text answer (could be JSON or string)
-        if isinstance(raw_output, str):
-            # Try to parse as JSON first (for structured answer)
+        def _call():
             try:
-                parsed = json.loads(raw_output)
-                if isinstance(parsed, dict) and "answer" in parsed:
-                    return parsed["answer"].strip()
-            except json.JSONDecodeError:
-                pass
-            # Return as plain text
-            return raw_output.strip()
+                raw_output = self.call_model(model_input)
+            except PlannerError:
+                raise
+            except Exception as e:
+                raise PlannerError(
+                    f"Planner model call failed during answer generation: {type(e).__name__}: {e}",
+                    details={"planner": self.name},
+                ) from e
 
-        return str(raw_output).strip()
+            # Treat output as plain text answer (could be JSON or string)
+            if isinstance(raw_output, str):
+                # Try to parse as JSON first (for structured answer)
+                try:
+                    parsed = json.loads(raw_output)
+                    if isinstance(parsed, dict) and "answer" in parsed:
+                        return parsed["answer"].strip()
+                except json.JSONDecodeError:
+                    pass
+                # Return as plain text
+                return raw_output.strip()
+
+            return str(raw_output).strip()
+
+        return self._call_with_retries(_call, "answer()")
 
     def build_answer_model_input(self, state: AgentState) -> UnifiedPlannerInput:
         """Build model input for final answer generation."""
@@ -600,16 +635,20 @@ class BaseModelPlanner(BasePlanner):
         Does NOT call tools - evidence should already be accumulated.
         """
         model_input = self.build_clarify_intent_model_input(state)
-        try:
-            raw_output = self.call_model(model_input)
-        except PlannerError:
-            raise
-        except Exception as e:
-            raise PlannerError(
-                f"Planner model call failed during intent clarification: {type(e).__name__}: {e}",
-                details={"planner": self.name},
-            ) from e
-        return self.normalize_clarify_intent_output(raw_output)
+
+        def _call():
+            try:
+                raw_output = self.call_model(model_input)
+            except PlannerError:
+                raise
+            except Exception as e:
+                raise PlannerError(
+                    f"Planner model call failed during intent clarification: {type(e).__name__}: {e}",
+                    details={"planner": self.name},
+                ) from e
+            return self.normalize_clarify_intent_output(raw_output)
+
+        return self._call_with_retries(_call, "clarify_intent()")
 
     # =============================================================================
     # Format Check Methods
@@ -734,13 +773,17 @@ class BaseModelPlanner(BasePlanner):
         model_input = self.build_format_check_model_input(
             proposed_answer, expected_format, question, requires_audio_output
         )
-        try:
-            raw_output = self.call_model(model_input)
-        except PlannerError:
-            raise
-        except Exception as e:
-            raise PlannerError(
-                f"Planner model call failed during format check: {type(e).__name__}: {e}",
-                details={"planner": self.name},
-            ) from e
-        return self.normalize_format_check_output(raw_output)
+
+        def _call():
+            try:
+                raw_output = self.call_model(model_input)
+            except PlannerError:
+                raise
+            except Exception as e:
+                raise PlannerError(
+                    f"Planner model call failed during format check: {type(e).__name__}: {e}",
+                    details={"planner": self.name},
+                ) from e
+            return self.normalize_format_check_output(raw_output)
+
+        return self._call_with_retries(_call, "check_format()")

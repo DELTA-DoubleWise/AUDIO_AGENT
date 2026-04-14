@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field
 
 from audio_agent.core.errors import FrontendError
 from audio_agent.core.schemas import FrontendOutput, VerificationResult
+from audio_agent.core.logging import get_logger
 from audio_agent.frontend.base import BaseFrontend
 from audio_agent.utils.model_io import parse_json_object_text, validate_message_sequence
 from audio_agent.utils.prompt_io import load_prompt
@@ -64,8 +65,10 @@ class BaseModelFrontend(BaseFrontend):
     def __init__(
         self,
         model_config: dict[str, Any] | None = None,
+        max_retries: int = 3,
     ) -> None:
         self.model_config = model_config or {}
+        self.max_retries = max_retries
         self.model_handle = self.initialize_model()
 
     @abstractmethod
@@ -267,6 +270,28 @@ class BaseModelFrontend(BaseFrontend):
             details={"output_type": type(raw_output).__name__, "question": model_input.question},
         )
 
+    def _call_with_retries(self, callable, context: str):
+        """Call model and normalize output with retries on FrontendError."""
+        logger = get_logger()
+        last_error = None
+        for attempt in range(self.max_retries + 1):
+            try:
+                return callable()
+            except FrontendError as e:
+                last_error = e
+                if attempt < self.max_retries:
+                    logger.warning(
+                        f"{context} failed (attempt {attempt + 1}/{self.max_retries + 1}), retrying: {e}"
+                    )
+                    import time
+                    time.sleep(0.5 * (2 ** attempt))
+                else:
+                    logger.error(f"{context} exhausted all retries: {e}")
+        raise FrontendError(
+            f"{context} failed after {self.max_retries + 1} attempts",
+            details={"last_error": str(last_error), "retries": self.max_retries},
+        ) from last_error
+
     def run(self, question: str, audio_paths: list[str]) -> FrontendOutput:
         """
         Standardized frontend execution path:
@@ -283,32 +308,40 @@ class BaseModelFrontend(BaseFrontend):
         if len(stripped_paths) == 1:
             # Single audio - normal processing path
             model_input = self.build_model_input(question.strip(), stripped_paths)
-            try:
-                raw_output = self.call_model(model_input)
-            except FrontendError:
-                raise
-            except Exception as e:
-                raise FrontendError(
-                    f"Model call failed: {type(e).__name__}: {e}",
-                    details={"frontend": self.name},
-                ) from e
-            return self.normalize_model_output(raw_output, model_input)
+
+            def _call_single():
+                try:
+                    raw_output = self.call_model(model_input)
+                except FrontendError:
+                    raise
+                except Exception as e:
+                    raise FrontendError(
+                        f"Model call failed: {type(e).__name__}: {e}",
+                        details={"frontend": self.name},
+                    ) from e
+                return self.normalize_model_output(raw_output, model_input)
+
+            return self._call_with_retries(_call_single, "run()")
         else:
             # Multiple audios - separate calls, combine results
             # API models like qwen3-omni-flash don't support multiple audios in one call
             captions = []
             for i, path in enumerate(stripped_paths):
                 single_input = self.build_model_input(question.strip(), [path])
-                try:
-                    raw_output = self.call_model(single_input)
-                except FrontendError:
-                    raise
-                except Exception as e:
-                    raise FrontendError(
-                        f"Model call failed for audio {i}: {type(e).__name__}: {e}",
-                        details={"frontend": self.name, "audio_index": i},
-                    ) from e
-                output = self.normalize_model_output(raw_output, single_input)
+
+                def _call_multi():
+                    try:
+                        raw_output = self.call_model(single_input)
+                    except FrontendError:
+                        raise
+                    except Exception as e:
+                        raise FrontendError(
+                            f"Model call failed for audio {i}: {type(e).__name__}: {e}",
+                            details={"frontend": self.name, "audio_index": i},
+                        ) from e
+                    return self.normalize_model_output(raw_output, single_input)
+
+                output = self._call_with_retries(_call_multi, f"run() audio {i}")
                 captions.append(f"Audio {i}: {output.question_guided_caption}")
             
             # Combine into single FrontendOutput

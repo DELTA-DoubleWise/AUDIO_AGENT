@@ -136,8 +136,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--frontend-model",
-        default="qwen3-omni-flash",
-        help="API model name for frontend (default: qwen3-omni-flash).",
+        default="qwen3.5-omni-plus",
+        help="API model name for frontend (default: qwen3.5-omni-plus).",
     )
     parser.add_argument(
         "--planner-model",

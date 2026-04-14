@@ -806,6 +806,8 @@ validate_state_has_fields(
 
 15. **Conda Initialization**: Remember to run `source /lihaoyu/.conda.path.sh` before using conda commands on this system.
 
+16. **Model Output Retry**: `BaseModelPlanner` and `BaseModelFrontend` automatically retry model calls when the output fails schema validation or JSON parsing. This handles transient API instability without failing the entire agent run. Configure via `max_retries` (default 3, can be set to 0 to disable). The retry uses exponential backoff (0.5s, 1s, 2s). `AgentConfig` exposes `max_model_output_retries` for documentation purposes; wire it into your planner/frontend constructor as needed.
+
 16. **Run Logging**: The framework automatically logs each run to a Markdown file in the `logs/` directory. This includes:
     - Complete AgentState with all evidence, tool calls, and planner decisions
     - Frontend output and initial plan

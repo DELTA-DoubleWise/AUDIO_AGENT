@@ -21,9 +21,7 @@ class MockQwen2AudioFrontend(Qwen2AudioFrontend):
         return {"model": object(), "processor": object()}
 
     def call_model(self, model_input: UnifiedFrontendInput) -> str:
-        return json.dumps(
-            {"question_guided_caption": f"Mock caption for: {model_input.question}"}
-        )
+        return f"Mock caption for: {model_input.question}"
 
 
 class TestQwen2AudioFrontendShape:
@@ -37,7 +35,7 @@ class TestQwen2AudioFrontendShape:
         frontend = MockQwen2AudioFrontend()
         model_input = frontend.build_model_input(
             question="What is in the audio?",
-            audio_path_or_uri="https://example.com/test.wav",
+            audio_paths=["https://example.com/test.wav"],
         )
 
         assert model_input.messages[1]["role"] == "user"
@@ -49,7 +47,7 @@ class TestQwen2AudioFrontendShape:
         frontend = MockQwen2AudioFrontend()
         model_input = frontend.build_model_input(
             question="What is in the audio?",
-            audio_path_or_uri="/tmp/example.wav",
+            audio_paths=["/tmp/example.wav"],
         )
 
         assert model_input.messages[1]["role"] == "user"
@@ -59,7 +57,7 @@ class TestQwen2AudioFrontendShape:
 
     def test_run_returns_frontend_output(self):
         frontend = MockQwen2AudioFrontend()
-        output = frontend.run("Question", "/tmp/example.wav")
+        output = frontend.run("Question", ["/tmp/example.wav"])
         assert isinstance(output, FrontendOutput)
         assert output.question_guided_caption.startswith("Mock caption")
 
@@ -133,7 +131,7 @@ class TestQwen2AudioFrontendShape:
                     def apply_chat_template(self, conversation, add_generation_prompt, tokenize):
                         return "prompt"
 
-                    def __call__(self, text, audios, return_tensors, padding):
+                    def __call__(self, text, audio, return_tensors, padding):
                         return DummyInputs()
 
                     def batch_decode(self, generate_ids, skip_special_tokens, clean_up_tokenization_spaces):
@@ -156,7 +154,7 @@ class TestQwen2AudioFrontendShape:
 
         frontend = EmptyDecodedFrontend()
         with pytest.raises(FrontendError, match="Qwen2-Audio returned empty response text"):
-            frontend.call_model(frontend.build_model_input("Question", "/tmp/example.wav"))
+            frontend.call_model(frontend.build_model_input("Question", ["/tmp/example.wav"]))
 
 
 def test_qwen2_audio_cluster_smoke():
@@ -180,6 +178,6 @@ def test_qwen2_audio_cluster_smoke():
     )
     output = frontend.run(
         question="Provide a concise question-guided caption for this audio.",
-        audio_path_or_uri=audio_path,
+        audio_paths=[audio_path],
     )
     assert output.question_guided_caption.strip()

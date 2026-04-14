@@ -37,7 +37,7 @@ class TestGraphSmoke:
             
             final_state = agent.run(
                 question="What is in this audio?",
-                audio_path_or_uri=audio_path,
+                audio_paths=[audio_path],
                 max_steps=10,
             )
             
@@ -104,7 +104,7 @@ class TestGraphSmoke:
             
             final_state = agent.run(
                 question="Test question",
-                audio_path_or_uri=audio_path,
+                audio_paths=[audio_path],
                 max_steps=3,
             )
             
@@ -155,7 +155,7 @@ class TestGraphSmoke:
             
             final_state = agent.run(
                 question="What sounds are in this audio?",
-                audio_path_or_uri=audio_path,
+                audio_paths=[audio_path],
             )
             
             evidence_log = final_state["evidence_log"]
@@ -179,7 +179,7 @@ class TestGraphSmoke:
             
             final_state = agent.run(
                 question="Describe the audio",
-                audio_path_or_uri=audio_path,
+                audio_paths=[audio_path],
             )
             
             tool_history = final_state["tool_call_history"]
@@ -207,7 +207,7 @@ class TestAgentInterface:
             
             final_state = agent.run(
                 question="Test",
-                audio_path_or_uri=audio_path,
+                audio_paths=[audio_path],
             )
             
             assert agent.is_successful(final_state) is True
@@ -223,7 +223,7 @@ class TestAgentInterface:
             
             final_state = agent.run(
                 question="What is this?",
-                audio_path_or_uri=audio_path,
+                audio_paths=[audio_path],
             )
             
             answer = agent.get_answer(final_state)
@@ -243,7 +243,7 @@ class TestAgentInterface:
             
             final_state = agent.run(
                 question="Test",
-                audio_path_or_uri=audio_path,
+                audio_paths=[audio_path],
             )
             
             status = agent.get_status(final_state)

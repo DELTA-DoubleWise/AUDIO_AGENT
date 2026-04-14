@@ -42,6 +42,7 @@ class Qwen3OmniFrontend(BaseModelFrontend):
         attn_implementation: str = "flash_attention_2",
         generation_kwargs: dict[str, Any] | None = None,
         model_config: dict[str, Any] | None = None,
+        max_retries: int = 3,
     ) -> None:
         self.model_path = model_path
         self.use_audio_in_video = False
@@ -49,7 +50,7 @@ class Qwen3OmniFrontend(BaseModelFrontend):
         self.device_map = device_map
         self.attn_implementation = attn_implementation
         self.generation_kwargs = generation_kwargs or {}
-        super().__init__(model_config=model_config)
+        super().__init__(model_config=model_config, max_retries=max_retries)
 
     @property
     def name(self) -> str:

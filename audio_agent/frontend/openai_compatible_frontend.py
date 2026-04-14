@@ -52,6 +52,7 @@ class OpenAICompatibleFrontend(BaseModelFrontend):
         temperature: float = 0.7,
         max_tokens: int = 4096,
         timeout: float = 120.0,
+        max_retries: int = 3,
     ) -> None:
         self._model = model
         self._api_key = api_key
@@ -61,7 +62,7 @@ class OpenAICompatibleFrontend(BaseModelFrontend):
         self._max_tokens = max_tokens
         self._timeout = timeout
 
-        super().__init__()
+        super().__init__(max_retries=max_retries)
 
     @property
     def name(self) -> str:

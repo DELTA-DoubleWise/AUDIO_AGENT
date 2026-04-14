@@ -16,7 +16,7 @@ class MockQwen3OmniFrontend(Qwen3OmniFrontend):
         return {"model": object(), "processor": object()}
 
     def call_model(self, model_input: UnifiedFrontendInput):
-        return {"question_guided_caption": f"Mock caption for: {model_input.question}"}
+        return f"Mock caption for: {model_input.question}"
 
 
 class TestQwen3OmniFrontendShape:
@@ -34,7 +34,7 @@ class TestQwen3OmniFrontendShape:
         frontend = MockQwen3OmniFrontend()
         model_input = frontend.build_model_input(
             question="What is in the audio?",
-            audio_path_or_uri="/tmp/example.wav",
+            audio_paths=["/tmp/example.wav"],
         )
         assert model_input.messages[1]["role"] == "user"
         assert model_input.messages[1]["content"][1]["type"] == "audio"
@@ -42,7 +42,7 @@ class TestQwen3OmniFrontendShape:
 
     def test_run_returns_frontend_output(self):
         frontend = MockQwen3OmniFrontend()
-        output = frontend.run("Question", "/tmp/example.wav")
+        output = frontend.run("Question", ["/tmp/example.wav"])
         assert isinstance(output, FrontendOutput)
         assert output.question_guided_caption.startswith("Mock caption")
 
@@ -68,6 +68,6 @@ def test_qwen3_omni_cluster_smoke():
     )
     output = frontend.run(
         question="Provide a concise question-guided caption for this audio.",
-        audio_path_or_uri=audio_path,
+        audio_paths=[audio_path],
     )
     assert output.question_guided_caption.strip()

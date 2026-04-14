@@ -45,12 +45,13 @@ class Qwen2AudioFrontend(BaseModelFrontend):
         max_length: int = 1024,
         generation_kwargs: dict[str, Any] | None = None,
         model_config: dict[str, Any] | None = None,
+        max_retries: int = 3,
     ) -> None:
         self.model_path = model_path
         self.device_map = device_map
         self.max_length = max_length
         self.generation_kwargs = generation_kwargs or {}
-        super().__init__(model_config=model_config)
+        super().__init__(model_config=model_config, max_retries=max_retries)
 
     @property
     def name(self) -> str:

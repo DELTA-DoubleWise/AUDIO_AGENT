@@ -158,3 +158,63 @@ class TestBaseModelPlanner:
         planner = BadModePlanner()
         with pytest.raises(PlannerError, match="Unsupported planner input format"):
             planner.build_plan_model_input("Question")
+
+
+class TestBaseModelPlannerRetries:
+    """Tests for retry behavior on model output parsing errors."""
+
+    def test_retry_recovers_after_transient_failure(self):
+        """A planner that fails once then succeeds should return the correct result."""
+        class FlakyPlanner(EchoModelPlanner):
+            def __init__(self, fail_count: int = 1):
+                self._fail_count = fail_count
+                self._call_count = 0
+                super().__init__()
+
+            def call_model(self, model_input: UnifiedPlannerInput):
+                self._call_count += 1
+                if model_input.task_type == "initial_plan" and self._call_count <= self._fail_count:
+                    return {"focus_points": [], "possible_tool_types": []}  # Missing 'approach'
+                return super().call_model(model_input)
+
+        planner = FlakyPlanner(fail_count=1)
+        result = planner.plan("What is in this audio?")
+        assert isinstance(result, InitialPlan)
+        assert result.approach
+        assert planner._call_count == 2  # 1 failure + 1 success
+
+    def test_retry_exhausts_and_raises(self):
+        """A planner that always fails should raise after max_retries + 1 attempts."""
+        class AlwaysBadPlanner(EchoModelPlanner):
+            def __init__(self):
+                self._call_count = 0
+                super().__init__(max_retries=2)
+
+            def call_model(self, model_input: UnifiedPlannerInput):
+                self._call_count += 1
+                if model_input.task_type == "initial_plan":
+                    return {"focus_points": [], "possible_tool_types": []}
+                return super().call_model(model_input)
+
+        planner = AlwaysBadPlanner()
+        with pytest.raises(PlannerError, match="failed after 3 attempts"):
+            planner.plan("What is in this audio?")
+        assert planner._call_count == 3  # initial + 2 retries
+
+    def test_zero_retries_raises_immediately(self):
+        """With max_retries=0, the first failure should raise immediately."""
+        class AlwaysBadPlanner(EchoModelPlanner):
+            def __init__(self):
+                self._call_count = 0
+                super().__init__(max_retries=0)
+
+            def call_model(self, model_input: UnifiedPlannerInput):
+                self._call_count += 1
+                if model_input.task_type == "initial_plan":
+                    return {"focus_points": [], "possible_tool_types": []}
+                return super().call_model(model_input)
+
+        planner = AlwaysBadPlanner()
+        with pytest.raises(PlannerError, match="failed after 1 attempt"):
+            planner.plan("What is in this audio?")
+        assert planner._call_count == 1
