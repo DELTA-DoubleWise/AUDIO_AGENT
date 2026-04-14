@@ -56,6 +56,19 @@ class TestBaseModelPlanner:
         assert model_input.messages[0]["role"] == "system"
         assert model_input.messages[1]["role"] == "user"
 
+    def test_build_plan_model_input_includes_skills_reference(self):
+        planner = EchoModelPlanner()
+        model_input = planner.build_plan_model_input("What is in this audio?")
+
+        user_content = model_input.messages[1]["content"]
+        # If task_skills.yaml exists, the reference should be appended
+        # If it does not exist, the prompt should still be valid
+        from audio_agent.utils.skill_io import TASK_SKILLS_PATH
+        if TASK_SKILLS_PATH.exists():
+            assert "Task Skills Reference" in user_content
+        else:
+            assert "Question:" in user_content
+
     def test_build_decision_model_input_local_mode(self):
         class LocalPlanner(EchoModelPlanner):
             @property

@@ -103,7 +103,8 @@ audio_agent/
 │   ├── format_check_system.md       # Format check system prompt
 │   ├── format_check_user.md         # Format check user instruction
 │   ├── evidence_summary_system.md   # Evidence summarization system prompt
-│   └── evidence_summary_user.md     # Evidence summarization user instruction
+│   ├── evidence_summary_user.md     # Evidence summarization user instruction
+│   └── task_skills.yaml             # Task skill reference for initial planning
 ├── config/                # Configuration
 │   └── settings.py       # AgentConfig
 ├── utils/                 # Utilities
@@ -499,6 +500,7 @@ All prompts are now externalized as markdown files in `audio_agent/prompts/`. Yo
 | `format_check_user.md` | Format check user instruction | `{question}`, `{expected_format}`, `{proposed_answer}` |
 | `evidence_summary_system.md` | Evidence summarization system prompt | None |
 | `evidence_summary_user.md` | Evidence summarization user instruction | `{question}`, `{frontend_caption}`, `{evidence_text}`, `{planner_trace_text}`, `{tool_history_text}`, `{clarified_intent}`, `{expected_output_format}` |
+| `task_skills.yaml` | Task skill reference for initial planning | Rendered as markdown cookbook |
 
 **Example: Customizing the frontend system prompt:**
 

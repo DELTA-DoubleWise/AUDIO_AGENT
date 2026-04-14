@@ -47,3 +47,6 @@ For transcription (ASR) and speaker diarization tasks, plan to use multiple tool
 - Diarization: Different algorithms (pyannote-audio, DiariZen, etc.) may produce varying speaker boundaries/counts
 - When results are critical or accuracy is paramount, include multiple tools of the same type in your plan
 - Use the outputs to validate each other - discrepancies indicate areas needing closer examination
+
+**Task Skills Reference:**
+You may draw on the Task Skills Reference (if provided below) to select focus points, possible tool types, and a detailed execution plan. Mention in `notes` if you use a specific skill.

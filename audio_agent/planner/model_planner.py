@@ -24,6 +24,7 @@ from audio_agent.core.state import AgentState
 from audio_agent.planner.base import BasePlanner
 from audio_agent.utils.model_io import parse_json_object_text, validate_message_sequence
 from audio_agent.utils.prompt_io import load_prompt
+from audio_agent.utils.skill_io import render_skills_reference
 
 
 class PlannerInputFormat(str, Enum):
@@ -85,7 +86,11 @@ class BaseModelPlanner(BasePlanner):
 
     def build_plan_user_instruction(self, question: str) -> str:
         """Build user instruction for initial planning phase."""
-        return load_prompt("plan_user").format(question=question)
+        user_text = load_prompt("plan_user").format(question=question)
+        skills_ref = render_skills_reference()
+        if skills_ref:
+            user_text = f"{user_text}\n\n{skills_ref}"
+        return user_text
 
     def build_decision_system_prompt(self) -> str:
         """Build system prompt for action decision phase."""

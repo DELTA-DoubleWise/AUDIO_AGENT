@@ -150,7 +150,10 @@ audio_agent/
 │   ├── verification_system.md       # Verification: system prompt for answer review (legacy)
 │   ├── verification_user.md         # Verification: user instruction template (legacy)
 │   ├── format_check_system.md       # Format check: system prompt for format validation
-│   └── format_check_user.md         # Format check: user instruction template
+│   ├── format_check_user.md         # Format check: user instruction template
+│   ├── evidence_summary_system.md   # Evidence summarization system prompt
+│   ├── evidence_summary_user.md     # Evidence summarization user instruction
+│   └── task_skills.yaml             # Task skill reference for initial planning
 ├── fusion/                    # Evidence fusion
 │   ├── base.py               # BaseEvidenceFuser ABC
 │   └── default_fuser.py      # DefaultEvidenceFuser implementation
@@ -595,6 +598,9 @@ All prompts are externalized as markdown files in `audio_agent/prompts/`. This a
 | `verification_user.md` | Verification: user instruction template | `{question}`, `{proposed_answer}` |
 | `format_check_system.md` | Format check: system prompt for format validation | None |
 | `format_check_user.md` | Format check: user instruction template | `{question}`, `{expected_format}`, `{proposed_answer}` |
+| `evidence_summary_system.md` | Evidence summarization system prompt | None |
+| `evidence_summary_user.md` | Evidence summarization user instruction | `{question}`, `{frontend_caption}`, `{evidence_text}`, `{planner_trace_text}`, `{tool_history_text}`, `{clarified_intent}`, `{expected_output_format}` |
+| `task_skills.yaml` | Task skill reference for initial planning | Rendered as markdown cookbook |
 
 **Loading Prompts:**
 
