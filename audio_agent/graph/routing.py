@@ -20,8 +20,9 @@ NODE_TOOL_EXECUTOR = "tool_executor_node"
 NODE_FAILURE = "failure_node"
 NODE_EVIDENCE_FUSION = "evidence_fusion_node"
 NODE_INTENT_CLARIFICATION = "intent_clarification_node"
-NODE_VERIFICATION = "verification_node"
+NODE_FINAL_ANSWER = "final_answer_node"
 NODE_FORMAT_CHECK = "format_check_node"
+NODE_EVIDENCE_SUMMARIZATION = "evidence_summarization_node"
 NODE_PLANNER = NODE_PLANNER_DECISION  # Backward-compatible alias
 END = "__end__"
 
@@ -31,10 +32,9 @@ def route_after_planner_decision(state: AgentState) -> str:
     Route after the planner decision node based on its decision.
     
     Routes:
-    - ANSWER -> format_check_node (format check is mandatory before answer)
+    - ANSWER -> final_answer_node (frontend generates the answer)
     - CALL_TOOL -> tool_executor_node
     - CLARIFY_INTENT -> intent_clarification_node
-    - VERIFY -> verification_node
     - FAIL -> failure_node
     
     Note: max_steps exhaustion is handled in planner_decision_node by
@@ -63,9 +63,9 @@ def route_after_planner_decision(state: AgentState) -> str:
     action = decision.action
     
     if action == PlannerActionType.ANSWER:
-        # Format check is mandatory before final answer
-        logger.info(f"ROUTING: action={action.value} -> {NODE_FORMAT_CHECK}")
-        return NODE_FORMAT_CHECK
+        # Summarize evidence before frontend generates the final answer
+        logger.info(f"ROUTING: action={action.value} -> {NODE_EVIDENCE_SUMMARIZATION}")
+        return NODE_EVIDENCE_SUMMARIZATION
     
     elif action == PlannerActionType.CALL_TOOL:
         tool_name = decision.selected_tool_name
@@ -75,11 +75,7 @@ def route_after_planner_decision(state: AgentState) -> str:
     elif action == PlannerActionType.CLARIFY_INTENT:
         logger.info(f"ROUTING: action={action.value} -> {NODE_INTENT_CLARIFICATION}")
         return NODE_INTENT_CLARIFICATION
-    
-    elif action == PlannerActionType.VERIFY:
-        logger.info(f"ROUTING: action={action.value} -> {NODE_VERIFICATION}")
-        return NODE_VERIFICATION
-    
+
     elif action == PlannerActionType.FAIL:
         logger.info(f"ROUTING: action={action.value} -> {NODE_FAILURE}")
         return NODE_FAILURE
@@ -135,44 +131,6 @@ def route_after_fusion(state: AgentState) -> str:
     logger = get_logger()
     logger.info(f"ROUTING: after fusion -> {NODE_PLANNER_DECISION}")
     return NODE_PLANNER_DECISION
-
-
-def route_after_verification(state: AgentState) -> str:
-    """
-    Route after verification based on the result.
-    
-    Routes:
-    - verification passed -> planner_decision_node (planner should ANSWER)
-    - verification failed -> evidence_fusion_node (adds critique as evidence)
-    
-    Args:
-        state: Current agent state
-    
-    Returns:
-        Name of the next node
-    
-    Raises:
-        GraphRoutingError: If routing cannot be determined
-    """
-    logger = get_logger()
-    
-    # Get verification result
-    verification_result = state.get("verification_result")
-    
-    if verification_result is None:
-        raise GraphRoutingError(
-            "Cannot route after verification: verification_result is None"
-        )
-    
-    if verification_result.passed:
-        logger.info(f"ROUTING: verification passed -> {NODE_PLANNER_DECISION}")
-        return NODE_PLANNER_DECISION
-    else:
-        # Verification failed - critique was added as evidence
-        # Route to evidence_fusion (which will just increment step and go back to planner)
-        # Actually, evidence is already added by verification_node, so go directly to planner
-        logger.info(f"ROUTING: verification failed (critique added) -> {NODE_PLANNER_DECISION}")
-        return NODE_PLANNER_DECISION
 
 
 def route_after_intent_clarification(state: AgentState) -> str:

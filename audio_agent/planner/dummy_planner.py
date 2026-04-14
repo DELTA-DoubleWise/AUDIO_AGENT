@@ -138,38 +138,11 @@ class DummyPlanner(BasePlanner):
         initial_plan: InitialPlan,
     ) -> PlannerDecision:
         """Build an ANSWER decision from accumulated evidence."""
-        question = state.get("question", "")
-        
-        # Collect evidence summaries
-        evidence_texts = []
-        for item in evidence_log:
-            evidence_texts.append(f"- {item.source}: {item.content[:100]}...")
-        
-        evidence_summary = "\n".join(evidence_texts) if evidence_texts else "No evidence collected"
-        
-        draft_answer = (
-            f"Based on the analysis of the audio:\n\n"
-            f"Question: {question}\n\n"
-            f"Initial plan approach: {initial_plan.approach}\n\n"
-            f"Evidence collected:\n{evidence_summary}\n\n"
-            f"[DummyPlanner] This is a placeholder answer. "
-            f"A real planner would synthesize evidence into a coherent response."
-        )
-        
         return PlannerDecision(
             action=PlannerActionType.ANSWER,
-            rationale="Sufficient evidence collected from multiple tools",
-            draft_answer=draft_answer,
+            rationale="Sufficient evidence collected from multiple tools. Frontend model will generate the final answer.",
+            draft_answer=None,
             confidence=0.75,
-        )
-
-    def answer(self, state: AgentState) -> str:
-        """Generate dummy final answer from accumulated evidence."""
-        question = state.get("question", "")
-        evidence_count = len(state.get("evidence_log", []))
-        return (
-            f"[Dummy Answer] Based on {evidence_count} evidence items for question: {question}\n\n"
-            "The audio has been analyzed but this is a placeholder answer."
         )
 
     def clarify_intent(self, state: AgentState) -> tuple[str, str | None]:
@@ -198,3 +171,37 @@ class DummyPlanner(BasePlanner):
             critique=None,
             confidence=1.0,
         )
+
+    def summarize_evidence(self, state: AgentState) -> str:
+        """
+        Produce a deterministic summary of accumulated evidence.
+        
+        Concatenates evidence sources and planner decisions without LLM call.
+        """
+        evidence_log = state.get("evidence_log", [])
+        planner_trace = state.get("planner_trace", [])
+        tool_history = state.get("tool_call_history", [])
+        frontend_output = state.get("initial_frontend_output")
+        
+        parts = []
+        if frontend_output:
+            parts.append(f"Frontend observation: {frontend_output.question_guided_caption}")
+        
+        if evidence_log:
+            parts.append("Evidence items:")
+            for item in evidence_log:
+                parts.append(f"- [{item.source}] {item.content}")
+        
+        if planner_trace:
+            parts.append("Planner decisions:")
+            for i, decision in enumerate(planner_trace, 1):
+                parts.append(f"Step {i}: {decision.action.value} - {decision.rationale}")
+        
+        if tool_history:
+            parts.append("Tool calls:")
+            for record in tool_history:
+                parts.append(
+                    f"- {record.request.tool_name} (success={record.result.success})"
+                )
+        
+        return "\n".join(parts) if parts else "No evidence collected."

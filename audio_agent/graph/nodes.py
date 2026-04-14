@@ -19,7 +19,6 @@ from audio_agent.core.schemas import (
     FinalAnswer,
     AudioItem,
     AudioOutput,
-    VerificationResult,
     FormatCheckResult,
 )
 from audio_agent.core.constants import AgentStatus
@@ -338,29 +337,17 @@ def create_planner_decision_node(planner: BasePlanner, registry: ToolRegistry):
         max_steps = state.get("max_steps", 10)
         is_final_step = step_count >= max_steps - 1
 
-        # Final step: generate answer directly
+        # Final step: force ANSWER decision so the frontend generates the final answer
         if is_final_step:
             log_node_start("planner_decision_node", {
                 "step_count": step_count,
                 "mode": "final_answer",
             })
 
-            try:
-                answer_text = planner.answer(state)
-            except PlannerError:
-                raise
-            except Exception as e:
-                log_error("planner_decision_node", e)
-                raise PlannerError(
-                    f"Final answer generation failed: {e}",
-                    details={"planner": planner.name}
-                ) from e
-
-            # Create ANSWER decision with generated answer
             decision = PlannerDecision(
                 action=PlannerActionType.ANSWER,
-                rationale=f"Maximum steps ({max_steps}) reached. Providing final answer based on accumulated evidence.",
-                draft_answer=answer_text,
+                rationale=f"Maximum steps ({max_steps}) reached. Delegating final answer generation to the frontend model.",
+                draft_answer=None,
                 confidence=0.7,
             )
 
@@ -737,130 +724,180 @@ def create_evidence_fusion_node(fuser: BaseEvidenceFuser):
     return evidence_fusion_node
 
 
-def create_verification_node(frontend: BaseFrontend):
+def create_evidence_summarization_node(planner: BasePlanner):
     """
-    Factory to create a verification node.
-    
-    Uses the frontend (audio model) to verify a proposed answer by
-    reviewing it against the audio content.
-    
+    Factory to create an evidence summarization node.
+
+    Uses the planner (text LLM) to compress evidence_log, planner_trace,
+    and tool_call_history into a single neutral narrative before final answer.
+
     Args:
-        frontend: Frontend instance with verify_answer capability
-    
+        planner: Planner instance for summarization
+
     Returns:
         Node function compatible with LangGraph
     """
-    def verification_node(state: AgentState) -> dict:
+    def evidence_summarization_node(state: AgentState) -> dict:
         """
-        Verify the proposed answer in current_decision.
-        
+        Summarize accumulated evidence into a concise narrative.
+
         Validates:
-        - current_decision exists and is VERIFY
-        - draft_answer is present (the answer to verify)
-        - audio_0 (original audio) exists
-        
+        - current_decision exists and is ANSWER
+
         Updates:
-        - verification_result
-        - verification_count (increments)
-        - evidence_log (appends verification result as evidence if failed)
+        - evidence_summary
         """
-        log_node_start("verification_node")
-        
+        log_node_start("evidence_summarization_node")
+
+        validate_state_has_fields(
+            state,
+            ["current_decision"],
+            context="evidence_summarization_node",
+        )
+
+        decision: PlannerDecision = state["current_decision"]
+
+        if decision.action != PlannerActionType.ANSWER:
+            raise StateValidationError(
+                f"evidence_summarization_node called with non-ANSWER action: {decision.action}",
+                details={"action": decision.action.value}
+            )
+
+        try:
+            summary = planner.summarize_evidence(state)
+        except PlannerError:
+            raise
+        except Exception as e:
+            log_error("evidence_summarization_node", e)
+            raise PlannerError(
+                f"Evidence summarization failed: {e}",
+                details={"planner": planner.name}
+            ) from e
+
+        if not summary:
+            raise PlannerError(
+                "Planner returned empty evidence summary",
+                details={"planner": planner.name}
+            )
+
+        log_node_end("evidence_summarization_node", {
+            "summary_length": len(summary),
+        })
+
+        return {
+            "evidence_summary": summary,
+        }
+
+    return evidence_summarization_node
+
+
+def create_final_answer_node(frontend: BaseFrontend):
+    """
+    Factory to create a final answer node.
+
+    Uses the frontend (audio-capable model) to generate the final answer
+    from the original audio(s) and all accumulated context.
+
+    Args:
+        frontend: Frontend instance with generate_final_answer capability
+
+    Returns:
+        Node function compatible with LangGraph
+    """
+    def final_answer_node(state: AgentState) -> dict:
+        """
+        Generate the final answer using the frontend model.
+
+        Validates:
+        - current_decision exists and is ANSWER
+        - audio_list contains at least one original audio
+
+        Updates:
+        - current_decision (sets draft_answer to the generated answer)
+        """
+        log_node_start("final_answer_node")
+
         validate_state_has_fields(
             state,
             ["current_decision", "audio_list", "question"],
-            context="verification_node",
+            context="final_answer_node",
         )
-        
+
         decision: PlannerDecision = state["current_decision"]
         audio_list: list[AudioItem] = state["audio_list"]
         question: str = state["question"]
-        
-        if decision.action != PlannerActionType.VERIFY:
+
+        if decision.action != PlannerActionType.ANSWER:
             raise StateValidationError(
-                f"verification_node called with non-VERIFY action: {decision.action}",
+                f"final_answer_node called with non-ANSWER action: {decision.action}",
                 details={"action": decision.action.value}
             )
-        
-        if not decision.draft_answer:
-            raise StateValidationError(
-                "VERIFY decision has no draft_answer",
-                details={"decision": decision.model_dump()}
-            )
-        
-        # Find audio_0 (original audio) in the list
-        original_audio = next(
-            (a for a in audio_list if a.audio_id == "audio_0"),
-            None
+
+        # Gather original audio paths
+        original_audios = sorted(
+            [a for a in audio_list if a.source == "original"],
+            key=lambda a: a.audio_id
         )
-        if original_audio is None:
+        if not original_audios:
             raise StateValidationError(
-                "audio_0 (original audio) not found in audio_list",
+                "No original audio found in audio_list",
                 details={"audio_ids": [a.audio_id for a in audio_list]}
             )
-        
-        audio_path = original_audio.path
-        proposed_answer = decision.draft_answer
-        
-        # Call frontend to verify the answer
+
+        audio_paths = [a.path for a in original_audios]
+
+        # Build context for the frontend
+        format_check_result = state.get("format_check_result")
+        format_critique = None
+        if format_check_result and not format_check_result.passed:
+            format_critique = format_check_result.critique
+
+        context = {
+            "evidence_summary": state.get("evidence_summary"),
+            "evidence_log": state.get("evidence_log", []),
+            "planner_trace": state.get("planner_trace", []),
+            "tool_call_history": state.get("tool_call_history", []),
+            "initial_plan": state.get("initial_plan"),
+            "initial_frontend_output": state.get("initial_frontend_output"),
+            "clarified_intent": state.get("clarified_intent"),
+            "expected_output_format": state.get("expected_output_format"),
+            "audio_list": audio_list,
+            "format_critique": format_critique,
+        }
+
         try:
-            verification_result = frontend.verify_answer(
+            answer_text = frontend.generate_final_answer(
                 question=question,
-                audio_paths=[audio_path],
-                proposed_answer=proposed_answer,
+                audio_paths=audio_paths,
+                context=context,
             )
         except FrontendError:
             raise
         except Exception as e:
-            log_error("verification_node", e)
+            log_error("final_answer_node", e)
             raise FrontendError(
-                f"Verification failed: {e}",
+                f"Final answer generation failed: {e}",
                 details={"frontend": frontend.name}
             ) from e
-        
-        if verification_result is None:
+
+        if not answer_text:
             raise FrontendError(
-                "Frontend returned None for verification",
+                "Frontend returned empty final answer",
                 details={"frontend": frontend.name}
             )
-        
-        # Update verification count
-        current_count = state.get("verification_count", 0)
-        new_count = current_count + 1
-        
-        # Prepare return updates
-        updates: dict = {
-            "verification_result": verification_result,
-            "verification_count": new_count,
+
+        # Update the decision with the generated draft answer
+        updated_decision = decision.model_copy(update={"draft_answer": answer_text})
+
+        log_node_end("final_answer_node", {
+            "answer_length": len(answer_text),
+        })
+
+        return {
+            "current_decision": updated_decision,
         }
-        
-        # If verification failed, add critique as evidence
-        if not verification_result.passed and verification_result.critique:
-            critique_evidence = EvidenceItem(
-                source=f"verification:{frontend.name}",
-                content=f"Verification failed: {verification_result.critique}",
-                evidence_type="verification_critique",
-                confidence=verification_result.confidence,
-                metadata={
-                    "proposed_answer": proposed_answer[:200],  # Truncate for metadata
-                    "verification_passed": verification_result.passed,
-                },
-            )
-            updates["evidence_log"] = [critique_evidence]
-            log_node_end("verification_node", {
-                "passed": verification_result.passed,
-                "confidence": verification_result.confidence,
-                "critique": verification_result.critique[:100],
-            })
-        else:
-            log_node_end("verification_node", {
-                "passed": verification_result.passed,
-                "confidence": verification_result.confidence,
-            })
-        
-        return updates
-    
-    return verification_node
+
+    return final_answer_node
 
 
 def create_intent_clarification_node(planner: BasePlanner):
@@ -982,7 +1019,7 @@ def answer_node(state: AgentState) -> dict:
             "ANSWER decision has no draft_answer",
             details={"decision": decision.model_dump()}
         )
-    
+
     # Build final answer
     evidence_log = state.get("evidence_log", [])
     evidence_summary = "\n".join(
@@ -1212,6 +1249,6 @@ planner_decision_node = create_planner_decision_node
 planner_node = create_planner_decision_node  # Backward-compatible alias
 tool_executor_node = create_tool_executor_node
 evidence_fusion_node = create_evidence_fusion_node
-verification_node = create_verification_node
+final_answer_node = create_final_answer_node
 format_check_node = create_format_check_node
 intent_clarification_node = create_intent_clarification_node

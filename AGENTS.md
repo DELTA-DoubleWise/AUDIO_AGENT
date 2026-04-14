@@ -18,14 +18,14 @@ The Audio Agent Framework is a **LangGraph-based framework for audio understandi
 START
   -> frontend_evidence_node (LALM processes audio, generates initial caption evidence)
   -> initial_plan_node (question-only planning, generates approach and focus points)
-  -> planner_decision_node (LLM decides action or generates final answer on last step)
+  -> planner_decision_node (LLM decides action; on last step forces ANSWER)
   -> [conditional routing based on decision]
-     - ANSWER -> format_check_node (mandatory format validation) -> [conditional]
+     - ANSWER -> final_answer_node (frontend omni model generates answer from audio + context)
+       -> format_check_node (mandatory format validation) -> [conditional]
         * Format OK -> answer_node -> END
         * Format Failed -> planner_decision_node (loop with critique as evidence)
-     - CALL_TOOL -> tool_executor_node (auto-injects audio_path) 
+     - CALL_TOOL -> tool_executor_node (auto-injects audio_path)
        -> evidence_fusion_node -> planner_decision_node (loop)
-     - VERIFY -> verification_node (frontend reviews draft answer) -> planner_decision_node (loop)
      - CLARIFY -> intent_clarification_node -> planner_decision_node
      - FAIL -> failure_node -> END
      - EXHAUSTED (max_steps reached) -> failure_node -> END
@@ -35,10 +35,10 @@ START
 - **Initial Planning**: Planner's `plan()` method generates a high-level approach based only on the question (no audio context yet)
 - **Tool Execution**: Tool executor automatically resolves `audio_id` references to actual paths and injects audio paths for tools that need them
 - **Intent Clarification**: When planner returns CLARIFY action, the intent_clarification_node refines the question before continuing
-- **Answer Verification**: Planner can optionally request VERIFY to have the frontend (audio model) review a draft answer before finalizing. If flaws are found, the critique is added as evidence and planning continues.
+- **Frontend Final Answer**: When the planner returns ANSWER (or is forced on the final step), the `final_answer_node` invokes the frontend (audio-capable) model with all original audio files and accumulated context to generate the final answer.
 - **Format Checking**: Mandatory format validation occurs before final answer. The planner (text LLM) checks if the proposed answer follows the expected output format. If format violations are found, the critique is added as evidence and planning continues.
-- **Final Step**: On the last step (`step_count >= max_steps - 1`), planner's `answer()` method generates final answer directly
-- **Evidence Accumulation**: Frontend output, tool results, verification critiques, and format check critiques are fused into evidence_log for planner context
+- **Final Step**: On the last step (`step_count >= max_steps - 1`), the planner decision node forces `action=ANSWER` with `draft_answer=None`, delegating final answer generation to the frontend model.
+- **Evidence Accumulation**: Frontend output, tool results, and format check critiques are fused into evidence_log for planner context
 
 ## Technology Stack
 
@@ -134,21 +134,23 @@ audio_agent/
 │       ├── snakers4_silero-vad/  # Voice activity detection
 │       └── evaluation_tool/  # Evaluation utilities
 ├── prompts/                   # Markdown-based prompt files
-│   ├── frontend_system.md    # Frontend system prompt
-│   ├── frontend_user.md      # Frontend user instruction template
-│   ├── plan_system.md        # Planner: initial planning system prompt
-│   ├── plan_user.md          # Planner: initial planning user instruction
-│   ├── decide_system.md      # Planner: decision system prompt
-│   ├── decide_user.md        # Planner: decision user instruction template
-│   ├── decide_rules.md       # Planner: decision rules (numbered list)
-│   ├── answer_system.md      # Planner: answer generation system prompt
-│   ├── answer_user.md        # Planner: answer generation user instruction
-│   ├── clarify_system.md     # Planner: intent clarification system prompt
-│   ├── clarify_user.md       # Planner: intent clarification user instruction
-│   ├── verification_system.md # Verification: system prompt for answer review
-│   ├── verification_user.md   # Verification: user instruction template
-│   ├── format_check_system.md # Format check: system prompt for format validation
-│   └── format_check_user.md   # Format check: user instruction template
+│   ├── frontend_system.md           # Frontend system prompt
+│   ├── frontend_user.md             # Frontend user instruction template
+│   ├── frontend_final_answer_system.md  # Frontend final answer system prompt
+│   ├── frontend_final_answer_user.md    # Frontend final answer user instruction
+│   ├── plan_system.md               # Planner: initial planning system prompt
+│   ├── plan_user.md                 # Planner: initial planning user instruction
+│   ├── decide_system.md             # Planner: decision system prompt
+│   ├── decide_user.md               # Planner: decision user instruction template
+│   ├── decide_rules.md              # Planner: decision rules (numbered list)
+│   ├── answer_system.md             # Planner: answer generation system prompt (legacy)
+│   ├── answer_user.md               # Planner: answer generation user instruction (legacy)
+│   ├── clarify_system.md            # Planner: intent clarification system prompt
+│   ├── clarify_user.md              # Planner: intent clarification user instruction
+│   ├── verification_system.md       # Verification: system prompt for answer review (legacy)
+│   ├── verification_user.md         # Verification: user instruction template (legacy)
+│   ├── format_check_system.md       # Format check: system prompt for format validation
+│   └── format_check_user.md         # Format check: user instruction template
 ├── fusion/                    # Evidence fusion
 │   ├── base.py               # BaseEvidenceFuser ABC
 │   └── default_fuser.py      # DefaultEvidenceFuser implementation
@@ -550,9 +552,9 @@ When you modify code in these locations, update the corresponding documentation:
 
 ### Adding a New Component
 
-1. **Frontend (Local Model)**: Subclass `BaseModelFrontend`, implement `initialize_model()` and `call_model()`. Prompts are loaded from markdown files via `load_prompt()`.
-2. **Frontend (API)**: Use `OpenAICompatibleFrontend` or subclass it. Override `build_api_model_input()` to customize how audio is sent to the API.
-3. **Planner (Local Model)**: Subclass `BaseModelPlanner`, implement `plan()`, `decide()`, `answer()`, and `clarify_intent()`. Prompts are loaded from markdown files.
+1. **Frontend (Local Model)**: Subclass `BaseModelFrontend`, implement `initialize_model()`, `call_model()`, and `generate_final_answer()`. Prompts are loaded from markdown files via `load_prompt()`.
+2. **Frontend (API)**: Use `OpenAICompatibleFrontend` or subclass it. Override `build_api_model_input()` to customize how audio is sent to the API, and `generate_final_answer()` for final answer generation.
+3. **Planner (Local Model)**: Subclass `BaseModelPlanner`, implement `plan()`, `decide()`, and `clarify_intent()`. Prompts are loaded from markdown files.
 4. **Planner (API)**: Use `OpenAICompatiblePlanner` with any OpenAI-compatible API.
 5. **Tool**: Subclass `BaseTool`, implement `spec` property and `invoke()`
 6. **Fuser**: Subclass `BaseEvidenceFuser`, implement `fuse()`
@@ -566,7 +568,7 @@ When you modify code in these locations, update the corresponding documentation:
 5. **Update logging module** in `audio_agent/log/` if the node produces results that should be logged:
    - Add formatter function in `formatter.py` (e.g., `format_<node_name>_result()`)
    - Update `logger.py` to include the new section in `_build_markdown()`
-   - See existing examples: `format_verification_result()`, `format_format_check_result()`
+   - See existing examples: `format_frontend_final_answer()`, `format_format_check_result()`
 
 ### Customizing Prompts
 
@@ -578,6 +580,8 @@ All prompts are externalized as markdown files in `audio_agent/prompts/`. This a
 |------|---------|-----------|
 | `frontend_system.md` | Frontend system prompt | None |
 | `frontend_user.md` | Frontend user instruction | `{question}`, `{audio_paths}` |
+| `frontend_final_answer_system.md` | Frontend final answer system prompt | None |
+| `frontend_final_answer_user.md` | Frontend final answer user instruction | `{question}`, `{expected_output_format}`, `{initial_plan_text}`, `{evidence_text}`, `{planner_trace_text}`, `{tool_history_text}`, `{audio_summary}`, `{format_critique_section}` |
 | `plan_system.md` | Planner initial planning system prompt | None |
 | `plan_user.md` | Planner initial planning user instruction | `{question}` |
 | `decide_system.md` | Planner decision system prompt | None |
@@ -788,13 +792,14 @@ validate_state_has_fields(
 
 10. **Intent Clarification**: The planner can return a CLARIFY action when the question is unclear. This triggers the intent_clarification_node which refines the question before continuing.
 
-11. **Answer Verification**: The planner can optionally request a VERIFY action to have the frontend (audio model) review a draft answer before finalizing. This is useful when:
-    - The planner is not fully confident in the answer
-    - The answer relies on subjective interpretation (emotions, intent)
-    - Tool results seem ambiguous or potentially misleading
-    The verification model acts as a skeptic - if flaws are found, the critique is added as evidence and planning continues. Configure via `AgentConfig(enable_verification=True, max_verifications=2)`.
+11. **Frontend Final Answer Generation**: When the planner decides to ANSWER (or is forced on the final step), the `final_answer_node` invokes the frontend model with all original audio files and accumulated context. The frontend generates the final answer directly, ensuring it is grounded in the actual audio content. The context includes:
+    - `evidence_log` - all accumulated evidence items
+    - `planner_trace` - all previous planner decisions
+    - `tool_call_history` - record of all tool invocations
+    - `initial_plan`, `clarified_intent`, `expected_output_format`
+    - `format_critique` - if a previous format check failed
 
-12. **Format Checking**: Mandatory format validation occurs before final answer. The planner (text LLM) checks if the proposed answer follows the expected output format (from `initial_plan.expected_output_format`). This is different from verification:
+12. **Format Checking**: Mandatory format validation occurs before final answer. The planner (text LLM) checks if the proposed answer follows the expected output format (from `initial_plan.expected_output_format`). This is different from answer generation:
     - Format check validates structure/format compliance only, NOT content correctness
     - Format check uses the text LLM (planner), not the audio model
     - If format violations are found, the critique is added as evidence and planning continues
@@ -812,7 +817,6 @@ validate_state_has_fields(
     - Complete AgentState with all evidence, tool calls, and planner decisions
     - Frontend output and initial plan
     - Final answer with output audio information
-    - Verification results and critiques
     - Format check results and critiques
     - All errors and metadata
     Configure via `AgentConfig(log_dir="./logs", enable_run_logging=True)`.

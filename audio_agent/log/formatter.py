@@ -363,28 +363,58 @@ def format_audio_list(audio_list: list[Any]) -> str:
     return "\n".join(lines)
 
 
-def format_verification_result(verification_result: Any) -> str:
-    """Format verification result as Markdown."""
-    if not verification_result:
-        return "## Verification Result\n\n*No verification performed*\n\n"
+def format_evidence_summary(evidence_summary: str | None) -> str:
+    """Format evidence summary as Markdown."""
+    if not evidence_summary:
+        return "## Evidence Summary\n\n*No evidence summary generated*\n\n"
     
-    lines = ["## Verification Result", ""]
-    
-    passed = getattr(verification_result, 'passed', False)
-    critique = getattr(verification_result, 'critique', None)
-    confidence = getattr(verification_result, 'confidence', 0.0)
-    
-    status = "✅ Passed" if passed else "❌ Failed"
-    lines.append(f"- **Status**: {status}")
+    lines = [
+        "## Evidence Summary",
+        "",
+        "```",
+        evidence_summary,
+        "```",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def format_frontend_final_answer(planner_trace: list[Any]) -> str:
+    """Format the frontend-generated final answer from the planner trace."""
+    # Find the last ANSWER decision with a draft_answer
+    answer_decision = None
+    for decision in reversed(planner_trace):
+        action = getattr(decision, 'action', 'Unknown')
+        draft_answer = getattr(decision, 'draft_answer', None)
+        if action == 'answer' and draft_answer:
+            answer_decision = decision
+            break
+
+    if not answer_decision:
+        return "## Frontend Final Answer\n\n*No frontend final answer generated*\n\n"
+
+    lines = ["## Frontend Final Answer", ""]
+
+    confidence = getattr(answer_decision, 'confidence', 0.0)
+    rationale = getattr(answer_decision, 'rationale', '')
+    draft_answer = getattr(answer_decision, 'draft_answer', '')
+
     lines.append(f"- **Confidence**: {confidence:.2f}")
-    
-    if critique:
+    lines.append("")
+    lines.append("**Generated Answer**:")
+    lines.append("```")
+    # Truncate very long answers
+    answer_str = str(draft_answer)
+    if len(answer_str) > 2000:
+        answer_str = answer_str[:2000] + "\n... (truncated)"
+    lines.append(answer_str)
+    lines.append("```")
+
+    if rationale:
         lines.append("")
-        lines.append("**Critique**:")
-        lines.append("```")
-        lines.append(critique)
-        lines.append("```")
-    
+        lines.append("**Rationale**:")
+        lines.append(f"> {rationale}")
+
     lines.append("")
     return "\n".join(lines)
 

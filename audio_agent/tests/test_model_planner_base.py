@@ -31,6 +31,8 @@ class EchoModelPlanner(BaseModelPlanner):
                 "focus_points": ["speech content"],
                 "possible_tool_types": ["asr"],
             }
+        if model_input.task_type == "evidence_summary":
+            return "Summary of evidence for testing."
         return {
             "action": "call_tool",
             "rationale": "Need ASR evidence first.",

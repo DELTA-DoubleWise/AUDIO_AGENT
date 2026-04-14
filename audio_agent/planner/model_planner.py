@@ -102,8 +102,6 @@ class BaseModelPlanner(BasePlanner):
         evidence_log = state.get("evidence_log", [])
         tool_history = state.get("tool_call_history", [])
         audio_list = state.get("audio_list", [])
-        verification_result = state.get("verification_result")
-        verification_count = state.get("verification_count", 0)
 
         evidence_summary = [
             {
@@ -141,27 +139,18 @@ class BaseModelPlanner(BasePlanner):
         # Use raw rules text to preserve multi-line formatting and bullet points
         rules_text = load_prompt("decide_rules")
 
-        # Build verification context if applicable
-        verification_context = None
-        if verification_result is not None:
-            verification_context = {
-                "passed": verification_result.passed,
-                "confidence": verification_result.confidence,
-                "critique": verification_result.critique,
-            }
-
         # Build payload with decision rules FIRST so LLM sees them before evidence
         # This helps the model prioritize following the rules over getting distracted by evidence
         payload = {
             "question": state["question"],
             "decision_rules": rules_text,
             "expected_output_format": {
-                "action": "answer | call_tool | clarify_intent | verify | fail",
-                "rationale": "str - detailed rationale explaining: (a) Why this action was chosen, (b) What evidence supports it, (c) For VERIFY: why verification is needed (see Rule 11), (d) For ANSWER: why confident in the answer (see Rule 1)",
+                "action": "answer | call_tool | clarify_intent | fail",
+                "rationale": "str - detailed rationale explaining: (a) Why this action was chosen, (b) What evidence supports it, (c) For ANSWER: why confident the frontend model can generate a correct answer (see Rule 1)",
                 "selected_tool_name": "str | null - REQUIRED for call_tool, must be a valid tool name",
-                "selected_tool_args": "dict - arguments for the tool when using call_tool. MUST be {} (empty dict) for answer/verify/clarify_intent/fail actions, never null",
+                "selected_tool_args": "dict - arguments for the tool when using call_tool. MUST be {} (empty dict) for answer/clarify_intent/fail actions, never null",
                 "selected_audio_id": "str | null - REQUIRED for call_tool, must be a valid audio_id from Available Audio Files",
-                "draft_answer": "str | null - REQUIRED for answer AND verify actions, your proposed answer",
+                "draft_answer": "str | null - you do NOT need to provide this for answer; the frontend model will generate the final answer",
                 "confidence": "float - 0.0 to 1.0",
             },
             "frontend_caption": frontend_output.question_guided_caption,
@@ -172,8 +161,6 @@ class BaseModelPlanner(BasePlanner):
             "available_tools": tool_summary,
             "step_count": state.get("step_count", 0),
             "max_steps": state.get("max_steps", 10),
-            "verification_count": verification_count,
-            "verification_result": verification_context,
         }
         
         return json.dumps(payload, ensure_ascii=True)
@@ -489,81 +476,6 @@ class BaseModelPlanner(BasePlanner):
 
         return self._call_with_retries(_call, "decide()")
 
-    def answer(self, state: AgentState) -> str:
-        """Generate final answer using the model."""
-        model_input = self.build_answer_model_input(state)
-
-        def _call():
-            try:
-                raw_output = self.call_model(model_input)
-            except PlannerError:
-                raise
-            except Exception as e:
-                raise PlannerError(
-                    f"Planner model call failed during answer generation: {type(e).__name__}: {e}",
-                    details={"planner": self.name},
-                ) from e
-
-            # Treat output as plain text answer (could be JSON or string)
-            if isinstance(raw_output, str):
-                # Try to parse as JSON first (for structured answer)
-                try:
-                    parsed = json.loads(raw_output)
-                    if isinstance(parsed, dict) and "answer" in parsed:
-                        return parsed["answer"].strip()
-                except json.JSONDecodeError:
-                    pass
-                # Return as plain text
-                return raw_output.strip()
-
-            return str(raw_output).strip()
-
-        return self._call_with_retries(_call, "answer()")
-
-    def build_answer_model_input(self, state: AgentState) -> UnifiedPlannerInput:
-        """Build model input for final answer generation."""
-        question = state["question"]
-        evidence_log = state.get("evidence_log", [])
-        initial_plan = state.get("initial_plan")
-
-        # Build evidence summary
-        evidence_text = "\n".join(
-            f"[{item.source}] {item.content}"
-            for item in evidence_log
-        )
-
-        # Check if audio output is expected
-        requires_audio_output = (
-            initial_plan.requires_audio_output if initial_plan else False
-        )
-
-        system_prompt = load_prompt("answer_system")
-        user_text = load_prompt("answer_user").format(
-            question=question,
-            evidence_text=evidence_text,
-        )
-
-        # Add audio output context if applicable
-        if requires_audio_output:
-            user_text += "\n\n**Task Type:** This task requires producing an audio file output."
-            user_text += "\nPlease confirm the audio processing was completed successfully."
-
-        return UnifiedPlannerInput(
-            system_prompt=system_prompt,
-            task_type="final_answer",
-            question=question,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_text},
-            ],
-            user_payload={"question": question, "task": "final_answer"},
-            metadata={
-                "planner_name": self.name,
-                "task_type": "final_answer",
-                "requires_audio_output": requires_audio_output,
-            },
-        )
-
     def build_clarify_intent_model_input(self, state: AgentState) -> UnifiedPlannerInput:
         """Build model input for intent clarification."""
         question = state["question"]
@@ -787,3 +699,113 @@ class BaseModelPlanner(BasePlanner):
             return self.normalize_format_check_output(raw_output)
 
         return self._call_with_retries(_call, "check_format()")
+
+    # =============================================================================
+    # Evidence Summary Methods
+    # =============================================================================
+
+    def build_evidence_summary_system_prompt(self) -> str:
+        """Build system prompt for evidence summarization phase."""
+        return load_prompt("evidence_summary_system")
+
+    def build_evidence_summary_user_instruction(self, state: AgentState) -> str:
+        """Build user instruction for evidence summarization phase."""
+        question = state["question"]
+        evidence_log = state.get("evidence_log", [])
+        planner_trace = state.get("planner_trace", [])
+        tool_history = state.get("tool_call_history", [])
+        frontend_output = state.get("initial_frontend_output")
+        clarified_intent = state.get("clarified_intent")
+        expected_output_format = state.get("expected_output_format")
+
+        evidence_text = "\n".join(
+            f"[{item.source}] {item.content}"
+            for item in evidence_log
+        ) if evidence_log else "No evidence yet."
+
+        planner_trace_text = "\n".join(
+            f"Step {i+1}: {d.action.value} - {d.rationale}"
+            for i, d in enumerate(planner_trace)
+        ) if planner_trace else "No planner decisions yet."
+
+        tool_history_text = "\n".join(
+            f"- {record.request.tool_name}: success={record.result.success}"
+            for record in tool_history
+        ) if tool_history else "No tools called."
+
+        frontend_caption = (
+            frontend_output.question_guided_caption
+            if frontend_output else "No frontend output yet."
+        )
+
+        return load_prompt("evidence_summary_user").format(
+            question=question,
+            frontend_caption=frontend_caption,
+            evidence_text=evidence_text,
+            planner_trace_text=planner_trace_text,
+            tool_history_text=tool_history_text,
+            clarified_intent=clarified_intent or "Not yet clarified",
+            expected_output_format=expected_output_format or "Not yet specified",
+        )
+
+    def build_evidence_summary_model_input(self, state: AgentState) -> UnifiedPlannerInput:
+        """Build model input for evidence summarization."""
+        system_prompt = self.build_evidence_summary_system_prompt()
+        user_text = self.build_evidence_summary_user_instruction(state)
+        return UnifiedPlannerInput(
+            system_prompt=system_prompt,
+            task_type="evidence_summary",
+            question=state["question"],
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_text},
+            ],
+            user_payload={"question": state["question"], "task": "evidence_summary"},
+            metadata={"planner_name": self.name, "task_type": "evidence_summary"},
+        )
+
+    def normalize_evidence_summary_output(self, raw_output: Any) -> str:
+        """Normalize model output into a plain string summary."""
+        if isinstance(raw_output, str):
+            stripped = raw_output.strip()
+            if not stripped:
+                raise PlannerError(
+                    "Evidence summary output is empty",
+                    details={"raw_output": raw_output},
+                )
+            return stripped
+        if isinstance(raw_output, dict):
+            summary = raw_output.get("summary") or raw_output.get("evidence_summary")
+            if not summary or not str(summary).strip():
+                raise PlannerError(
+                    "Malformed evidence summary output: missing summary text",
+                    details={"output_keys": sorted(raw_output.keys()), "raw_output": raw_output},
+                )
+            return str(summary).strip()
+        raise PlannerError(
+            "Malformed evidence summary output: expected str or dict",
+            details={"output_type": type(raw_output).__name__, "raw_output": str(raw_output)[:1000]},
+        )
+
+    def summarize_evidence(self, state: AgentState) -> str:
+        """
+        Summarize accumulated evidence into a concise narrative.
+        
+        Uses the planner (text LLM) to compress evidence_log, planner_trace,
+        and tool_call_history into a single neutral summary.
+        """
+        model_input = self.build_evidence_summary_model_input(state)
+
+        def _call():
+            try:
+                raw_output = self.call_model(model_input)
+            except PlannerError:
+                raise
+            except Exception as e:
+                raise PlannerError(
+                    f"Planner model call failed during evidence summarization: {type(e).__name__}: {e}",
+                    details={"planner": self.name},
+                ) from e
+            return self.normalize_evidence_summary_output(raw_output)
+
+        return self._call_with_retries(_call, "summarize_evidence()")

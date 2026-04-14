@@ -70,25 +70,6 @@ class BasePlanner(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def answer(self, state: AgentState) -> str:
-        """
-        Generate final answer from accumulated evidence.
-        
-        Called on the final step when max_steps is reached.
-        Should synthesize all evidence to answer the original question.
-        
-        Args:
-            state: Current agent state with all accumulated evidence
-            
-        Returns:
-            The final answer string
-            
-        Raises:
-            PlannerError: If answer generation fails
-        """
-        raise NotImplementedError
-
-    @abstractmethod
     def clarify_intent(self, state: AgentState) -> tuple[str, str]:
         """
         Clarify the user's intent and expected output format.
@@ -127,9 +108,9 @@ class BasePlanner(ABC):
         Check if the proposed answer follows the expected output format.
         
         This method validates format compliance only - it does NOT check
-        content correctness (which is done by verification). The format check
-        ensures the answer adheres to any structural or formatting requirements
-        specified in the question or initial plan.
+        content correctness. The format check ensures the answer adheres to
+        any structural or formatting requirements specified in the question or
+        initial plan.
         
         Args:
             proposed_answer: The answer to check for format compliance
@@ -142,6 +123,27 @@ class BasePlanner(ABC):
             
         Raises:
             PlannerError: If format check fails
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def summarize_evidence(self, state: AgentState) -> str:
+        """
+        Summarize accumulated evidence, planner trace, and tool history
+        into a single neutral narrative.
+        
+        This is called before the final answer node to compress context
+        for the frontend model. The summarizer must NOT judge credibility
+        or resolve contradictions.
+        
+        Args:
+            state: Current agent state with accumulated evidence
+            
+        Returns:
+            A comprehensive, neutral summary string
+            
+        Raises:
+            PlannerError: If summarization fails
         """
         raise NotImplementedError
     

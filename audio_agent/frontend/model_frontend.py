@@ -17,10 +17,10 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from audio_agent.core.errors import FrontendError
-from audio_agent.core.schemas import FrontendOutput, VerificationResult
+from audio_agent.core.schemas import FrontendOutput
 from audio_agent.core.logging import get_logger
 from audio_agent.frontend.base import BaseFrontend
-from audio_agent.utils.model_io import parse_json_object_text, validate_message_sequence
+from audio_agent.utils.model_io import validate_message_sequence
 from audio_agent.utils.prompt_io import load_prompt
 
 
@@ -348,106 +348,155 @@ class BaseModelFrontend(BaseFrontend):
             combined_caption = "\n\n".join(captions)
             return FrontendOutput(question_guided_caption=combined_caption)
 
-    def verify_answer(
+    def build_final_answer_model_input(
         self,
         question: str,
         audio_paths: list[str],
-        proposed_answer: str,
-    ) -> VerificationResult:
-        """
-        Verify a proposed answer by reviewing it against the audio(s).
+        context: dict[str, Any],
+    ) -> UnifiedFrontendInput:
+        """Build model input for frontend final answer generation."""
+        system_prompt = load_prompt("frontend_final_answer_system")
 
-        This base implementation builds verification model input using the
-        local multimodal format and calls the model. Subclasses can override
-        for provider-specific optimizations.
+        evidence_summary = context.get("evidence_summary")
+        evidence_log = context.get("evidence_log", [])
+        evidence_text = "\n".join(
+            f"[{item.source}] {item.content}"
+            for item in evidence_log
+        ) if evidence_log else "No evidence collected."
 
-        Args:
-            question: The original user question about the audio
-            audio_paths: List of paths to audio files
-            proposed_answer: The answer to be verified
+        planner_trace = context.get("planner_trace", [])
+        planner_trace_text = "\n".join(
+            f"Step {i+1}: {d.action.value} - {d.rationale}"
+            for i, d in enumerate(planner_trace)
+        ) if planner_trace else "No planner decisions yet."
 
-        Returns:
-            VerificationResult with passed status, critique (if failed), and confidence
-        """
-        self.validate_inputs(question, audio_paths)
-        if not proposed_answer or not proposed_answer.strip():
-            raise FrontendError(
-                "Proposed answer must be non-empty",
-                details={"proposed_answer": proposed_answer},
-            )
+        tool_history = context.get("tool_call_history", [])
+        tool_history_text = "\n".join(
+            f"- {record.request.tool_name}: success={record.result.success}"
+            for record in tool_history
+        ) if tool_history else "No tools called."
 
-        # Build verification input using local multimodal format
-        system_prompt = load_prompt("verification_system")
-        user_text = load_prompt("verification_user").format(
-            question=question,
-            proposed_answer=proposed_answer,
+        initial_plan = context.get("initial_plan")
+        initial_plan_text = initial_plan.approach if initial_plan else "No initial plan."
+
+        initial_frontend_output = context.get("initial_frontend_output")
+        frontend_direct_text = (
+            initial_frontend_output.question_guided_caption
+            if initial_frontend_output else "No frontend direct output."
         )
 
-        # Build content list with text and all audio files
-        content: list[dict[str, Any]] = [
-            {"type": "text", "text": user_text},
-        ]
+        audio_summary = "\n".join(
+            f"- {a.audio_id}: {a.description}"
+            for a in context.get("audio_list", [])
+        ) if context.get("audio_list") else "No audio information."
+
+        expected_output_format = context.get("expected_output_format") or "No specific format required."
+        format_critique = context.get("format_critique")
+        format_critique_section = (
+            f"\n## Format Critique (previous attempt failed)\n{format_critique}\n"
+            if format_critique else ""
+        )
+
+        # Build the combined evidence/history section.
+        # If a summary exists, it replaces the raw evidence log, planner trace, and tool history.
+        if evidence_summary:
+            evidence_and_history_text = (
+                f"## Evidence and Reasoning Summary\n"
+                f"{evidence_summary}\n"
+                f"\n"
+            )
+        else:
+            evidence_and_history_text = (
+                f"## Evidence Log\n"
+                f"{evidence_text}\n"
+                f"\n"
+                f"## Planner Reasoning Trace\n"
+                f"{planner_trace_text}\n"
+                f"\n"
+                f"## Tool Call History\n"
+                f"{tool_history_text}\n"
+                f"\n"
+            )
+
+        user_text = load_prompt("frontend_final_answer_user").format(
+            question=question,
+            expected_output_format=expected_output_format,
+            initial_plan_text=initial_plan_text,
+            frontend_direct_text=frontend_direct_text,
+            evidence_and_history_text=evidence_and_history_text,
+            audio_summary=audio_summary,
+            format_critique_section=format_critique_section,
+        )
+
+        content: list[dict[str, Any]] = [{"type": "text", "text": user_text}]
         for audio_path in audio_paths:
             content.append({"type": "audio", "audio": audio_path})
 
-        model_input = UnifiedFrontendInput(
+        return UnifiedFrontendInput(
             system_prompt=system_prompt,
             question=question,
             audio_paths=audio_paths,
             user_payload={
                 "question": question,
                 "audio": {"kind": "paths", "value": audio_paths, "count": len(audio_paths)},
-                "proposed_answer": proposed_answer,
-                "task": "answer_verification",
+                "task": "final_answer_generation",
             },
             messages=[
                 {"role": "system", "content": system_prompt},
-                {
-                    "role": "user",
-                    "content": content,
-                },
+                {"role": "user", "content": content},
             ],
             metadata={
                 "frontend_name": self.name,
                 "input_format": FrontendInputFormat.LOCAL_MULTIMODAL.value,
-                "task": "verification",
+                "task": "final_answer_generation",
                 "audio_count": len(audio_paths),
             },
         )
 
-        try:
-            raw_output = self.call_model(model_input)
-        except FrontendError:
-            raise
-        except Exception as e:
-            raise FrontendError(
-                f"Verification model call failed: {type(e).__name__}: {e}",
-                details={"frontend": self.name},
-            ) from e
+    def generate_final_answer(
+        self,
+        question: str,
+        audio_paths: list[str],
+        context: dict[str, Any],
+    ) -> str:
+        """Generate final answer using the frontend model with all audio and context."""
+        self.validate_inputs(question, audio_paths)
+        stripped_paths = [p.strip() for p in audio_paths]
 
-        # Parse the JSON response
-        if isinstance(raw_output, str):
-            parsed = parse_json_object_text(
-                raw_output.strip(),
-                error_cls=FrontendError,
-                subject="Verification",
-            )
-        else:
-            raise FrontendError(
-                "Verification model returned non-string output",
-                details={"output_type": type(raw_output).__name__},
-            )
-
-        # Extract fields with defaults
-        passed = parsed.get("passed", True)  # Default to passed if unclear
-        critique = parsed.get("critique")
-        confidence = float(parsed.get("confidence", 0.5))
-
-        # Validate and clamp confidence
-        confidence = max(0.0, min(1.0, confidence))
-
-        return VerificationResult(
-            passed=passed,
-            critique=critique if not passed else None,  # Only include critique if failed
-            confidence=confidence,
+        model_input = self.build_final_answer_model_input(
+            question.strip(), stripped_paths, context
         )
+        if not isinstance(model_input, UnifiedFrontendInput):
+            raise FrontendError(
+                "Malformed model input: builder must return UnifiedFrontendInput",
+                details={"returned_type": type(model_input).__name__},
+            )
+        self._validate_built_model_input(model_input)
+
+        def _call():
+            try:
+                raw_output = self.call_model(model_input)
+            except FrontendError:
+                raise
+            except Exception as e:
+                raise FrontendError(
+                    f"Final answer generation failed: {type(e).__name__}: {e}",
+                    details={"frontend": self.name},
+                ) from e
+            if isinstance(raw_output, str):
+                answer = raw_output.strip()
+                if not answer:
+                    raise FrontendError(
+                        "Frontend returned empty final answer",
+                        details={"frontend": self.name},
+                    )
+                return answer
+            raise FrontendError(
+                "Frontend returned non-string final answer",
+                details={
+                    "output_type": type(raw_output).__name__,
+                    "frontend": self.name,
+                },
+            )
+
+        return self._call_with_retries(_call, "generate_final_answer()")

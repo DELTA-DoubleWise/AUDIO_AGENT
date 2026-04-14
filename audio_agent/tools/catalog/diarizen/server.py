@@ -38,21 +38,6 @@ class DiariZenServer:
                             "type": "string",
                             "description": "Path to the audio file to diarize"
                         },
-                        "num_speakers": {
-                            "type": ["integer", "null"],
-                            "description": "Expected number of speakers (optional, auto-detected if not provided)",
-                            "default": None
-                        },
-                        "min_speakers": {
-                            "type": ["integer", "null"],
-                            "description": "Minimum number of speakers (optional)",
-                            "default": None
-                        },
-                        "max_speakers": {
-                            "type": ["integer", "null"],
-                            "description": "Maximum number of speakers (optional)",
-                            "default": None
-                        }
                     },
                     "required": ["audio_path"]
                 }
@@ -211,9 +196,6 @@ class DiariZenServer:
     def _diarize(self, arguments: dict) -> dict[str, Any]:
         """Perform speaker diarization on an audio file."""
         audio_path = arguments.get("audio_path")
-        num_speakers = arguments.get("num_speakers")
-        min_speakers = arguments.get("min_speakers")
-        max_speakers = arguments.get("max_speakers")
         
         if not audio_path:
             raise ValueError("audio_path is required")
@@ -228,17 +210,10 @@ class DiariZenServer:
         sys.stdout = sys.stderr
         
         try:
-            # Build kwargs for the pipeline
-            pipeline_kwargs = {}
-            if num_speakers is not None:
-                pipeline_kwargs["num_speakers"] = num_speakers
-            if min_speakers is not None:
-                pipeline_kwargs["min_speakers"] = min_speakers
-            if max_speakers is not None:
-                pipeline_kwargs["max_speakers"] = max_speakers
-            
             # Run diarization
-            diar_results = self._pipeline(audio_path, **pipeline_kwargs)
+            # DiariZenPipeline.__call__ only accepts in_wav and sess_name
+            sess_name = os.path.splitext(os.path.basename(audio_path))[0]
+            diar_results = self._pipeline(audio_path, sess_name=sess_name)
             
             # Format results
             segments = []

@@ -13,13 +13,11 @@ from pathlib import Path
 from typing import Any
 
 from audio_agent.core.errors import FrontendError
-from audio_agent.core.schemas import VerificationResult
 from audio_agent.frontend.model_frontend import (
     BaseModelFrontend,
     FrontendInputFormat,
     UnifiedFrontendInput,
 )
-from audio_agent.utils.model_io import parse_json_object_text
 from audio_agent.utils.prompt_io import load_prompt
 
 
@@ -257,113 +255,86 @@ class OpenAICompatibleFrontend(BaseModelFrontend):
 
         return text_response.strip()
 
-    def verify_answer(
+    def generate_final_answer(
         self,
         question: str,
         audio_paths: list[str],
-        proposed_answer: str,
-    ) -> VerificationResult:
+        context: dict[str, Any],
+    ) -> str:
         """
-        Verify a proposed answer by reviewing it against the audio(s).
+        Generate final answer using the API frontend model with all audio and context.
 
-        Uses the same audio model but with different prompts to act as a
-        skeptic checking for apparent flaws in the proposed answer.
-
-        Args:
-            question: The original user question about the audio
-            audio_paths: List of paths to audio files
-            proposed_answer: The answer to be verified
-
-        Returns:
-            VerificationResult with passed status, critique (if failed), and confidence
+        Overrides base to send multiple audios as base64 input_audio blocks.
         """
         self.validate_inputs(question, audio_paths)
-        if not proposed_answer or not proposed_answer.strip():
+        stripped_paths = [p.strip() for p in audio_paths]
+
+        # Build unified input using base method
+        model_input = self.build_final_answer_model_input(
+            question.strip(), stripped_paths, context
+        )
+        if not isinstance(model_input, UnifiedFrontendInput):
             raise FrontendError(
-                "Proposed answer must be non-empty",
-                details={"proposed_answer": proposed_answer},
+                "Malformed model input: builder must return UnifiedFrontendInput",
+                details={"returned_type": type(model_input).__name__},
             )
 
-        # Encode all audios to base64
-        audio_items = []
-        for audio_path in audio_paths:
-            audio_data_url, audio_format = self._encode_audio(audio_path)
-            audio_items.append({
-                "type": "input_audio",
-                "input_audio": {
-                    "data": audio_data_url,
-                    "format": audio_format,
-                }
-            })
+        # Replace local audio references with base64-encoded input_audio blocks
+        original_messages = model_input.messages
+        messages: list[dict[str, Any]] = []
+        for msg in original_messages:
+            if msg.get("role") == "user":
+                content = msg.get("content", [])
+                new_content: list[dict[str, Any]] = []
+                for block in content:
+                    if isinstance(block, dict) and block.get("type") == "audio":
+                        audio_path = block.get("audio")
+                        audio_data_url, audio_format = self._encode_audio(audio_path)
+                        new_content.append({
+                            "type": "input_audio",
+                            "input_audio": {
+                                "data": audio_data_url,
+                                "format": audio_format,
+                            }
+                        })
+                    else:
+                        new_content.append(block)
+                messages.append({"role": "user", "content": new_content})
+            else:
+                messages.append(msg)
 
-        # Load verification prompts
-        system_prompt = load_prompt("verification_system")
-        user_text = load_prompt("verification_user").format(
-            question=question,
-            proposed_answer=proposed_answer,
-        )
+        # Update model_input with API-compatible messages
+        model_input.messages = messages
+        model_input.metadata["input_format"] = FrontendInputFormat.API_MODEL.value
 
-        # Build messages with all audios
-        content: list[dict[str, Any]] = [{"type": "text", "text": user_text}]
-        content.extend(audio_items)
-        
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": content}
-        ]
-
-        # Make API call
+        # Make API call (non-streaming for final answer reliability)
         client = self.model_handle
         try:
-            completion = client.chat.completions.create(
+            response = client.chat.completions.create(
                 model=self._model,
-                messages=messages,
-                temperature=0.3,  # Lower temperature for more consistent verification
-                max_tokens=1024,
-                stream=True,
-                stream_options={"include_usage": True},
+                messages=model_input.messages,
+                temperature=self._temperature,
+                max_tokens=self._max_tokens,
+                stream=False,
+                modalities=["text"],
             )
         except Exception as e:
             raise FrontendError(
-                f"API call failed for verification: {e}",
+                f"API call failed for final answer: {e}",
                 details={"model": self._model, "error_type": type(e).__name__},
             ) from e
 
-        # Process streaming response
-        text_response = ""
-        try:
-            for chunk in completion:
-                if chunk.choices and chunk.choices[0].delta.content:
-                    text_response += chunk.choices[0].delta.content
-        except Exception as e:
+        if not response.choices or len(response.choices) == 0:
             raise FrontendError(
-                f"Error processing verification response: {e}",
-                details={"model": self._model},
-            ) from e
-
-        if not text_response.strip():
-            raise FrontendError(
-                "API returned empty verification response",
+                "Empty response from API",
                 details={"model": self._model},
             )
 
-        # Parse the JSON response
-        parsed = parse_json_object_text(
-            text_response.strip(),
-            error_cls=FrontendError,
-            subject="Verification",
-        )
+        text_response = response.choices[0].message.content or ""
+        if not text_response.strip():
+            raise FrontendError(
+                "API returned empty final answer",
+                details={"model": self._model},
+            )
 
-        # Extract fields with defaults
-        passed = parsed.get("passed", True)  # Default to passed if unclear
-        critique = parsed.get("critique")
-        confidence = float(parsed.get("confidence", 0.5))
-
-        # Validate and clamp confidence
-        confidence = max(0.0, min(1.0, confidence))
-
-        return VerificationResult(
-            passed=passed,
-            critique=critique if not passed else None,  # Only include critique if failed
-            confidence=confidence,
-        )
+        return text_response.strip()

@@ -20,17 +20,15 @@ class PlannerActionType(str, Enum):
     """
     Actions the planner can decide to take.
     
-    - ANSWER: Provide final answer based on accumulated evidence
+    - ANSWER: Signal readiness for final answer generation by the frontend model
     - CALL_TOOL: Invoke a tool to gather more evidence
     - CLARIFY_INTENT: Clarify the user's intent and expected output format
     - FAIL: Stop with explicit failure (unrecoverable state)
-    - VERIFY: Request verification of the proposed answer before finalizing
     """
     ANSWER = "answer"
     CALL_TOOL = "call_tool"
     CLARIFY_INTENT = "clarify_intent"
     FAIL = "fail"
-    VERIFY = "verify"
 
 
 # =============================================================================
@@ -263,7 +261,7 @@ class PlannerDecision(BaseModel):
     
     Validation ensures consistency:
     - CALL_TOOL requires selected_tool_name and selected_audio_id
-    - ANSWER requires draft_answer
+    - ANSWER no longer requires draft_answer (the frontend model generates the final answer)
     """
     action: PlannerActionType
     rationale: str = Field(..., min_length=1, description="Explanation for the decision")
@@ -290,47 +288,9 @@ class PlannerDecision(BaseModel):
                 raise ValueError(
                     "PlannerDecision with action=CALL_TOOL must have non-empty selected_audio_id"
                 )
-        if self.action == PlannerActionType.ANSWER:
-            if not self.draft_answer:
-                raise ValueError(
-                    "PlannerDecision with action=ANSWER must have non-empty draft_answer"
-                )
-        if self.action == PlannerActionType.VERIFY:
-            if not self.draft_answer:
-                raise ValueError(
-                    "PlannerDecision with action=VERIFY must have non-empty draft_answer"
-                )
+        # ANSWER no longer requires draft_answer (frontend generates final answer)
         # CLARIFY_INTENT and FAIL require no additional fields - uses rationale only
         return self
-
-
-# =============================================================================
-# Verification Schema
-# =============================================================================
-
-class VerificationResult(BaseModel):
-    """
-    Result of verifying a proposed answer.
-    
-    The verification model acts as a skeptic to check for apparent flaws
-    in the proposed answer based on the audio content.
-    """
-    passed: bool = Field(
-        ...,
-        description="True if verification passed (no major flaws detected), False if failed"
-    )
-    critique: str | None = Field(
-        default=None,
-        description="Explanation of flaws if failed, null if passed"
-    )
-    confidence: float = Field(
-        default=0.0,
-        ge=0.0,
-        le=1.0,
-        description="Confidence in the verification assessment"
-    )
-    timestamp: datetime = Field(default_factory=datetime.now)
-    model_config = {"extra": "forbid"}
 
 
 # =============================================================================

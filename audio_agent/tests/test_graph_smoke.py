@@ -48,6 +48,8 @@ class TestGraphSmoke:
             assert len(final_state["initial_plan_trace"]) >= 1
             assert len(final_state["evidence_log"]) > 0
             assert len(final_state["tool_call_history"]) > 0
+            assert final_state["evidence_summary"] is not None
+            assert len(final_state["evidence_summary"]) > 0
         finally:
             if os.path.exists(audio_path):
                 os.unlink(audio_path)

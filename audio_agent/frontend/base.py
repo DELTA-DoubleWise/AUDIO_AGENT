@@ -10,7 +10,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 
 from audio_agent.core.errors import FrontendError
-from audio_agent.core.schemas import FrontendOutput, VerificationResult
+from audio_agent.core.schemas import FrontendOutput
 
 
 class BaseFrontend(ABC):
@@ -47,33 +47,33 @@ class BaseFrontend(ABC):
         """
         raise NotImplementedError
 
-    def verify_answer(
+    def generate_final_answer(
         self,
         question: str,
         audio_paths: list[str],
-        proposed_answer: str,
-    ) -> VerificationResult:
+        context: dict[str, Any],
+    ) -> str:
         """
-        Verify a proposed answer by reviewing it against the audio(s).
+        Generate the final answer using the frontend audio model.
 
-        This method acts as a skeptic to check for apparent flaws in the
-        proposed answer based on the audio content. Only speaks up if
-        confident there's a problem.
+        The frontend receives the original audio(s) and all accumulated context
+        (evidence, planner trace, tool history, etc.) so the answer is grounded
+        directly in the audio content.
 
         Args:
             question: The original user question about the audio
             audio_paths: List of paths to audio files
-            proposed_answer: The answer to be verified
+            context: Dictionary containing accumulated evidence and metadata
 
         Returns:
-            VerificationResult with passed status, critique (if failed), and confidence
+            The final answer string
 
         Raises:
-            FrontendError: If verification fails or input is invalid
-            NotImplementedError: If this frontend doesn't support verification
+            FrontendError: If generation fails or input is invalid
+            NotImplementedError: If this frontend doesn't support final answer generation
         """
         raise NotImplementedError(
-            f"Frontend {self.name} does not support answer verification"
+            f"Frontend {self.name} does not support final answer generation"
         )
 
     def validate_inputs(self, question: str, audio_paths: list[str]) -> None:

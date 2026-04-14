@@ -38,13 +38,4 @@ tools:
         audio_path:
           type: string
           description: "Path to the audio file to diarize"
-        num_speakers:
-          type: ["integer", "null"]
-          description: "Expected number of speakers (optional, auto-detected if not provided)"
-        min_speakers:
-          type: ["integer", "null"]
-          description: "Minimum number of speakers (optional)"
-        max_speakers:
-          type: ["integer", "null"]
-          description: "Maximum number of speakers (optional)"
       required: ["audio_path"]

@@ -47,6 +47,7 @@ class TestCreateInitialState:
         assert state["current_decision"] is None
         assert state["final_answer"] is None
         assert state["error_message"] is None
+        assert state["evidence_summary"] is None
     
     def test_empty_question_raises(self):
         """Test that empty question raises ValueError."""
