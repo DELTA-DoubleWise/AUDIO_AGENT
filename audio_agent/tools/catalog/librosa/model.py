@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import tempfile
 import uuid
@@ -226,7 +227,19 @@ class ModelWrapper:
         self.python_bin = Path(
             self.config.get("python_bin", self.model_dir / ".venv" / "bin" / "python")
         )
+        self.numba_cache_dir = Path(
+            self.config.get(
+                "numba_cache_dir",
+                Path(tempfile.gettempdir()) / "audio_agent_numba_cache",
+            )
+        )
         self._loaded = False
+
+    def _build_subprocess_env(self) -> dict[str, str]:
+        env = os.environ.copy()
+        self.numba_cache_dir.mkdir(parents=True, exist_ok=True)
+        env.setdefault("NUMBA_CACHE_DIR", str(self.numba_cache_dir))
+        return env
 
     def load(self) -> None:
         if not self.python_bin.exists():
@@ -242,6 +255,7 @@ class ModelWrapper:
             capture_output=True,
             text=True,
             cwd=self.model_dir.parents[4],
+            env=self._build_subprocess_env(),
         )
         payload = json.loads(completed.stdout.strip())
         if not payload.get("version"):
@@ -269,6 +283,7 @@ class ModelWrapper:
             capture_output=True,
             text=True,
             cwd=self.model_dir.parents[4],
+            env=self._build_subprocess_env(),
         )
         return json.loads(completed.stdout.strip())
 
@@ -512,14 +527,14 @@ class ModelWrapper:
             "audio_path, top_db = sys.argv[1], int(sys.argv[2]); "
             "y, sr = librosa.load(audio_path, sr=None); "
             "intervals = librosa.effects.split(y, top_db=top_db); "
-            "intervals_sec = librosa.frames_to_time(intervals, sr=sr); "
-            "segments = [{'start': round(float(s), 3), 'end': round(float(e), 3), "
-            "'duration': round(float(e-s), 3)} for s, e in intervals_sec]; "
-            "total_speech = sum(s['duration'] for s in segments); "
+            "segments = [{'start': round(float(start) / sr, 3), 'end': round(float(end) / sr, 3), "
+            "'duration': round((float(end) - float(start)) / sr, 3)} for start, end in intervals]; "
+            "total_speech = sum(segment['duration'] for segment in segments); "
             "total_dur = len(y) / sr; "
+            "silence_duration = max(0.0, total_dur - total_speech); "
             "print(json.dumps({'segments': segments, 'segment_count': len(segments), "
             "'total_speech_duration': round(total_speech, 3), "
-            "'total_silence_duration': round(total_dur - total_speech, 3)}))"
+            "'total_silence_duration': round(silence_duration, 3)}))"
         )
         payload = self._run_librosa_code(code, input_path, str(top_db))
         return SegmentResult(
