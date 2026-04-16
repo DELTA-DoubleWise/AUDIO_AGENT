@@ -89,6 +89,9 @@ class AgentState(TypedDict, total=False):
     clarified_intent: str | None
     expected_output_format: str | None
     
+    # Question-oriented prompt for frontend captioning
+    question_oriented_prompt: str | None
+    
     # Format check (mandatory format validation before final answer)
     format_check_result: FormatCheckResult | None
     format_check_count: int  # Track number of format checks to prevent loops
@@ -154,6 +157,7 @@ def create_initial_state(
         latest_tool_result=None,
         clarified_intent=None,
         expected_output_format=None,
+        question_oriented_prompt=None,
         format_check_result=None,
         format_check_count=0,
         evidence_summary=None,

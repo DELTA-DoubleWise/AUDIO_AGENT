@@ -32,8 +32,17 @@ class DummyPlanner(BasePlanner):
     def name(self) -> str:
         return "dummy_planner"
 
-    def plan(self, question: str) -> InitialPlan:
-        """Produce deterministic initial plan from question only."""
+    def generate_question_oriented_prompt(self, question: str) -> str:
+        """Generate a deterministic question-oriented prompt."""
+        question = self.validate_question(question)
+        return (
+            f"Clarified Question: Understand the audio content related to: {question}\n"
+            f"Focus Points: 1) Identify relevant sounds and speech, 2) Note any unclear or ambiguous elements\n"
+            f"Tasks: 1) Listen for content relevant to the question, 2) Form an initial hypothesis, 3) List uncertainties that need verification."
+        )
+
+    def plan(self, question: str, frontend_output=None) -> InitialPlan:
+        """Produce deterministic initial plan from question and optional frontend caption."""
         question = self.validate_question(question)
         
         # Simple keyword-based detection for audio output requirements
@@ -66,12 +75,16 @@ class DummyPlanner(BasePlanner):
             ]
             possible_tool_types = ["asr", "event_detection"]
         
+        notes = f"[DummyPlanner] Initial plan generated for question: {question}"
+        if frontend_output:
+            notes += f" | Frontend caption: {frontend_output.question_guided_caption[:100]}..."
+        
         return InitialPlan(
             approach=approach,
             focus_points=focus_points,
             possible_tool_types=possible_tool_types,
             requires_audio_output=requires_audio_output,
-            notes=f"[DummyPlanner] Initial plan generated for question: {question}",
+            notes=notes,
         )
     
     def decide(

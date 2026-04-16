@@ -80,13 +80,67 @@ class BaseModelPlanner(BasePlanner):
         """Invoke model/backend and return raw output."""
         raise NotImplementedError
 
+    def build_initial_prompt_system_prompt(self) -> str:
+        """Build system prompt for question-oriented prompt generation."""
+        return load_prompt("initial_prompt_system")
+
+    def build_initial_prompt_user_instruction(self, question: str) -> str:
+        """Build user instruction for question-oriented prompt generation."""
+        try:
+            caption_skills = load_prompt("task_oriented_caption_skill")
+        except Exception:
+            caption_skills = "No caption skills reference available."
+        return load_prompt("initial_prompt_user").format(
+            question=question,
+            caption_skills_reference=caption_skills,
+        )
+
+    def build_api_model_input_for_initial_prompt(self, question: str) -> UnifiedPlannerInput:
+        """Build API-style planner input for question-oriented prompt generation."""
+        system_prompt = self.build_initial_prompt_system_prompt()
+        user_text = self.build_initial_prompt_user_instruction(question)
+        return UnifiedPlannerInput(
+            system_prompt=system_prompt,
+            task_type="initial_prompt",
+            question=question,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_text},
+            ],
+            user_payload={"question": question, "task": "initial_prompt"},
+            metadata={"planner_name": self.name, "input_format": PlannerInputFormat.API_MODEL.value},
+        )
+
+    def build_local_model_input_for_initial_prompt(self, question: str) -> UnifiedPlannerInput:
+        """Build local-text-model input for question-oriented prompt generation."""
+        system_prompt = self.build_initial_prompt_system_prompt()
+        user_text = self.build_initial_prompt_user_instruction(question)
+        return UnifiedPlannerInput(
+            system_prompt=system_prompt,
+            task_type="initial_prompt",
+            question=question,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_text},
+            ],
+            user_payload={"question": question, "task": "initial_prompt"},
+            metadata={"planner_name": self.name, "input_format": PlannerInputFormat.LOCAL_MODEL.value},
+        )
+
     def build_plan_system_prompt(self) -> str:
         """Build system prompt for initial planning phase."""
         return load_prompt("plan_system")
 
-    def build_plan_user_instruction(self, question: str) -> str:
+    def build_plan_user_instruction(self, question: str, frontend_output: FrontendOutput | None = None) -> str:
         """Build user instruction for initial planning phase."""
-        user_text = load_prompt("plan_user").format(question=question)
+        frontend_caption = (
+            frontend_output.question_guided_caption
+            if frontend_output else "No frontend caption available."
+        )
+        user_text = load_prompt("plan_user").format(
+            question=question,
+            frontend_caption=frontend_caption,
+        )
         skills_ref = render_skills_reference()
         if skills_ref:
             user_text = f"{user_text}\n\n{skills_ref}"
@@ -170,10 +224,10 @@ class BaseModelPlanner(BasePlanner):
         
         return json.dumps(payload, ensure_ascii=True)
 
-    def build_api_model_input_for_plan(self, question: str) -> UnifiedPlannerInput:
+    def build_api_model_input_for_plan(self, question: str, frontend_output: FrontendOutput | None = None) -> UnifiedPlannerInput:
         """Build API-style planner input for initial planning."""
         system_prompt = self.build_plan_system_prompt()
-        user_text = self.build_plan_user_instruction(question)
+        user_text = self.build_plan_user_instruction(question, frontend_output)
         return UnifiedPlannerInput(
             system_prompt=system_prompt,
             task_type="initial_plan",
@@ -186,10 +240,10 @@ class BaseModelPlanner(BasePlanner):
             metadata={"planner_name": self.name, "input_format": PlannerInputFormat.API_MODEL.value},
         )
 
-    def build_local_model_input_for_plan(self, question: str) -> UnifiedPlannerInput:
+    def build_local_model_input_for_plan(self, question: str, frontend_output: FrontendOutput | None = None) -> UnifiedPlannerInput:
         """Build local-text-model input for initial planning."""
         system_prompt = self.build_plan_system_prompt()
-        user_text = self.build_plan_user_instruction(question)
+        user_text = self.build_plan_user_instruction(question, frontend_output)
         return UnifiedPlannerInput(
             system_prompt=system_prompt,
             task_type="initial_plan",
@@ -256,7 +310,38 @@ class BaseModelPlanner(BasePlanner):
             context="Malformed planner model input",
         )
 
-    def build_plan_model_input(self, question: str) -> UnifiedPlannerInput:
+    def build_initial_prompt_model_input(self, question: str) -> UnifiedPlannerInput:
+        """Dispatch question-oriented prompt input build by backend mode."""
+        question = self.validate_question(question)
+        mode = self.input_format
+        if isinstance(mode, str):
+            try:
+                mode = PlannerInputFormat(mode)
+            except ValueError as e:
+                raise PlannerError(
+                    "Unsupported planner input format",
+                    details={"input_format": mode},
+                ) from e
+        elif not isinstance(mode, PlannerInputFormat):
+            raise PlannerError(
+                "Unsupported planner input format type",
+                details={"input_format_type": type(mode).__name__},
+            )
+
+        if mode == PlannerInputFormat.API_MODEL:
+            model_input = self.build_api_model_input_for_initial_prompt(question)
+        elif mode == PlannerInputFormat.LOCAL_MODEL:
+            model_input = self.build_local_model_input_for_initial_prompt(question)
+        else:
+            raise PlannerError(
+                "Unsupported planner input format",
+                details={"input_format": mode.value},
+            )
+
+        self._validate_built_model_input(model_input)
+        return model_input
+
+    def build_plan_model_input(self, question: str, frontend_output: FrontendOutput | None = None) -> UnifiedPlannerInput:
         """Dispatch planner initial-plan input build by backend mode."""
         question = self.validate_question(question)
         mode = self.input_format
@@ -275,9 +360,9 @@ class BaseModelPlanner(BasePlanner):
             )
 
         if mode == PlannerInputFormat.API_MODEL:
-            model_input = self.build_api_model_input_for_plan(question)
+            model_input = self.build_api_model_input_for_plan(question, frontend_output)
         elif mode == PlannerInputFormat.LOCAL_MODEL:
-            model_input = self.build_local_model_input_for_plan(question)
+            model_input = self.build_local_model_input_for_plan(question, frontend_output)
         else:
             raise PlannerError(
                 "Unsupported planner input format",
@@ -439,10 +524,52 @@ class BaseModelPlanner(BasePlanner):
             details={"last_error": str(last_error), "retries": self.max_retries},
         ) from last_error
 
-    def plan(self, question: str) -> InitialPlan:
-        """Question-only initial planning phase."""
+    def generate_question_oriented_prompt(self, question: str) -> str:
+        """Generate a question-oriented prompt for the frontend model."""
         question = self.validate_question(question)
-        model_input = self.build_plan_model_input(question)
+        model_input = self.build_initial_prompt_model_input(question)
+
+        def _call():
+            try:
+                raw_output = self.call_model(model_input)
+            except PlannerError:
+                raise
+            except Exception as e:
+                raise PlannerError(
+                    f"Planner model call failed during question-oriented prompt generation: {type(e).__name__}: {e}",
+                    details={"planner": self.name},
+                ) from e
+            return self.normalize_question_oriented_prompt_output(raw_output)
+
+        return self._call_with_retries(_call, "generate_question_oriented_prompt()")
+
+    def normalize_question_oriented_prompt_output(self, raw_output: Any) -> str:
+        """Normalize model output into a plain string prompt."""
+        if isinstance(raw_output, str):
+            stripped = raw_output.strip()
+            if not stripped:
+                raise PlannerError(
+                    "Question-oriented prompt output is empty",
+                    details={"raw_output": raw_output},
+                )
+            return stripped
+        if isinstance(raw_output, dict):
+            prompt = raw_output.get("question_oriented_prompt") or raw_output.get("prompt")
+            if not prompt or not str(prompt).strip():
+                raise PlannerError(
+                    "Malformed question-oriented prompt output: missing prompt text",
+                    details={"output_keys": sorted(raw_output.keys()), "raw_output": raw_output},
+                )
+            return str(prompt).strip()
+        raise PlannerError(
+            "Malformed question-oriented prompt output: expected str or dict",
+            details={"output_type": type(raw_output).__name__, "raw_output": str(raw_output)[:1000]},
+        )
+
+    def plan(self, question: str, frontend_output: FrontendOutput | None = None) -> InitialPlan:
+        """Question-and-caption initial planning phase."""
+        question = self.validate_question(question)
+        model_input = self.build_plan_model_input(question, frontend_output)
 
         def _call():
             try:

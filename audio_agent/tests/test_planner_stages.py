@@ -14,11 +14,27 @@ from audio_agent.tools.registry import ToolRegistry
 class TestPlannerStages:
     """Tests for initial planning and decision-stage fail-fast behavior."""
 
-    def test_initial_plan_node_generates_plan_from_question_only(self):
+    def test_initial_prompt_node_generates_prompt_from_question(self):
+        from audio_agent.graph.nodes import create_initial_prompt_node
+        planner = DummyPlanner()
+        node = create_initial_prompt_node(planner)
+
+        result = node({"question": "What is discussed in this audio?"})
+
+        assert result["question_oriented_prompt"] is not None
+        assert "What is discussed in this audio?" in result["question_oriented_prompt"]
+
+    def test_initial_plan_node_generates_plan_from_question_and_frontend_output(self):
+        from audio_agent.core.schemas import FrontendOutput
         planner = DummyPlanner()
         node = create_initial_plan_node(planner)
 
-        result = node({"question": "What is discussed in this audio?"})
+        result = node({
+            "question": "What is discussed in this audio?",
+            "initial_frontend_output": FrontendOutput(
+                question_guided_caption="A discussion about technology."
+            ),
+        })
 
         assert result["initial_plan"] is not None
         assert result["initial_plan"].approach

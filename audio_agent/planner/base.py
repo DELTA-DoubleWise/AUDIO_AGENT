@@ -8,7 +8,7 @@ based on accumulated evidence and available tools.
 from abc import ABC, abstractmethod
 
 from audio_agent.core.state import AgentState
-from audio_agent.core.schemas import InitialPlan, PlannerDecision, ToolSpec, FormatCheckResult
+from audio_agent.core.schemas import FrontendOutput, InitialPlan, PlannerDecision, ToolSpec, FormatCheckResult
 from audio_agent.core.errors import PlannerError
 
 
@@ -33,18 +33,40 @@ class BasePlanner(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def plan(self, question: str) -> InitialPlan:
+    def plan(self, question: str, frontend_output: FrontendOutput | None = None) -> InitialPlan:
         """
-        Build an initial plan using question only.
+        Build an initial plan using question and optional frontend caption.
 
         Args:
             question: User question
+            frontend_output: Optional frontend output with question-guided caption
 
         Returns:
             InitialPlan
 
         Raises:
             PlannerError: If question is invalid or planning fails
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def generate_question_oriented_prompt(self, question: str) -> str:
+        """
+        Generate a question-oriented prompt to guide the frontend audio model.
+
+        The output should be a single string that contains:
+        - clarified question
+        - decomposed tasks
+        - focus points for the specific task
+
+        Args:
+            question: User question
+
+        Returns:
+            A question-oriented prompt string
+
+        Raises:
+            PlannerError: If generation fails
         """
         raise NotImplementedError
     

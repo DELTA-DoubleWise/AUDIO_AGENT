@@ -16,8 +16,9 @@ The Audio Agent Framework is a **LangGraph-based framework for audio understandi
 
 ```
 START
-  -> frontend_evidence_node (LALM processes audio, generates initial caption evidence)
-  -> initial_plan_node (question-only planning, generates approach and focus points)
+  -> initial_prompt_node (planner generates question-oriented prompt from task skills)
+  -> frontend_evidence_node (LALM processes audio using question-oriented prompt, generates structured caption evidence)
+  -> initial_plan_node (audio-aware planning using question + frontend caption, generates approach and focus points)
   -> planner_decision_node (LLM decides action; on last step forces ANSWER)
   -> [conditional routing based on decision]
      - ANSWER -> final_answer_node (frontend omni model generates answer from audio + context)
@@ -32,7 +33,9 @@ START
 ```
 
 **Key Behaviors:**
-- **Initial Planning**: Planner's `plan()` method generates a high-level approach based only on the question (no audio context yet)
+- **Initial Prompt Generation**: A dedicated `initial_prompt_node` uses the planner (text LLM) to craft a customized `question_oriented_prompt` from the user question, referencing `task_oriented_caption_skill.md`. This prompt guides the frontend model.
+- **Frontend Evidence**: The `frontend_evidence_node` feeds the `question_oriented_prompt` to the LALM, which produces a richer, structured `question_guided_caption` containing: (1) general caption, (2) focus point, (3) proposed answer + confidence, and (4) uncertainties / verification needs.
+- **Initial Planning**: Planner's `plan()` method generates a high-level approach using both the question and the frontend's structured caption, enabling audio-aware planning
 - **Tool Execution**: Tool executor automatically resolves `audio_id` references to actual paths and injects audio paths for tools that need them
 - **Intent Clarification**: When planner returns CLARIFY action, the intent_clarification_node refines the question before continuing
 - **Frontend Final Answer**: When the planner returns ANSWER (or is forced on the final step), the `final_answer_node` invokes the frontend (audio-capable) model with all original audio files and accumulated context to generate the final answer.
@@ -779,6 +782,10 @@ validate_state_has_fields(
 ## Important Notes
 
 1. **Qwen Models**: The demo uses real Qwen models that require significant GPU resources. Both frontend (Qwen2-Audio-7B) and planner (Qwen2.5-7B) load in one process.
+
+2. **Two-Stage Prompting for Frontend Captioning**: The workflow now includes an `initial_prompt_node` that generates a task-specific prompt for the frontend model. This prompt decomposes the question into focus points and tasks, helping the frontend produce a more structured and actionable caption.
+
+3. **Audio-Aware Initial Planning**: The `initial_plan_node` now receives the frontend's structured question-guided caption. The planner is instructed to identify uncertain or ambiguous statements in the caption and to plan tool-based verification (e.g., ASR, diarization, librosa) for those aspects.
 
 2. **Multi-Audio Support**: The framework supports processing multiple audio files in a single run. Use `audio_paths: list[str]` instead of a single path. Each audio is assigned an ID (`audio_0`, `audio_1`, etc.) for tool reference. This enables speaker verification, audio comparison, and other multi-source analysis tasks.
 

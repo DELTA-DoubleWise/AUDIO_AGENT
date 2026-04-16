@@ -1,5 +1,7 @@
 Question: {question}
 
+Frontend Caption: {frontend_caption}
+
 Produce an InitialPlan JSON object with keys:
 - `approach` (str): High-level approach to answer the question
 - `focus_points` (list[str]): Key points to investigate in the audio
@@ -9,6 +11,11 @@ Produce an InitialPlan JSON object with keys:
 - `requires_audio_output` (bool): Whether this task requires/produces an audio file as output
 - `notes` (str, optional): Additional notes or considerations
 - `detailed_plan` (list[ExecutionStep], optional): Todo list for complex questions (see below)
+
+**Using the Frontend Caption:**
+- If the caption is clear and confident, you may keep the plan simple.
+- If the caption expresses uncertainty or ambiguity about any aspect, add verification steps for those aspects to your `focus_points` and `detailed_plan`.
+- Prioritize tools that can resolve the specific uncertainties mentioned (or implied) in the caption.
 
 **Audio Output Detection:**
 Set `requires_audio_output: true` when the user asks for:
