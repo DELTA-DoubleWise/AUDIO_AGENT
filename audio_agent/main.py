@@ -222,6 +222,7 @@ class AudioAgent:
         question: str,
         audio_paths: list[str],
         max_steps: int | None = None,
+        run_log_name: str | None = None,
     ) -> AgentState:
         """
         Run the agent on an audio query (asynchronous).
@@ -264,7 +265,7 @@ class AudioAgent:
             
             # Log the run
             if self._run_logger:
-                log_path = self._run_logger.log_run(final_state)
+                log_path = self._run_logger.log_run(final_state, custom_name=run_log_name)
                 if log_path:
                     log_info("run_logged", {"log_file": log_path})
             

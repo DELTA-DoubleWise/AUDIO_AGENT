@@ -59,12 +59,14 @@ class RunLogger:
         """Create log directory if it doesn't exist."""
         os.makedirs(self.log_dir, exist_ok=True)
     
-    def log_run(self, state: AgentState) -> str:
+    def log_run(self, state: AgentState, custom_name: str | None = None) -> str:
         """
         Log an agent run to a markdown file.
         
         Args:
             state: The final AgentState after run completion
+            custom_name: Optional custom filename (without or with .md suffix).
+                         If provided, it overrides the default timestamp+question naming.
             
         Returns:
             Path to the generated log file
@@ -74,7 +76,7 @@ class RunLogger:
             to avoid disrupting the main agent flow.
         """
         try:
-            return self._do_log_run(state)
+            return self._do_log_run(state, custom_name=custom_name)
         except Exception as e:
             log_warning(
                 "run_logger",
@@ -86,23 +88,27 @@ class RunLogger:
             )
             return ""
     
-    def _do_log_run(self, state: AgentState) -> str:
+    def _do_log_run(self, state: AgentState, custom_name: str | None = None) -> str:
         """
         Internal method to perform the actual logging.
         
         Args:
             state: The final AgentState after run completion
+            custom_name: Optional custom filename override.
             
         Returns:
             Path to the generated log file
         """
         # Generate filename
         timestamp = datetime.now()
-        question = state.get("question", "unknown")
-        status = state.get("status", AgentStatus.RUNNING)
         
-        question_slug = sanitize_filename(question, max_length=30)
-        filename = f"run_{timestamp.strftime('%Y%m%d_%H%M%S')}_{question_slug}.md"
+        if custom_name:
+            filename = custom_name if custom_name.endswith(".md") else f"{custom_name}.md"
+        else:
+            question = state.get("question", "unknown")
+            question_slug = sanitize_filename(question, max_length=30)
+            filename = f"run_{timestamp.strftime('%Y%m%d_%H%M%S')}_{question_slug}.md"
+        
         log_path = os.path.join(self.log_dir, filename)
         
         # Build markdown content
