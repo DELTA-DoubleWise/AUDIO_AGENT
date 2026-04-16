@@ -55,6 +55,22 @@ def format_input_section(original_audios: list[str], temp_dir: str) -> str:
     return "\n".join(lines)
 
 
+def format_question_oriented_prompt(prompt: str | None) -> str:
+    """Format question-oriented prompt as Markdown."""
+    if not prompt:
+        return "## Question-Oriented Prompt\n\n*No question-oriented prompt generated*\n\n"
+    
+    lines = [
+        "## Question-Oriented Prompt",
+        "",
+        "```",
+        prompt,
+        "```",
+        "",
+    ]
+    return "\n".join(lines)
+
+
 def format_frontend_output(caption: str | None) -> str:
     """Format frontend output as Markdown."""
     if not caption:

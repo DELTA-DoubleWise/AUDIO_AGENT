@@ -16,6 +16,7 @@ from audio_agent.core.logging import log_info, log_warning
 from audio_agent.log.formatter import (
     format_metadata,
     format_input_section,
+    format_question_oriented_prompt,
     format_frontend_output,
     format_initial_plan,
     format_evidence_log,
@@ -162,6 +163,10 @@ class RunLogger:
                 original_audios = [old_path]
         temp_dir = state.get("temp_dir", "Unknown")
         sections.append(format_input_section(original_audios, temp_dir))
+        
+        # Question-Oriented Prompt
+        question_oriented_prompt = state.get("question_oriented_prompt")
+        sections.append(format_question_oriented_prompt(question_oriented_prompt))
         
         # Frontend Output
         frontend_output = state.get("initial_frontend_output")
