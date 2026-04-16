@@ -148,7 +148,12 @@ class OpenAICompatibleFrontend(BaseModelFrontend):
                 details={"audio_path": audio_path},
             ) from e
 
-    def build_api_model_input(self, question: str, audio_paths: list[str]) -> UnifiedFrontendInput:
+    def build_api_model_input(
+        self,
+        question: str,
+        audio_paths: list[str],
+        question_oriented_prompt: str | None = None,
+    ) -> UnifiedFrontendInput:
         """
         Build API input with audio as base64.
 
@@ -165,9 +170,11 @@ class OpenAICompatibleFrontend(BaseModelFrontend):
         # Load prompts from markdown files
         system_prompt = load_prompt("frontend_system")
         audio_list_text = f"- Audio 0: {audio_path}"
+        prompt_text = question_oriented_prompt or "No customized prompt available."
         user_text = load_prompt("frontend_user").format(
             question=question,
             audio_list=audio_list_text,
+            question_oriented_prompt=prompt_text,
         )
 
         # Build messages with single audio
@@ -197,12 +204,14 @@ class OpenAICompatibleFrontend(BaseModelFrontend):
                 "audio": {"kind": "path", "value": audio_path},
                 "task": "question_guided_audio_captioning",
                 "output_format": "plain_text_caption",
+                "question_oriented_prompt": question_oriented_prompt,
             },
             messages=messages,
             metadata={
                 "frontend_name": self.name,
                 "input_format": FrontendInputFormat.API_MODEL.value,
                 "model": self._model,
+                "question_oriented_prompt": question_oriented_prompt,
             },
         )
 

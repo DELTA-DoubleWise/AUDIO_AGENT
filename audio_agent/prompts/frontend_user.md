@@ -1,10 +1,11 @@
 User question: {question}
 
-Inspect the audio(s) and produce a concise question-guided caption for a downstream planner.
-Do not do final reasoning or final answering.
-State uncertainty explicitly when details are unclear.
+Question-Oriented Prompt:
+{question_oriented_prompt}
 
-Return ONLY the caption as plain text. Do not use JSON.
+Inspect the audio(s) and produce the structured question-guided caption described in your system instructions. Use the Question-Oriented Prompt above to guide your Focus Point.
+
+Return ONLY the caption as plain text with the four labeled sections. Do not use JSON.
 
 Audio files:
 {audio_list}

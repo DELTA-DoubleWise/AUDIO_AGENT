@@ -19,6 +19,8 @@ class MockQwen25Planner(Qwen25Planner):
         return {"model": object(), "tokenizer": object()}
 
     def call_model(self, model_input: UnifiedPlannerInput) -> str:
+        if model_input.task_type == "initial_prompt":
+            return "Focus on speech content and identify any unclear words."
         if model_input.task_type == "initial_plan":
             return json.dumps(
                 {
@@ -42,6 +44,23 @@ class TestQwen25PlannerShape:
     def test_uses_local_model_input_format(self):
         planner = MockQwen25Planner()
         assert planner.input_format == PlannerInputFormat.LOCAL_MODEL
+
+    def test_build_initial_prompt_model_input_contains_chat_messages(self):
+        planner = MockQwen25Planner()
+        model_input = planner.build_initial_prompt_model_input("What is in this audio?")
+
+        assert model_input.task_type == "initial_prompt"
+        assert model_input.messages[0]["role"] == "system"
+        assert model_input.messages[1]["role"] == "user"
+        assert isinstance(model_input.messages[1]["content"], str)
+
+    def test_generate_question_oriented_prompt_returns_string(self):
+        planner = MockQwen25Planner()
+        result = planner.generate_question_oriented_prompt("What is in this audio?")
+
+        assert isinstance(result, str)
+        assert result.strip()
+        assert "speech content" in result
 
     def test_build_plan_model_input_contains_chat_messages(self):
         planner = MockQwen25Planner()

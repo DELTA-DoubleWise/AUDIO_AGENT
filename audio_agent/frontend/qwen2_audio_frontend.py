@@ -95,6 +95,7 @@ class Qwen2AudioFrontend(BaseModelFrontend):
         self,
         question: str,
         audio_paths: list[str],
+        question_oriented_prompt: str | None = None,
     ) -> UnifiedFrontendInput:
         """Build Qwen2-Audio-style multimodal input with local/remote audio key selection.
         
@@ -113,7 +114,7 @@ class Qwen2AudioFrontend(BaseModelFrontend):
         
         content = [
             audio_content,
-            {"type": "text", "text": self.build_frontend_task_instruction(question, audio_paths)},
+            {"type": "text", "text": self.build_frontend_task_instruction(question, audio_paths, question_oriented_prompt)},
         ]
 
         system_prompt = load_prompt("frontend_system")

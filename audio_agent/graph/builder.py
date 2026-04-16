@@ -8,6 +8,7 @@ from langgraph.graph import StateGraph, START, END
 
 from audio_agent.core.state import AgentState
 from audio_agent.graph.nodes import (
+    create_initial_prompt_node,
     create_frontend_evidence_node,
     create_initial_plan_node,
     create_planner_decision_node,
@@ -27,6 +28,7 @@ from audio_agent.graph.routing import (
     NODE_TOOL_EXECUTOR,
     NODE_FAILURE,
     NODE_EVIDENCE_FUSION,
+    NODE_INITIAL_PROMPT,
     NODE_INITIAL_PLAN,
     NODE_PLANNER_DECISION,
     NODE_INTENT_CLARIFICATION,
@@ -53,6 +55,7 @@ def build_graph(
     Graph structure:
 
     START
+      -> initial_prompt_node
       -> frontend_evidence_node
       -> initial_plan_node
       -> planner_decision_node
@@ -86,6 +89,8 @@ def build_graph(
     executor = ToolExecutor(registry)
     
     # Create node functions with injected dependencies
+    initial_prompt_node_fn = create_initial_prompt_node(planner)
+    initial_prompt_node_fn = create_initial_prompt_node(planner)
     frontend_node = create_frontend_evidence_node(frontend)
     initial_plan_node_fn = create_initial_plan_node(planner)
     planner_decision_node_fn = create_planner_decision_node(planner, registry)
@@ -100,6 +105,7 @@ def build_graph(
     graph = StateGraph(AgentState)
     
     # Add nodes
+    graph.add_node(NODE_INITIAL_PROMPT, initial_prompt_node_fn)
     graph.add_node("frontend_evidence_node", frontend_node)
     graph.add_node(NODE_INITIAL_PLAN, initial_plan_node_fn)
     graph.add_node(NODE_PLANNER_DECISION, planner_decision_node_fn)
@@ -113,8 +119,11 @@ def build_graph(
     graph.add_node(NODE_FAILURE, failure_node)
     
     # Add edges
-    # START -> frontend_evidence_node
-    graph.add_edge(START, "frontend_evidence_node")
+    # START -> initial_prompt_node
+    graph.add_edge(START, NODE_INITIAL_PROMPT)
+    
+    # initial_prompt_node -> frontend_evidence_node
+    graph.add_edge(NODE_INITIAL_PROMPT, "frontend_evidence_node")
     
     # frontend_evidence_node -> initial_plan_node
     graph.add_edge("frontend_evidence_node", NODE_INITIAL_PLAN)
@@ -203,6 +212,7 @@ def build_graph_with_config(
     
     executor = ToolExecutor(registry)
     
+    initial_prompt_node_fn = create_initial_prompt_node(planner)
     frontend_node = create_frontend_evidence_node(frontend)
     initial_plan_node_fn = create_initial_plan_node(planner)
     planner_decision_node_fn = create_planner_decision_node(planner, registry)
@@ -215,6 +225,7 @@ def build_graph_with_config(
 
     graph = StateGraph(AgentState)
 
+    graph.add_node(NODE_INITIAL_PROMPT, initial_prompt_node_fn)
     graph.add_node("frontend_evidence_node", frontend_node)
     graph.add_node(NODE_INITIAL_PLAN, initial_plan_node_fn)
     graph.add_node(NODE_PLANNER_DECISION, planner_decision_node_fn)
@@ -227,7 +238,8 @@ def build_graph_with_config(
     graph.add_node(NODE_ANSWER, answer_node)
     graph.add_node(NODE_FAILURE, failure_node)
     
-    graph.add_edge(START, "frontend_evidence_node")
+    graph.add_edge(START, NODE_INITIAL_PROMPT)
+    graph.add_edge(NODE_INITIAL_PROMPT, "frontend_evidence_node")
     graph.add_edge("frontend_evidence_node", NODE_INITIAL_PLAN)
     graph.add_edge(NODE_INITIAL_PLAN, NODE_PLANNER_DECISION)
     

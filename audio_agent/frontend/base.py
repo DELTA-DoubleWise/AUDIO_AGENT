@@ -31,13 +31,14 @@ class BaseFrontend(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def run(self, question: str, audio_paths: list[str]) -> FrontendOutput:
+    def run(self, question: str, audio_paths: list[str], question_oriented_prompt: str | None = None) -> FrontendOutput:
         """
         Process audio(s) with the given question and produce initial evidence.
 
         Args:
             question: The user's question about the audio
             audio_paths: List of paths to audio files (one or more)
+            question_oriented_prompt: Optional customized prompt from the planner
 
         Returns:
             FrontendOutput with question-guided caption covering all audios

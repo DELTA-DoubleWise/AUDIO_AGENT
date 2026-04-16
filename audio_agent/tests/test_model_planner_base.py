@@ -25,6 +25,8 @@ class EchoModelPlanner(BaseModelPlanner):
         return {"ready": True}
 
     def call_model(self, model_input: UnifiedPlannerInput):
+        if model_input.task_type == "initial_prompt":
+            return "Focus on speech content and identify any unclear words."
         if model_input.task_type == "initial_plan":
             return {
                 "approach": "Use the question to decide what evidence matters first.",
@@ -45,6 +47,16 @@ class EchoModelPlanner(BaseModelPlanner):
 
 class TestBaseModelPlanner:
     """Tests for model-backed planner flow and strict parsing."""
+
+    def test_build_initial_prompt_model_input_has_expected_shape(self):
+        planner = EchoModelPlanner()
+        model_input = planner.build_initial_prompt_model_input("What is in this audio?")
+
+        assert model_input.task_type == "initial_prompt"
+        assert model_input.metadata["input_format"] == PlannerInputFormat.API_MODEL.value
+        assert len(model_input.messages) == 2
+        assert model_input.messages[0]["role"] == "system"
+        assert model_input.messages[1]["role"] == "user"
 
     def test_build_plan_model_input_has_expected_shape(self):
         planner = EchoModelPlanner()
@@ -86,6 +98,14 @@ class TestBaseModelPlanner:
         assert model_input.task_type == "decision"
         assert model_input.metadata["input_format"] == PlannerInputFormat.LOCAL_MODEL.value
         assert len(model_input.messages) == 2
+
+    def test_generate_question_oriented_prompt_returns_string(self):
+        planner = EchoModelPlanner()
+        result = planner.generate_question_oriented_prompt("What is in this audio?")
+
+        assert isinstance(result, str)
+        assert result.strip()
+        assert "speech content" in result
 
     def test_plan_returns_initial_plan(self):
         planner = EchoModelPlanner()

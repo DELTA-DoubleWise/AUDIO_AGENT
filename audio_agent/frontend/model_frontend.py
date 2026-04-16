@@ -90,12 +90,19 @@ class BaseModelFrontend(BaseFrontend):
         """
         return FrontendInputFormat.API_MODEL
 
-    def build_frontend_task_instruction(self, question: str, audio_paths: list[str]) -> str:
+    def build_frontend_task_instruction(
+        self,
+        question: str,
+        audio_paths: list[str],
+        question_oriented_prompt: str | None = None,
+    ) -> str:
         """Shared instruction text reused across input builders."""
         audio_list_text = "\n".join([f"- Audio {i}: {path}" for i, path in enumerate(audio_paths)])
+        prompt_text = question_oriented_prompt or "No customized prompt available."
         return load_prompt("frontend_user").format(
             question=question,
             audio_list=audio_list_text,
+            question_oriented_prompt=prompt_text,
         )
 
     def _build_common_user_payload(self, question: str, audio_paths: list[str]) -> dict[str, Any]:
@@ -111,15 +118,21 @@ class BaseModelFrontend(BaseFrontend):
             "output_format": "plain_text_caption",
         }
 
-    def build_api_model_input(self, question: str, audio_paths: list[str]) -> UnifiedFrontendInput:
+    def build_api_model_input(
+        self,
+        question: str,
+        audio_paths: list[str],
+        question_oriented_prompt: str | None = None,
+    ) -> UnifiedFrontendInput:
         """
         Build API-hosted chat style input:
         - one system message
         - one user message with readable task text + audio reference(s)
         """
         user_payload = self._build_common_user_payload(question, audio_paths)
+        user_payload["question_oriented_prompt"] = question_oriented_prompt
         system_prompt = load_prompt("frontend_system")
-        user_text = self.build_frontend_task_instruction(question, audio_paths)
+        user_text = self.build_frontend_task_instruction(question, audio_paths, question_oriented_prompt)
 
         return UnifiedFrontendInput(
             system_prompt=system_prompt,
@@ -134,6 +147,7 @@ class BaseModelFrontend(BaseFrontend):
                 "frontend_name": self.name,
                 "input_format": FrontendInputFormat.API_MODEL.value,
                 "audio_count": len(audio_paths),
+                "question_oriented_prompt": question_oriented_prompt,
             },
         )
 
@@ -141,6 +155,7 @@ class BaseModelFrontend(BaseFrontend):
         self,
         question: str,
         audio_paths: list[str],
+        question_oriented_prompt: str | None = None,
     ) -> UnifiedFrontendInput:
         """
         Build local multimodal style input:
@@ -148,8 +163,9 @@ class BaseModelFrontend(BaseFrontend):
         - user content list with text instruction + audio reference(s)
         """
         user_payload = self._build_common_user_payload(question, audio_paths)
+        user_payload["question_oriented_prompt"] = question_oriented_prompt
         system_prompt = load_prompt("frontend_system")
-        user_text = self.build_frontend_task_instruction(question, audio_paths)
+        user_text = self.build_frontend_task_instruction(question, audio_paths, question_oriented_prompt)
 
         # Build content list with text and all audio files
         content: list[dict[str, Any]] = [{"type": "text", "text": user_text}]
@@ -172,6 +188,7 @@ class BaseModelFrontend(BaseFrontend):
                 "frontend_name": self.name,
                 "input_format": FrontendInputFormat.LOCAL_MULTIMODAL.value,
                 "audio_count": len(audio_paths),
+                "question_oriented_prompt": question_oriented_prompt,
             },
         )
 
@@ -192,7 +209,12 @@ class BaseModelFrontend(BaseFrontend):
             context="Malformed model input",
         )
 
-    def build_model_input(self, question: str, audio_paths: list[str]) -> UnifiedFrontendInput:
+    def build_model_input(
+        self,
+        question: str,
+        audio_paths: list[str],
+        question_oriented_prompt: str | None = None,
+    ) -> UnifiedFrontendInput:
         """Build model input via explicit format-mode dispatch."""
         mode = self.input_format
         if isinstance(mode, str):
@@ -210,9 +232,9 @@ class BaseModelFrontend(BaseFrontend):
             )
 
         if mode == FrontendInputFormat.API_MODEL:
-            model_input = self.build_api_model_input(question, audio_paths)
+            model_input = self.build_api_model_input(question, audio_paths, question_oriented_prompt)
         elif mode == FrontendInputFormat.LOCAL_MULTIMODAL:
-            model_input = self.build_local_multimodal_model_input(question, audio_paths)
+            model_input = self.build_local_multimodal_model_input(question, audio_paths, question_oriented_prompt)
         else:
             raise FrontendError(
                 "Unsupported frontend input format",
@@ -292,7 +314,7 @@ class BaseModelFrontend(BaseFrontend):
             details={"last_error": str(last_error), "retries": self.max_retries},
         ) from last_error
 
-    def run(self, question: str, audio_paths: list[str]) -> FrontendOutput:
+    def run(self, question: str, audio_paths: list[str], question_oriented_prompt: str | None = None) -> FrontendOutput:
         """
         Standardized frontend execution path:
         validate -> build unified input -> call model -> normalize output
@@ -307,7 +329,9 @@ class BaseModelFrontend(BaseFrontend):
         
         if len(stripped_paths) == 1:
             # Single audio - normal processing path
-            model_input = self.build_model_input(question.strip(), stripped_paths)
+            model_input = self.build_model_input(
+                question.strip(), stripped_paths, question_oriented_prompt
+            )
 
             def _call_single():
                 try:
@@ -327,7 +351,7 @@ class BaseModelFrontend(BaseFrontend):
             # API models like qwen3-omni-flash don't support multiple audios in one call
             captions = []
             for i, path in enumerate(stripped_paths):
-                single_input = self.build_model_input(question.strip(), [path])
+                single_input = self.build_model_input(question.strip(), [path], question_oriented_prompt)
 
                 def _call_multi():
                     try:

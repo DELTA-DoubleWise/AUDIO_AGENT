@@ -35,11 +35,13 @@ class DummyFrontend(BaseModelFrontend):
         """
         Return mock model output as plain text caption.
         """
+        prompt = model_input.metadata.get("question_oriented_prompt") or "No customized prompt available."
         return (
-            f"The audio appears to include speech content relevant to the question "
-            f"'{model_input.question}'. "
-            "There may also be background sounds, but exact lexical details are unclear "
-            "from this initial frontend pass."
+            f"General Caption: The audio appears to include speech content relevant to the question "
+            f"'{model_input.question}'. There may also be background sounds.\n\n"
+            f"Focus Point: {prompt}\n\n"
+            f"Proposed Answer / Confidence: It likely contains relevant speech (confidence: 0.6).\n\n"
+            f"Uncertainties / Verification Needs: Exact lexical details are unclear; ASR tool could improve transcription accuracy."
         )
 
     def generate_final_answer(

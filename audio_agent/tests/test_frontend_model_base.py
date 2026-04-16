@@ -98,7 +98,7 @@ class TestBaseModelFrontend:
 
     def test_malformed_builder_output_raises(self):
         class BadBuilderFrontend(EchoModelFrontend):
-            def build_api_model_input(self, question: str, audio_paths: list[str]):
+            def build_api_model_input(self, question: str, audio_paths: list[str], question_oriented_prompt: str | None = None):
                 return UnifiedFrontendInput(
                     system_prompt=load_prompt("frontend_system"),
                     question=question,
