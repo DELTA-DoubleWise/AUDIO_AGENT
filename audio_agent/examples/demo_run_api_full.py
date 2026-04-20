@@ -162,8 +162,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--temperature",
         type=float,
-        default=0.7,
-        help="Sampling temperature (default: 0.7).",
+        default=0.05,
+        help="Sampling temperature (default: 0.05).",
     )
     parser.add_argument(
         "--max-tokens",

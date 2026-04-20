@@ -54,7 +54,7 @@ class OpenAICompatiblePlanner(BaseModelPlanner):
         api_key: str | None = None,
         base_url: str | None = None,
         api_key_env: str = "OPENAI_API_KEY",
-        temperature: float = 0.7,
+        temperature: float = 0.05,
         max_tokens: int = 4096,
         enable_thinking: bool = False,
         timeout: float = 120.0,

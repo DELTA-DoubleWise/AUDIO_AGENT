@@ -47,7 +47,7 @@ class OpenAICompatibleFrontend(BaseModelFrontend):
         api_key: str | None = None,
         base_url: str | None = None,
         api_key_env: str = "DASHSCOPE_API_KEY",
-        temperature: float = 0.7,
+        temperature: float = 0.05,
         max_tokens: int = 4096,
         timeout: float = 120.0,
         max_retries: int = 3,

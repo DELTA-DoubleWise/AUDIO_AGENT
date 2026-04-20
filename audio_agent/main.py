@@ -123,19 +123,25 @@ class AudioAgent:
         self._temp_dir = temp_dir
         return temp_dir, audio_list
     
-    def cleanup(self) -> None:
+    def cleanup(self, temp_dir: str | None = None) -> None:
         """
         Clean up temporary files and directory.
         
         Removes the temp directory if it exists and cleanup is enabled.
+        
+        Args:
+            temp_dir: Specific temp directory to clean up. If None, cleans up
+                     the last temp directory stored on this instance.
         """
-        if self._temp_dir and os.path.exists(self._temp_dir):
+        target_dir = temp_dir or self._temp_dir
+        if target_dir and os.path.exists(target_dir):
             try:
-                shutil.rmtree(self._temp_dir)
-                log_info("temp_dir_cleaned", {"path": self._temp_dir})
-                self._temp_dir = None
+                shutil.rmtree(target_dir)
+                log_info("temp_dir_cleaned", {"path": target_dir})
+                if target_dir == self._temp_dir:
+                    self._temp_dir = None
             except Exception as e:
-                log_info("temp_dir_cleanup_failed", {"path": self._temp_dir, "error": str(e)})
+                log_info("temp_dir_cleanup_failed", {"path": target_dir, "error": str(e)})
     
     def _setup_output_dir(self) -> str:
         """
@@ -271,9 +277,10 @@ class AudioAgent:
             
             return final_state
         finally:
-            # Cleanup if enabled
+            # Cleanup if enabled — pass the specific temp_dir so concurrent
+            # runs don't accidentally delete each other's directories.
             if self.config.cleanup_temp_on_exit:
-                self.cleanup()
+                self.cleanup(temp_dir)
     
     def get_answer(self, state: AgentState) -> FinalAnswer | None:
         """Extract the final answer from a completed state."""
