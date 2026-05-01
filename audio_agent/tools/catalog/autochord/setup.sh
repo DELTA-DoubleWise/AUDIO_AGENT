@@ -5,23 +5,24 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
-export UV_CACHE_DIR="${UV_CACHE_DIR:-$REPO_ROOT/.cache/uv}"
-mkdir -p "$UV_CACHE_DIR"
 
-# Find uv - check persistent location first, then PATH
-if [ -f "$REPO_ROOT/.uv/bin/uv" ]; then
-    UV="$REPO_ROOT/.uv/bin/uv"
-elif [ -f "/lihaoyu/workspace/AUDIO_AGENT/.uv/bin/uv" ]; then
+# ⭐ CRITICAL: Use persistent uv to survive server restarts
+if [ -f "/lihaoyu/workspace/AUDIO_AGENT/.uv/activate.sh" ]; then
+    source /lihaoyu/workspace/AUDIO_AGENT/.uv/activate.sh
+fi
+
+# Find uv - persistent location first, then PATH
+if [ -f "/lihaoyu/workspace/AUDIO_AGENT/.uv/bin/uv" ]; then
     UV="/lihaoyu/workspace/AUDIO_AGENT/.uv/bin/uv"
 elif command -v uv &> /dev/null; then
     UV="uv"
 else
-    echo "Error: uv not found. Please install uv first."
+    echo "Error: uv not found. Please ensure uv is installed at /lihaoyu/workspace/AUDIO_AGENT/.uv/"
     exit 1
 fi
 
 echo "Using uv: $UV"
+echo "Using UV_PYTHON_INSTALL_DIR: $UV_PYTHON_INSTALL_DIR"
 echo "Using UV_CACHE_DIR: $UV_CACHE_DIR"
 
 # Remove old venv if exists
@@ -46,7 +47,7 @@ $UV pip install --python .venv/bin/python "tensorflow==2.15.1" "keras==2.15.0"
 echo "Installing autochord dependencies..."
 $UV pip install --python .venv/bin/python --no-build-isolation autochord==0.1.4 "soundfile>=0.12.1"
 
-# Pin setuptools to keep pkg_resources (autochord dependency)
+# Pin setuptools for pkg_resources compatibility
 echo "Pinning setuptools for pkg_resources compatibility..."
 $UV pip install --python .venv/bin/python "setuptools<82"
 

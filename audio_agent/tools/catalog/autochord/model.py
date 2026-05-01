@@ -4,7 +4,7 @@ autochord Wrapper for Audio Agent Framework.
 Responsibilities:
 - Wrap autochord.recognize() with a unified ModelWrapper interface
 - Return structured chord recognition results with time-localized segments
-- Manage lazy model loading (autochord loads on import)
+- Manage lazy model loading (autochord loads on first use, not import)
 
 Entry Points:
 - ModelWrapper: Main wrapper class
@@ -26,16 +26,13 @@ from __future__ import annotations
 
 import json
 import os
-import tempfile
+import sys
 import warnings
+from contextlib import redirect_stdout
 from dataclasses import asdict, dataclass
+from io import StringIO
 from pathlib import Path
 from typing import Any
-
-try:
-    import autochord
-except ImportError:
-    autochord = None
 
 try:
     import soundfile as sf
@@ -80,31 +77,49 @@ class ModelWrapper:
 
     def __init__(self, config: dict[str, Any] | None = None):
         self.config = config or {}
+        self._model = None
         self._model_loaded = False
+
+    def _load_model(self) -> Any:
+        """Lazy-load autochord module, suppressing stdout to avoid MCP stream corruption."""
+        if self._model is not None:
+            return self._model
+
+        # Suppress stdout during autochord import (it prints initialization messages
+        # and download progress bars that would corrupt the JSON-RPC MCP stream)
+        old_stdout = sys.stdout
+        sys.stdout = sys.stderr  # Redirect prints to stderr
+        try:
+            import autochord
+            self._model = autochord
+            self._model_loaded = True
+        finally:
+            sys.stdout = old_stdout
+
+        return self._model
 
     def load(self) -> None:
         """
         Ensure autochord module and model are loaded.
-        autochord initializes on import; this method is a no-op after first import.
+        autochord initializes on import; this method triggers lazy loading.
         """
-        if autochord is None:
-            raise RuntimeError("autochord is not installed. Run setup.sh first.")
-        # autochord loads its model on module import via _init_module()
-        self._model_loaded = True
+        _ = self._load_model()
 
     def healthcheck(self) -> dict[str, Any]:
         """Quick check if autochord runtime is available."""
-        if autochord is None:
+        try:
+            _ = self._load_model()
+            return {
+                "status": "ready",
+                "message": "autochord available",
+                "model_loaded": True,
+            }
+        except Exception as e:
             return {
                 "status": "error",
-                "message": "autochord not installed",
+                "message": str(e),
                 "model_loaded": False,
             }
-        return {
-            "status": "ready",
-            "message": "autochord available",
-            "model_loaded": True,
-        }
 
     def predict(self, audio_path: str) -> ChordRecognitionResult:
         """
@@ -128,8 +143,7 @@ class ModelWrapper:
         Returns:
             ChordRecognitionResult with segments.
         """
-        if autochord is None:
-            raise RuntimeError("autochord is not installed. Run setup.sh first.")
+        autochord = self._load_model()
 
         audio_path = str(audio_path)
         if not os.path.exists(audio_path):
@@ -178,8 +192,7 @@ class ModelWrapper:
         Returns:
             ChordRecognitionResult with segments.
         """
-        if autochord is None:
-            raise RuntimeError("autochord is not installed. Run setup.sh first.")
+        autochord = self._load_model()
 
         duration = self._get_duration(audio_path)
 
