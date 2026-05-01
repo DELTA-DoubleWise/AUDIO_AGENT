@@ -15,8 +15,9 @@ This framework provides a clean architecture for building audio understanding ag
 
 ```
 START
+  -> initial_prompt_node (planner generates question-oriented prompt)
   -> frontend_evidence_node (LALM processes audio, generates initial caption)
-  -> initial_plan_node (question-only planning)
+  -> initial_plan_node (audio-aware planning using question + caption)
   -> planner_decision_node (LLM decides action; on last step forces ANSWER)
   -> [conditional routing based on decision]
      - ANSWER -> evidence_summarization_node (neutral summary of all evidence)
@@ -26,12 +27,16 @@ START
          * Format Failed -> planner_decision_node (loop with critique as evidence)
      - CALL_TOOL -> tool_executor_node (auto-injects audio_path)
        -> evidence_fusion_node -> planner_decision_node (loop)
+     - CALL_FRONTEND -> frontend_followup_node (frontend re-perceives selected audio with custom prompt)
+       -> evidence_fusion_node -> planner_decision_node (loop)
      - CLARIFY_INTENT -> intent_clarification_node -> planner_decision_node (loop)
      - FAIL -> failure_node -> END
 ```
 
 **Key Behaviors:**
-- **Initial Planning**: Planner generates a high-level approach based only on the question.
+- **Initial Prompt Generation**: A dedicated `initial_prompt_node` uses the planner to craft a customized `question_oriented_prompt` from the user question, helping the frontend produce a richer, structured caption.
+- **Initial Planning**: Planner generates a high-level approach using both the question and the frontend's structured caption, enabling audio-aware planning.
+- **Frontend Follow-Up**: The planner can explicitly choose `CALL_FRONTEND` to have the frontend model re-perceive selected derived audio artifacts (isolated speakers, trimmed segments, denoised clips, etc.) with a custom prompt. This bridges tool-generated audio improvements with the strongest audio-capable model.
 - **Evidence Summarization**: Before final answer, a text-LLM compresses all evidence, planner trace, and tool history into a single neutral narrative. This prevents the frontend model from being overwhelmed by verbose raw tool outputs.
 - **Frontend Final Answer**: The frontend (audio-capable) model generates the final answer directly from the original audio(s) and summarized context, rather than the text planner producing the answer.
 - **Format Checking**: Mandatory format validation occurs before finalizing. If the format is wrong, a critique is added as evidence and planning continues.

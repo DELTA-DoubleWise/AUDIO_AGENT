@@ -21,11 +21,13 @@ START
   -> initial_plan_node (audio-aware planning using question + frontend caption, generates approach and focus points)
   -> planner_decision_node (LLM decides action; on last step forces ANSWER)
   -> [conditional routing based on decision]
-     - ANSWER -> final_answer_node (frontend omni model generates answer from audio + context)
+     - ANSWER -> evidence_summarization_node -> final_answer_node (frontend omni model generates answer from audio + context)
        -> format_check_node (mandatory format validation) -> [conditional]
         * Format OK -> answer_node -> END
         * Format Failed -> planner_decision_node (loop with critique as evidence)
      - CALL_TOOL -> tool_executor_node (auto-injects audio_path)
+       -> evidence_fusion_node -> planner_decision_node (loop)
+     - CALL_FRONTEND -> frontend_followup_node (frontend re-perceives selected audio artifact(s) with planner-authored prompt)
        -> evidence_fusion_node -> planner_decision_node (loop)
      - CLARIFY -> intent_clarification_node -> planner_decision_node
      - FAIL -> failure_node -> END
@@ -41,7 +43,8 @@ START
 - **Frontend Final Answer**: When the planner returns ANSWER (or is forced on the final step), the `final_answer_node` invokes the frontend (audio-capable) model with all original audio files and accumulated context to generate the final answer.
 - **Format Checking**: Mandatory format validation occurs before final answer. The planner (text LLM) checks if the proposed answer follows the expected output format. If format violations are found, the critique is added as evidence and planning continues.
 - **Final Step**: On the last step (`step_count >= max_steps - 1`), the planner decision node forces `action=ANSWER` with `draft_answer=None`, delegating final answer generation to the frontend model.
-- **Evidence Accumulation**: Frontend output, tool results, and format check critiques are fused into evidence_log for planner context
+- **Frontend Follow-Up**: When the planner returns `CALL_FRONTEND`, the `frontend_followup_node` invokes the frontend model on selected derived audio artifacts (isolated speakers, trimmed segments, denoised clips, etc.) with a custom planner-authored prompt. The output is added as `evidence_type="frontend_followup"` to the evidence log. This is a privileged re-perception step, not a tool.
+- **Evidence Accumulation**: Frontend output (initial and follow-up), tool results, and format check critiques are fused into evidence_log for planner context
 
 ## Technology Stack
 

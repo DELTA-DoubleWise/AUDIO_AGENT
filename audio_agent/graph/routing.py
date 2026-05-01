@@ -24,6 +24,7 @@ NODE_INTENT_CLARIFICATION = "intent_clarification_node"
 NODE_FINAL_ANSWER = "final_answer_node"
 NODE_FORMAT_CHECK = "format_check_node"
 NODE_EVIDENCE_SUMMARIZATION = "evidence_summarization_node"
+NODE_FRONTEND_FOLLOWUP = "frontend_followup_node"
 NODE_PLANNER = NODE_PLANNER_DECISION  # Backward-compatible alias
 NODE_QUESTION_CLARIFICATION = "question_clarification_node"
 END = "__end__"
@@ -73,6 +74,10 @@ def route_after_planner_decision(state: AgentState) -> str:
         tool_name = decision.selected_tool_name
         logger.info(f"ROUTING: action={action.value}, tool={tool_name} -> {NODE_TOOL_EXECUTOR}")
         return NODE_TOOL_EXECUTOR
+    
+    elif action == PlannerActionType.CALL_FRONTEND:
+        logger.info(f"ROUTING: action={action.value} -> {NODE_FRONTEND_FOLLOWUP}")
+        return NODE_FRONTEND_FOLLOWUP
     
     elif action == PlannerActionType.CLARIFY_INTENT:
         logger.info(f"ROUTING: action={action.value} -> {NODE_INTENT_CLARIFICATION}")
@@ -187,6 +192,33 @@ def route_after_format_check(state: AgentState) -> str:
         # Loop back to planner to regenerate answer with format feedback
         logger.info(f"ROUTING: format check failed (critique added) -> {NODE_PLANNER_DECISION}")
         return NODE_PLANNER_DECISION
+
+
+def route_after_frontend_followup(state: AgentState) -> str:
+    """
+    Route after frontend follow-up.
+    
+    Always routes to evidence_fusion_node to incorporate the follow-up output
+    into the evidence log, then loops back to planner_decision_node.
+    
+    Args:
+        state: Current agent state
+    
+    Returns:
+        Name of the next node
+    
+    Raises:
+        GraphRoutingError: If routing cannot be determined
+    """
+    logger = get_logger()
+    
+    if state.get("latest_frontend_followup_output") is None:
+        raise GraphRoutingError(
+            "Cannot route after frontend follow-up: latest_frontend_followup_output is None"
+        )
+    
+    logger.info(f"ROUTING: after frontend follow-up -> {NODE_EVIDENCE_FUSION}")
+    return NODE_EVIDENCE_FUSION
 
 
 def is_terminal_state(state: AgentState) -> bool:

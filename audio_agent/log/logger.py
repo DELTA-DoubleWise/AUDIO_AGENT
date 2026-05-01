@@ -31,6 +31,7 @@ from audio_agent.log.formatter import (
     sanitize_filename,
     format_question_clarification,
     format_frontend_direct_output,
+    format_frontend_followup_history,
 )
 
 
@@ -182,6 +183,11 @@ class RunLogger:
         # Frontend Direct Output (Observer)
         frontend_direct_output = state.get("frontend_direct_output")
         sections.append(format_frontend_direct_output(frontend_direct_output))
+        
+        # Frontend Follow-Up History
+        planner_trace = state.get("planner_trace", [])
+        evidence_log = state.get("evidence_log", [])
+        sections.append(format_frontend_followup_history(planner_trace, evidence_log))
         
         # Initial Plan
         initial_plan = state.get("initial_plan")

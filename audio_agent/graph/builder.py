@@ -19,12 +19,14 @@ from audio_agent.graph.nodes import (
     create_evidence_summarization_node,
     create_final_answer_node,
     create_format_check_node,
+    create_frontend_followup_node,
     answer_node,
     failure_node,
 )
 from audio_agent.graph.routing import (
     route_after_planner_decision,
     route_after_format_check,
+    route_after_frontend_followup,
     NODE_ANSWER,
     NODE_TOOL_EXECUTOR,
     NODE_FAILURE,
@@ -37,6 +39,7 @@ from audio_agent.graph.routing import (
     NODE_FINAL_ANSWER,
     NODE_FORMAT_CHECK,
     NODE_QUESTION_CLARIFICATION,
+    NODE_FRONTEND_FOLLOWUP,
 )
 from audio_agent.frontend.base import BaseFrontend
 from audio_agent.planner.base import BasePlanner
@@ -105,6 +108,7 @@ def build_graph(
     evidence_summarization_node_fn = create_evidence_summarization_node(planner)
     final_answer_node_fn = create_final_answer_node(frontend)
     format_check_node_fn = create_format_check_node(planner)
+    frontend_followup_node_fn = create_frontend_followup_node(frontend)
     
     # Build the graph
     graph = StateGraph(AgentState)
@@ -120,6 +124,7 @@ def build_graph(
     graph.add_node(NODE_EVIDENCE_SUMMARIZATION, evidence_summarization_node_fn)
     graph.add_node(NODE_FINAL_ANSWER, final_answer_node_fn)
     graph.add_node(NODE_FORMAT_CHECK, format_check_node_fn)
+    graph.add_node(NODE_FRONTEND_FOLLOWUP, frontend_followup_node_fn)
     graph.add_node(NODE_ANSWER, answer_node)
     graph.add_node(NODE_FAILURE, failure_node)
     
@@ -151,6 +156,7 @@ def build_graph(
         {
             NODE_EVIDENCE_SUMMARIZATION: NODE_EVIDENCE_SUMMARIZATION,
             NODE_TOOL_EXECUTOR: NODE_TOOL_EXECUTOR,
+            NODE_FRONTEND_FOLLOWUP: NODE_FRONTEND_FOLLOWUP,
             NODE_INTENT_CLARIFICATION: NODE_INTENT_CLARIFICATION,
             NODE_FAILURE: NODE_FAILURE,
         }
@@ -168,6 +174,9 @@ def build_graph(
     
     # tool_executor_node -> evidence_fusion_node
     graph.add_edge(NODE_TOOL_EXECUTOR, NODE_EVIDENCE_FUSION)
+    
+    # frontend_followup_node -> evidence_fusion_node
+    graph.add_edge(NODE_FRONTEND_FOLLOWUP, NODE_EVIDENCE_FUSION)
     
     # evidence_fusion_node -> planner_decision_node (loop back)
     graph.add_edge(NODE_EVIDENCE_FUSION, NODE_PLANNER_DECISION)
@@ -235,6 +244,7 @@ def build_graph_with_config(
     evidence_summarization_node_fn = create_evidence_summarization_node(planner)
     final_answer_node_fn = create_final_answer_node(frontend)
     format_check_node_fn = create_format_check_node(planner)
+    frontend_followup_node_fn = create_frontend_followup_node(frontend)
 
     graph = StateGraph(AgentState)
 
@@ -248,6 +258,7 @@ def build_graph_with_config(
     graph.add_node(NODE_EVIDENCE_SUMMARIZATION, evidence_summarization_node_fn)
     graph.add_node(NODE_FINAL_ANSWER, final_answer_node_fn)
     graph.add_node(NODE_FORMAT_CHECK, format_check_node_fn)
+    graph.add_node(NODE_FRONTEND_FOLLOWUP, frontend_followup_node_fn)
     graph.add_node(NODE_ANSWER, answer_node)
     graph.add_node(NODE_FAILURE, failure_node)
     
@@ -262,6 +273,7 @@ def build_graph_with_config(
         {
             NODE_EVIDENCE_SUMMARIZATION: NODE_EVIDENCE_SUMMARIZATION,
             NODE_TOOL_EXECUTOR: NODE_TOOL_EXECUTOR,
+            NODE_FRONTEND_FOLLOWUP: NODE_FRONTEND_FOLLOWUP,
             NODE_INTENT_CLARIFICATION: NODE_INTENT_CLARIFICATION,
             NODE_FAILURE: NODE_FAILURE,
         }
@@ -277,6 +289,7 @@ def build_graph_with_config(
     )
     
     graph.add_edge(NODE_TOOL_EXECUTOR, NODE_EVIDENCE_FUSION)
+    graph.add_edge(NODE_FRONTEND_FOLLOWUP, NODE_EVIDENCE_FUSION)
     graph.add_edge(NODE_EVIDENCE_FUSION, NODE_PLANNER_DECISION)
     graph.add_edge(NODE_EVIDENCE_SUMMARIZATION, NODE_FINAL_ANSWER)
     graph.add_edge(NODE_FINAL_ANSWER, NODE_FORMAT_CHECK)

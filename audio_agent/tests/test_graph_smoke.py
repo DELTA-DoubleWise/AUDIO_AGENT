@@ -9,7 +9,7 @@ from audio_agent.main import create_dummy_agent, AudioAgent
 from audio_agent.config.settings import AgentConfig
 from audio_agent.core.state import create_initial_state
 from audio_agent.core.constants import AgentStatus
-from audio_agent.core.schemas import AudioItem
+from audio_agent.core.schemas import AudioItem, PlannerDecision, PlannerActionType
 from audio_agent.graph.builder import build_graph
 from audio_agent.frontend.dummy_frontend import DummyFrontend
 from audio_agent.planner.dummy_planner import DummyPlanner
@@ -251,6 +251,181 @@ class TestAgentInterface:
             status = agent.get_status(final_state)
             
             assert status == AgentStatus.ANSWERED
+        finally:
+            if os.path.exists(audio_path):
+                os.unlink(audio_path)
+
+
+
+class TestFrontendFollowupRouting:
+    """Tests for frontend follow-up routing."""
+    
+    def test_route_after_planner_decision_call_frontend(self):
+        """Test that CALL_FRONTEND routes to frontend_followup_node."""
+        from audio_agent.graph.routing import route_after_planner_decision, NODE_FRONTEND_FOLLOWUP
+        from audio_agent.core.schemas import PlannerDecision, PlannerActionType
+        
+        state = create_initial_state(
+            question="Test",
+            audio_paths=["/fake/audio.wav"],
+        )
+        state["current_decision"] = PlannerDecision(
+            action=PlannerActionType.CALL_FRONTEND,
+            rationale="Re-perceive",
+            selected_audio_ids=["audio_0"],
+            frontend_followup_prompt="What emotion?",
+            confidence=0.8,
+        )
+        
+        result = route_after_planner_decision(state)
+        assert result == NODE_FRONTEND_FOLLOWUP
+    
+    def test_route_after_frontend_followup(self):
+        """Test that route_after_frontend_followup goes to evidence_fusion."""
+        from audio_agent.graph.routing import route_after_frontend_followup, NODE_EVIDENCE_FUSION
+        from audio_agent.core.schemas import FrontendOutput
+        
+        state = create_initial_state(
+            question="Test",
+            audio_paths=["/fake/audio.wav"],
+        )
+        state["latest_frontend_followup_output"] = FrontendOutput(
+            question_guided_caption="Mock follow-up output"
+        )
+        
+        result = route_after_frontend_followup(state)
+        assert result == NODE_EVIDENCE_FUSION
+    
+    def test_route_after_frontend_followup_none_raises(self):
+        """Test that routing fails when latest_frontend_followup_output is None."""
+        from audio_agent.graph.routing import route_after_frontend_followup
+        from audio_agent.core.errors import GraphRoutingError
+        
+        state = create_initial_state(
+            question="Test",
+            audio_paths=["/fake/audio.wav"],
+        )
+        
+        with pytest.raises(GraphRoutingError, match="latest_frontend_followup_output is None"):
+            route_after_frontend_followup(state)
+
+
+class TestFrontendFollowupSmoke:
+    """Smoke tests for the frontend follow-up path."""
+    
+    def test_call_frontend_path_end_to_end(self):
+        """Test that CALL_FRONTEND path runs and produces evidence."""
+        audio_path = create_test_audio_file()
+        try:
+            # Create a planner that emits CALL_FRONTEND on the original audio
+            class FrontendFollowupPlanner(DummyPlanner):
+                def decide(self, state, available_tools):
+                    tool_history = state.get("tool_call_history", [])
+                    planner_trace = state.get("planner_trace", [])
+                    audio_list = state.get("audio_list", [])
+                    
+                    has_done_followup = any(
+                        d.action == PlannerActionType.CALL_FRONTEND
+                        for d in planner_trace
+                    )
+                    
+                    if not has_done_followup and len(tool_history) >= 1:
+                        return PlannerDecision(
+                            action=PlannerActionType.CALL_FRONTEND,
+                            rationale="Re-perceive the audio with a targeted prompt",
+                            selected_audio_ids=[audio_list[0].audio_id],
+                            frontend_followup_prompt="What emotion does the speaker express?",
+                            frontend_followup_goal="Identify speaker emotion",
+                            confidence=0.8,
+                        )
+                    
+                    if len(tool_history) == 0:
+                        return PlannerDecision(
+                            action=PlannerActionType.CALL_TOOL,
+                            rationale="Call tool first",
+                            selected_tool_name="dummy_asr",
+                            selected_audio_id=audio_list[0].audio_id if audio_list else "audio_0",
+                            confidence=0.8,
+                        )
+                    
+                    return PlannerDecision(
+                        action=PlannerActionType.ANSWER,
+                        rationale="Enough evidence",
+                        confidence=0.8,
+                    )
+            
+            frontend = DummyFrontend()
+            planner = FrontendFollowupPlanner()
+            registry = ToolRegistry()
+            registry.register(DummyASRTool())
+            fuser = DefaultEvidenceFuser()
+            
+            agent = AudioAgent(
+                frontend=frontend,
+                planner=planner,
+                registry=registry,
+                fuser=fuser,
+            )
+            
+            final_state = agent.run(
+                question="What is the emotion in this audio?",
+                audio_paths=[audio_path],
+                max_steps=10,
+            )
+            
+            assert final_state["status"] == AgentStatus.ANSWERED
+            assert final_state["final_answer"] is not None
+            
+            # Verify follow-up evidence exists
+            evidence_log = final_state["evidence_log"]
+            followup_evidence = [
+                e for e in evidence_log
+                if e.evidence_type == "frontend_followup"
+            ]
+            assert len(followup_evidence) >= 1
+            
+            # Verify planner trace contains CALL_FRONTEND
+            planner_trace = final_state["planner_trace"]
+            followup_decisions = [
+                d for d in planner_trace
+                if d.action == PlannerActionType.CALL_FRONTEND
+            ]
+            assert len(followup_decisions) >= 1
+        finally:
+            if os.path.exists(audio_path):
+                os.unlink(audio_path)
+    
+    def test_call_frontend_on_generated_audio(self):
+        """Test CALL_FRONTEND on a tool-generated audio artifact."""
+        import tempfile
+        
+        audio_path = create_test_audio_file()
+        try:
+            # Build with default DummyPlanner which now emits CALL_FRONTEND
+            # when non-original audio exists. We need a tool that generates audio.
+            agent = create_dummy_agent()
+            
+            # Manually add a generated audio to the agent's registry
+            # We can't easily do this through the public API, so instead
+            # we verify that the DummyPlanner logic is correct by checking
+            # its decision on a state with non-original audio.
+            from audio_agent.core.schemas import AudioItem
+            
+            state = create_initial_state(
+                question="Test",
+                audio_paths=[audio_path],
+                audio_list=[
+                    AudioItem(audio_id="audio_0", path=audio_path, source="original", description="original"),
+                    AudioItem(audio_id="audio_1", path=audio_path, source="dummy_trim", description="trimmed"),
+                ],
+            )
+            state["initial_plan"] = agent.planner.plan("Test")
+            state["initial_frontend_output"] = DummyFrontend().run("Test", [audio_path])
+            
+            decision = agent.planner.decide(state, agent.registry.list_specs())
+            assert decision.action == PlannerActionType.CALL_FRONTEND
+            assert decision.selected_audio_ids == ["audio_1"]
+            assert decision.frontend_followup_prompt is not None
         finally:
             if os.path.exists(audio_path):
                 os.unlink(audio_path)

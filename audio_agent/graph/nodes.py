@@ -11,6 +11,7 @@ import os
 from audio_agent.core.state import AgentState
 from audio_agent.core.schemas import (
     EvidenceItem,
+    FrontendOutput,
     InitialPlan,
     PlannerDecision,
     PlannerActionType,
@@ -842,55 +843,74 @@ def create_evidence_fusion_node(fuser: BaseEvidenceFuser):
     """
     def evidence_fusion_node(state: AgentState) -> dict:
         """
-        Fuse latest tool result into evidence items.
+        Fuse latest result into evidence items.
+        
+        Handles both tool results (latest_tool_result) and frontend follow-up
+        results (latest_frontend_followup_output). After a tool execution, the
+        fuser converts the tool result into evidence. After a frontend follow-up,
+        the evidence was already added by frontend_followup_node; we just
+        increment the step counter.
         
         Validates:
-        - latest_tool_result exists
+        - Either latest_tool_result or latest_frontend_followup_output is present
         
         Updates:
-        - evidence_log (appends fused evidence)
+        - evidence_log (appends fused evidence for tool path)
         - step_count (increments)
         - latest_tool_result (clears to None)
+        - latest_frontend_followup_output (clears to None)
         """
         log_node_start("evidence_fusion_node")
         
-        validate_state_has_fields(
-            state,
-            ["latest_tool_result"],
-            context="evidence_fusion_node",
-        )
+        tool_result = state.get("latest_tool_result")
+        followup_output = state.get("latest_frontend_followup_output")
         
-        tool_result = state["latest_tool_result"]
-        
-        try:
-            evidence_items = fuser.fuse(state, tool_result)
-        except FusionError:
-            raise
-        except Exception as e:
-            log_error("evidence_fusion_node", e)
-            raise FusionError(
-                f"Evidence fusion failed: {e}",
-                details={"fuser": fuser.name}
-            ) from e
-        
-        if evidence_items is None:
-            raise FusionError(
-                "Fuser returned None",
-                details={"fuser": fuser.name}
+        if tool_result is None and followup_output is None:
+            raise StateValidationError(
+                "evidence_fusion_node requires either latest_tool_result or latest_frontend_followup_output",
+                details={"context": "evidence_fusion_node"},
             )
         
         current_step = state.get("step_count", 0)
-        
-        log_node_end("evidence_fusion_node", {
-            "new_evidence_count": len(evidence_items),
-            "step_count": current_step + 1,
-        })
-        
-        return {
-            "evidence_log": evidence_items,
+        updates: dict = {
             "step_count": current_step + 1,
             "latest_tool_result": None,
+            "latest_frontend_followup_output": None,
         }
+        
+        if tool_result is not None:
+            # Tool path: use fuser to convert tool result to evidence
+            try:
+                evidence_items = fuser.fuse(state, tool_result)
+            except FusionError:
+                raise
+            except Exception as e:
+                log_error("evidence_fusion_node", e)
+                raise FusionError(
+                    f"Evidence fusion failed: {e}",
+                    details={"fuser": fuser.name}
+                ) from e
+            
+            if evidence_items is None:
+                raise FusionError(
+                    "Fuser returned None",
+                    details={"fuser": fuser.name}
+                )
+            
+            updates["evidence_log"] = evidence_items
+            log_node_end("evidence_fusion_node", {
+                "new_evidence_count": len(evidence_items),
+                "step_count": current_step + 1,
+            })
+        else:
+            # Frontend follow-up path: evidence was already added by frontend_followup_node
+            log_node_end("evidence_fusion_node", {
+                "new_evidence_count": 0,
+                "step_count": current_step + 1,
+                "source": "frontend_followup",
+            })
+        
+        return updates
     
     return evidence_fusion_node
 
@@ -1413,6 +1433,102 @@ def create_format_check_node(planner: BasePlanner):
     return format_check_node
 
 
+def create_frontend_followup_node(frontend: BaseFrontend):
+    """
+    Factory for the frontend follow-up node.
+    
+    This node allows the planner to explicitly request the frontend model
+    to re-perceive selected audio artifacts (trimmed, isolated, denoised, etc.)
+    with a custom prompt. The output is added as evidence.
+    """
+    
+    def frontend_followup_node(state: AgentState) -> dict:
+        log_node_start("frontend_followup_node", state)
+        
+        # Validate required state fields
+        validate_state_has_fields(
+            state,
+            ["current_decision", "audio_list", "question"],
+            context="frontend_followup_node",
+        )
+        
+        decision = state["current_decision"]
+        if decision.action != PlannerActionType.CALL_FRONTEND:
+            raise StateValidationError(
+                f"Expected action=CALL_FRONTEND, got {decision.action.value}",
+                details={"context": "frontend_followup_node"},
+            )
+        
+        # Validate follow-up fields
+        audio_ids = decision.selected_audio_ids or []
+        if not audio_ids:
+            raise StateValidationError(
+                "CALL_FRONTEND requires at least one selected_audio_id",
+                details={"context": "frontend_followup_node"},
+            )
+        prompt = decision.frontend_followup_prompt
+        if not prompt or not prompt.strip():
+            raise StateValidationError(
+                "CALL_FRONTEND requires non-empty frontend_followup_prompt",
+                details={"context": "frontend_followup_node"},
+            )
+        
+        # Resolve audio IDs to paths
+        audio_list = state.get("audio_list", [])
+        audio_map = {a.audio_id: a for a in audio_list}
+        
+        selected_audios = []
+        for aid in audio_ids:
+            if aid not in audio_map:
+                raise StateValidationError(
+                    f"Audio ID '{aid}' not found in audio_list",
+                    details={
+                        "available_ids": list(audio_map.keys()),
+                        "context": "frontend_followup_node",
+                    },
+                )
+            selected_audios.append(audio_map[aid])
+        
+        selected_paths = [a.path for a in selected_audios]
+        
+        # Call frontend on selected audio(s)
+        try:
+            followup_question = decision.frontend_followup_goal or state["question"]
+            output = frontend.run(
+                question=followup_question,
+                audio_paths=selected_paths,
+                question_oriented_prompt=prompt.strip(),
+            )
+        except Exception as e:
+            raise FrontendError(
+                f"Frontend follow-up failed: {type(e).__name__}: {e}",
+                details={"frontend": frontend.name, "audio_ids": audio_ids},
+            ) from e
+        
+        # Build evidence item from follow-up output
+        evidence = EvidenceItem(
+            source=f"frontend:{frontend.name}:followup",
+            content=output.question_guided_caption,
+            evidence_type="frontend_followup",
+            confidence=0.7,
+            metadata={
+                "selected_audio_ids": audio_ids,
+                "goal": decision.frontend_followup_goal,
+                "prompt": prompt,
+                "frontend_name": frontend.name,
+            },
+        )
+        
+        log_node_end("frontend_followup_node", state)
+        
+        return {
+            "latest_frontend_followup_output": output,
+            "evidence_log": [evidence],
+        }
+    
+    return frontend_followup_node
+
+
 # Convenience aliases for node creation
 frontend_evidence_node = create_frontend_evidence_node
 initial_plan_node = create_initial_plan_node
@@ -1423,3 +1539,4 @@ evidence_fusion_node = create_evidence_fusion_node
 final_answer_node = create_final_answer_node
 format_check_node = create_format_check_node
 intent_clarification_node = create_intent_clarification_node
+frontend_followup_node = create_frontend_followup_node

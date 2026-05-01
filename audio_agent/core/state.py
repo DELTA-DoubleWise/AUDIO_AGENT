@@ -85,6 +85,7 @@ class AgentState(TypedDict, total=False):
     # Current state (overwritten each cycle)
     current_decision: PlannerDecision | None
     latest_tool_result: ToolResult | None
+    latest_frontend_followup_output: FrontendOutput | None
     
     # Intent clarification (set during planning or clarification)
     clarified_intent: str | None
@@ -166,6 +167,7 @@ def create_initial_state(
         planner_trace=[],
         current_decision=None,
         latest_tool_result=None,
+        latest_frontend_followup_output=None,
         clarified_intent=None,
         expected_output_format=None,
         question_oriented_prompt=None,

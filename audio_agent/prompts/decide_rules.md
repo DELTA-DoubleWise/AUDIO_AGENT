@@ -29,6 +29,13 @@
    - Then, select the specific concrete tool from available_tools that matches the needed capability
    - CRITICAL: You MUST specify selected_audio_id from Available Audio Files to tell the tool which audio to process
    - Consider the description of each audio to choose the most appropriate one
+3.6 **Frontend Follow-Up Rule (CALL_FRONTEND):**
+   - Use `action='call_frontend'` when a tool has produced a materially better audio source and the remaining uncertainty is best resolved by direct audio perception (not by numbers or metadata).
+   - Examples: isolated speaker track needs emotion analysis, trimmed segment needs chord identification, denoised clip needs background sound description.
+   - Requires: `selected_audio_ids` (list of valid audio_ids from Available Audio Files), `frontend_followup_prompt` (non-empty, the exact question/instruction for the frontend), `frontend_followup_goal` (optional, what uncertainty this resolves).
+   - The frontend follow-up prompt should be specific and scoped to the selected audio(s). It may ask a subquestion, a verification question, or the original question on a cleaner clip.
+   - Do NOT use `call_frontend` when the next need is measurement, segmentation, isolation, or transformation — use `call_tool` instead.
+   - Do NOT use `call_frontend` as a fallback for weak reasoning. Use it only when transformed audio genuinely changes what the frontend can perceive.
 3.5 **Tool Priority Rule:** When multiple tools of the same type are available, follow this priority order (higher = preferred):
    - **ASR Tools:** transcribe_qwenasr > transcribe_fireredasr > transcribe_whisperx
    - **Diarization Tools:** diarize > transcribe_whisperx_with_diarization
@@ -36,7 +43,7 @@
    - **Lyrics/Singing:** lyric_asr (preferred for music/lyrics content)
    Rationale: Different tools have different strengths. Qwen3-ASR has excellent multilingual support, FireRedASR excels at Chinese dialects and singing, WhisperX provides good diarization integration. When the user explicitly requests a specific tool by name, honor that request regardless of priority.
 4. If the intent or expected output format is unclear, use action='clarify_intent' to reason about it.
-5. action='call_tool' REQUIRES: selected_tool_name (non-empty), selected_audio_id (valid audio_id from Available Audio Files)
+5. action='call_tool' REQUIRES: selected_tool_name (non-empty), selected_audio_id (valid audio_id from Available Audio Files). action='call_frontend' REQUIRES: selected_audio_ids (non-empty list of valid audio_ids), frontend_followup_prompt (non-empty).
 5.5. **Tool Parameter Rule:** When using action='call_tool', you MUST:
    - Use the EXACT parameter names from the tool's input_schema (case-sensitive, no abbreviations)
    - For audio file parameters, use the audio_id (e.g., "audio_0", "audio_1") as the value - the system will resolve it to the actual file path

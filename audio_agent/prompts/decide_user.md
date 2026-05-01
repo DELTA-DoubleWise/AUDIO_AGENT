@@ -45,11 +45,14 @@ Max Steps: {max_steps}
 
 Required Output Format:
 {{
-    "action": "answer | call_tool | clarify_intent | verify | fail",
+    "action": "answer | call_tool | call_frontend | clarify_intent | verify | fail",
     "rationale": "str - explain your decision in detail. Include: 1) Why you chose this action, 2) What evidence supports this decision, 3) For VERIFY: why this task needs verification, 4) For ANSWER: why you are confident in the answer",
     "selected_tool_name": "str | null - REQUIRED for call_tool, must be a valid tool name",
-    "selected_tool_args": "dict - arguments for the tool when using call_tool. MUST be {} (empty dict) for answer/verify/clarify_intent/fail actions, never null",
+    "selected_tool_args": "dict - arguments for the tool when using call_tool. MUST be {} (empty dict) for answer/call_frontend/verify/clarify_intent/fail actions, never null",
     "selected_audio_id": "str | null - REQUIRED for call_tool, must be a valid audio_id from Available Audio Files above",
+    "selected_audio_ids": "list[str] | [] - REQUIRED for call_frontend, must be valid audio_ids from Available Audio Files",
+    "frontend_followup_prompt": "str | null - REQUIRED for call_frontend, the exact prompt/question to send to the frontend model",
+    "frontend_followup_goal": "str | null - OPTIONAL for call_frontend, describes what uncertainty this inspection resolves",
     "draft_answer": "str | null - REQUIRED for answer AND verify actions (the answer or the answer to be verified)",
     "confidence": "float - 0.0 to 1.0"
 }}

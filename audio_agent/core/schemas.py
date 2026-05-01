@@ -22,11 +22,13 @@ class PlannerActionType(str, Enum):
     
     - ANSWER: Signal readiness for final answer generation by the frontend model
     - CALL_TOOL: Invoke a tool to gather more evidence
+    - CALL_FRONTEND: Ask the frontend model to re-perceive selected audio artifact(s)
     - CLARIFY_INTENT: Clarify the user's intent and expected output format
     - FAIL: Stop with explicit failure (unrecoverable state)
     """
     ANSWER = "answer"
     CALL_TOOL = "call_tool"
+    CALL_FRONTEND = "call_frontend"
     CLARIFY_INTENT = "clarify_intent"
     FAIL = "fail"
 
@@ -284,7 +286,9 @@ class PlannerDecision(BaseModel):
     
     Validation ensures consistency:
     - CALL_TOOL requires selected_tool_name and selected_audio_id
+    - CALL_FRONTEND requires selected_audio_ids and frontend_followup_prompt
     - ANSWER no longer requires draft_answer (the frontend model generates the final answer)
+    - ANSWER must NOT carry frontend-followup fields (to prevent mixed actions)
     """
     action: PlannerActionType
     rationale: str = Field(..., min_length=1, description="Explanation for the decision")
@@ -294,6 +298,18 @@ class PlannerDecision(BaseModel):
         default=None,
         description="Audio ID to use for tool call (required for CALL_TOOL)"
     )
+    selected_audio_ids: list[str] = Field(
+        default_factory=list,
+        description="Audio IDs to inspect for CALL_FRONTEND (required for call_frontend)"
+    )
+    frontend_followup_prompt: str | None = Field(
+        default=None,
+        description="Custom prompt for the frontend follow-up inspection (required for call_frontend)"
+    )
+    frontend_followup_goal: str | None = Field(
+        default=None,
+        description="What uncertainty this follow-up is resolving (optional metadata)"
+    )
     draft_answer: str | None = Field(default=None)
     confidence: float = Field(default=0.0, ge=0.0, le=1.0)
     timestamp: datetime = Field(default_factory=datetime.now)
@@ -301,7 +317,7 @@ class PlannerDecision(BaseModel):
 
     @model_validator(mode="after")
     def validate_action_consistency(self) -> "PlannerDecision":
-        """Ensure action-specific fields are populated."""
+        """Ensure action-specific fields are populated and not mixed."""
         if self.action == PlannerActionType.CALL_TOOL:
             if not self.selected_tool_name:
                 raise ValueError(
@@ -311,7 +327,32 @@ class PlannerDecision(BaseModel):
                 raise ValueError(
                     "PlannerDecision with action=CALL_TOOL must have non-empty selected_audio_id"
                 )
-        # ANSWER no longer requires draft_answer (frontend generates final answer)
+        
+        if self.action == PlannerActionType.CALL_FRONTEND:
+            if not self.selected_audio_ids:
+                raise ValueError(
+                    "PlannerDecision with action=CALL_FRONTEND must have non-empty selected_audio_ids"
+                )
+            for aid in self.selected_audio_ids:
+                if not aid or not aid.strip():
+                    raise ValueError(
+                        "PlannerDecision with action=CALL_FRONTEND must not contain empty audio_ids"
+                    )
+            if not self.frontend_followup_prompt or not self.frontend_followup_prompt.strip():
+                raise ValueError(
+                    "PlannerDecision with action=CALL_FRONTEND must have non-empty frontend_followup_prompt"
+                )
+        
+        if self.action == PlannerActionType.ANSWER:
+            if self.selected_audio_ids:
+                raise ValueError(
+                    "PlannerDecision with action=ANSWER must not carry selected_audio_ids"
+                )
+            if self.frontend_followup_prompt:
+                raise ValueError(
+                    "PlannerDecision with action=ANSWER must not carry frontend_followup_prompt"
+                )
+        
         # CLARIFY_INTENT and FAIL require no additional fields - uses rationale only
         return self
 

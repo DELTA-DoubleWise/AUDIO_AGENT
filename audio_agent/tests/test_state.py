@@ -5,7 +5,7 @@ import pytest
 from audio_agent.core.state import create_initial_state, AgentState
 from audio_agent.core.constants import AgentStatus
 from audio_agent.core.errors import StateValidationError
-from audio_agent.core.schemas import AudioItem
+from audio_agent.core.schemas import AudioItem, PlannerDecision, PlannerActionType
 from audio_agent.utils.validation import validate_state_has_fields, validate_non_empty_string
 
 
@@ -190,3 +190,99 @@ class TestValidateNonEmptyString:
         """Test validation fails with whitespace-only string."""
         with pytest.raises(StateValidationError, match="must be non-empty"):
             validate_non_empty_string("   ", "test_field")
+
+
+
+class TestPlannerDecisionValidation:
+    """Tests for PlannerDecision schema validation, especially CALL_FRONTEND."""
+    
+    def test_call_frontend_valid(self):
+        """CALL_FRONTEND with valid fields passes."""
+        decision = PlannerDecision(
+            action=PlannerActionType.CALL_FRONTEND,
+            rationale="Re-perceive isolated speaker",
+            selected_audio_ids=["audio_1"],
+            frontend_followup_prompt="What emotion does the speaker express?",
+            frontend_followup_goal="Identify emotion",
+            confidence=0.8,
+        )
+        assert decision.action == PlannerActionType.CALL_FRONTEND
+        assert decision.selected_audio_ids == ["audio_1"]
+        assert decision.frontend_followup_prompt == "What emotion does the speaker express?"
+    
+    def test_call_frontend_missing_audio_ids_raises(self):
+        """CALL_FRONTEND without selected_audio_ids raises ValueError."""
+        with pytest.raises(ValueError, match="non-empty selected_audio_ids"):
+            PlannerDecision(
+                action=PlannerActionType.CALL_FRONTEND,
+                rationale="Re-perceive",
+                frontend_followup_prompt="What emotion?",
+                confidence=0.8,
+            )
+    
+    def test_call_frontend_empty_audio_id_raises(self):
+        """CALL_FRONTEND with empty string in selected_audio_ids raises ValueError."""
+        with pytest.raises(ValueError, match="empty audio_ids"):
+            PlannerDecision(
+                action=PlannerActionType.CALL_FRONTEND,
+                rationale="Re-perceive",
+                selected_audio_ids=["audio_1", ""],
+                frontend_followup_prompt="What emotion?",
+                confidence=0.8,
+            )
+    
+    def test_call_frontend_missing_prompt_raises(self):
+        """CALL_FRONTEND without frontend_followup_prompt raises ValueError."""
+        with pytest.raises(ValueError, match="non-empty frontend_followup_prompt"):
+            PlannerDecision(
+                action=PlannerActionType.CALL_FRONTEND,
+                rationale="Re-perceive",
+                selected_audio_ids=["audio_1"],
+                confidence=0.8,
+            )
+    
+    def test_call_frontend_whitespace_prompt_raises(self):
+        """CALL_FRONTEND with whitespace-only prompt raises ValueError."""
+        with pytest.raises(ValueError, match="non-empty frontend_followup_prompt"):
+            PlannerDecision(
+                action=PlannerActionType.CALL_FRONTEND,
+                rationale="Re-perceive",
+                selected_audio_ids=["audio_1"],
+                frontend_followup_prompt="   ",
+                confidence=0.8,
+            )
+    
+    def test_answer_with_audio_ids_raises(self):
+        """ANSWER carrying selected_audio_ids raises ValueError."""
+        with pytest.raises(ValueError, match="must not carry selected_audio_ids"):
+            PlannerDecision(
+                action=PlannerActionType.ANSWER,
+                rationale="Ready to answer",
+                selected_audio_ids=["audio_1"],
+                confidence=0.8,
+            )
+    
+    def test_answer_with_followup_prompt_raises(self):
+        """ANSWER carrying frontend_followup_prompt raises ValueError."""
+        with pytest.raises(ValueError, match="must not carry frontend_followup_prompt"):
+            PlannerDecision(
+                action=PlannerActionType.ANSWER,
+                rationale="Ready to answer",
+                frontend_followup_prompt="What emotion?",
+                confidence=0.8,
+            )
+    
+    def test_call_tool_with_followup_prompt_raises(self):
+        """CALL_TOOL with frontend_followup_prompt is technically allowed by validator
+        but should be avoided. The validator only checks CALL_FRONTEND and ANSWER
+        specifically; mixed fields on CALL_TOOL are not blocked."""
+        # This test documents current behavior: no explicit ban on CALL_TOOL + prompt
+        decision = PlannerDecision(
+            action=PlannerActionType.CALL_TOOL,
+            rationale="Call tool",
+            selected_tool_name="dummy_asr",
+            selected_audio_id="audio_0",
+            frontend_followup_prompt="What emotion?",  # Mixed field
+            confidence=0.8,
+        )
+        assert decision.action == PlannerActionType.CALL_TOOL

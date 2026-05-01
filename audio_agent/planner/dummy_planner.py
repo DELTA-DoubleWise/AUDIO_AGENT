@@ -120,6 +120,23 @@ class DummyPlanner(BasePlanner):
         # Get first audio from audio_list (original audio)
         selected_audio_id = audio_list[0].audio_id if audio_list else "audio_0"
         
+        # Check if we should do a frontend follow-up on generated audio
+        non_original_audios = [a for a in audio_list if a.source != "original"]
+        has_done_followup = any(
+            d.action == PlannerActionType.CALL_FRONTEND
+            for d in state.get("planner_trace", [])
+        )
+        
+        if non_original_audios and not has_done_followup:
+            return PlannerDecision(
+                action=PlannerActionType.CALL_FRONTEND,
+                rationale="A tool generated a new audio artifact. Re-perceiving it with the frontend may resolve remaining uncertainty.",
+                selected_audio_ids=[non_original_audios[0].audio_id],
+                frontend_followup_prompt=f"Describe the content of this audio artifact in detail, focusing on aspects relevant to: {state['question']}",
+                frontend_followup_goal="Gather detailed perception of the transformed audio",
+                confidence=0.7,
+            )
+        
         if num_tools_called == 0:
             # First iteration: call ASR tool if available
             target_tool = "dummy_asr"

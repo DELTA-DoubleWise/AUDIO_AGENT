@@ -153,8 +153,14 @@ class ModelWrapper:
         duration = self._get_duration(audio_path)
 
         # Run autochord recognition
-        # Returns list of (start_time, end_time, chord_name)
-        raw_results = autochord.recognize(audio_path)
+        # Suppress stdout (Keras/TensorFlow progress bars) to avoid corrupting
+        # the MCP JSON-RPC stream, which communicates over stdout.
+        old_stdout = sys.stdout
+        sys.stdout = sys.stderr
+        try:
+            raw_results = autochord.recognize(audio_path)
+        finally:
+            sys.stdout = old_stdout
 
         segments = [
             ChordSegment(start_time=float(st), end_time=float(ed), chord=str(ch))
@@ -196,10 +202,17 @@ class ModelWrapper:
 
         duration = self._get_duration(audio_path)
 
-        if output_lab_path:
-            raw_results = autochord.recognize(audio_path, lab_fn=output_lab_path)
-        else:
-            raw_results = autochord.recognize(audio_path)
+        # Suppress stdout (Keras/TensorFlow progress bars) to avoid corrupting
+        # the MCP JSON-RPC stream, which communicates over stdout.
+        old_stdout = sys.stdout
+        sys.stdout = sys.stderr
+        try:
+            if output_lab_path:
+                raw_results = autochord.recognize(audio_path, lab_fn=output_lab_path)
+            else:
+                raw_results = autochord.recognize(audio_path)
+        finally:
+            sys.stdout = old_stdout
 
         segments = [
             ChordSegment(start_time=float(st), end_time=float(ed), chord=str(ch))

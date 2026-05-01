@@ -528,6 +528,52 @@ def format_error(error_message: str | None) -> str:
     return "\n".join(lines)
 
 
+def format_frontend_followup_history(planner_trace: list, evidence_log: list) -> str:
+    """Format frontend follow-up calls by correlating planner decisions with evidence."""
+    # Find all CALL_FRONTEND decisions
+    followup_decisions = [
+        (i, d) for i, d in enumerate(planner_trace)
+        if getattr(d, 'action', None) == "call_frontend"
+    ]
+    
+    if not followup_decisions:
+        return "## Frontend Follow-Up History\n\n*No frontend follow-up calls made*\n\n"
+    
+    lines = ["## Frontend Follow-Up History", ""]
+    
+    for idx, (decision_idx, decision) in enumerate(followup_decisions, 1):
+        # Find matching evidence items
+        evidence_items = [
+            e for e in evidence_log
+            if getattr(e, 'evidence_type', None) == "frontend_followup"
+        ]
+        # Match by metadata audio_ids if available
+        matched_evidence = None
+        decision_audio_ids = getattr(decision, 'selected_audio_ids', []) or []
+        for e in evidence_items:
+            meta_audio_ids = (e.metadata or {}).get("selected_audio_ids", [])
+            if meta_audio_ids == decision_audio_ids:
+                matched_evidence = e
+                break
+        if not matched_evidence and idx <= len(evidence_items):
+            matched_evidence = evidence_items[idx - 1]
+        
+        lines.append(f"### Follow-Up {idx}")
+        lines.append(f"- **Audio IDs**: {', '.join(decision_audio_ids) if decision_audio_ids else 'N/A'}")
+        lines.append(f"- **Goal**: {getattr(decision, 'frontend_followup_goal', None) or 'N/A'}")
+        prompt = getattr(decision, 'frontend_followup_prompt', None) or "N/A"
+        lines.append(f"- **Prompt**: `{prompt[:200]}{'...' if len(prompt) > 200 else ''}`")
+        if matched_evidence:
+            caption = getattr(matched_evidence, 'content', '')
+            lines.append(f"- **Output**:")
+            lines.append("```")
+            lines.append(caption[:2000] + ("... (truncated)" if len(caption) > 2000 else ""))
+            lines.append("```")
+        lines.append("")
+    
+    return "\n".join(lines)
+
+
 def sanitize_filename(question: str, max_length: int = 30) -> str:
     """
     Sanitize question for use in filename.
