@@ -36,8 +36,8 @@ abstract_slots:
     contract: Tempo, beat positions, onset positions; not action counts by itself.
     current_catalog_defaults: ["librosa.analyze_beats", "librosa.analyze_onsets"]
   music_pitch_harmony:
-    contract: Weak low-level pitch/chroma/key/tuning features.
-    current_catalog_defaults: ["librosa.analyze_pitch", "librosa.extract_chroma", "librosa.detect_key", "librosa.estimate_tuning"]
+    contract: Pitch/chroma/key/tuning features and chord recognition.
+    current_catalog_defaults: ["autochord.recognize_chords", "librosa.analyze_pitch", "librosa.extract_chroma", "librosa.detect_key", "librosa.estimate_tuning"]
   timbre_spectral:
     contract: Low-level spectral/timbre/noisiness features.
     current_catalog_defaults: ["librosa.extract_mfcc", "librosa.analyze_spectral_features", "librosa.extract_zero_crossing_rate"]
@@ -386,20 +386,23 @@ skills:
           reference: "ARC beat_tracking/librosa_tool default."
 
   - id: music.pitch_key_tuning
-    task: Pitch, global key, tuning deviation, melody roughness.
-    intent_patterns: ["pitch", "key", "tuning", "melody", "off-key"]
+    task: Pitch, global key, tuning deviation, melody roughness, chord progression.
+    intent_patterns: ["pitch", "key", "tuning", "melody", "off-key", "chord", "progression", "harmony"]
     chain:
       - slot: music_pitch_harmony
       - slot: omni_perception
         optional: true
     guardrails:
-      - "Current librosa key/pitch tools are weak evidence for polyphonic music."
+      - "For chord recognition questions, prefer autochord.recognize_chords over librosa chroma/pitch tools."
+      - "Current librosa key/pitch tools are weak evidence for polyphonic music; use autochord for chord-level analysis."
     default_bindings_from_ref_flows:
       music_pitch_harmony:
+        - tool: "autochord.recognize_chords"
+          reference: "Current catalog dedicated chord recognition (major/minor triads, time-localized)."
         - tool: "librosa.analyze_pitch"
-          reference: "Current catalog pYIN pitch estimate."
+          reference: "Current catalog pYIN pitch estimate fallback."
         - tool: "librosa.detect_key"
-          reference: "Current catalog weak global key estimate."
+          reference: "Current catalog weak global key estimate fallback."
 
   - id: signal.quality_noise_reverb_distortion
     task: Audio quality, noise, reverberation, clipping, loudness, distortion.
