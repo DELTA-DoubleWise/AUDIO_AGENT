@@ -30,7 +30,7 @@ class DiariZenServer:
         self._tools = [
             {
                 "name": "diarize",
-                "description": "Perform speaker diarization on an audio file. Identifies who speaks when, returning speaker segments with start/end timestamps.",
+                "description": "Estimate who speaks when in an audio file by returning speaker-labeled time segments. Useful for speaker turn structure and speaker-conditioned downstream analysis. The output identifies anonymous speaker clusters rather than real identities or guaranteed-perfect boundaries.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {

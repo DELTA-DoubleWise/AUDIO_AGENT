@@ -504,8 +504,16 @@ class BaseModelPlanner(BasePlanner):
                 )
             # Sanitize: remove None values for fields that have defaults
             # This allows Pydantic to use the default values instead of failing validation
-            fields_with_defaults = {"confidence", "selected_tool_args", "selected_tool_name", 
-                                    "selected_audio_id", "draft_answer"}
+            fields_with_defaults = {
+                "confidence",
+                "selected_tool_args",
+                "selected_tool_name",
+                "selected_audio_id",
+                "selected_audio_ids",
+                "frontend_followup_prompt",
+                "frontend_followup_goal",
+                "draft_answer",
+            }
             sanitized_output = {
                 k: v for k, v in raw_output.items() 
                 if v is not None or k not in fields_with_defaults

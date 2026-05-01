@@ -37,7 +37,7 @@ abstract_slots:
     current_catalog_defaults: ["librosa.analyze_beats", "librosa.analyze_onsets"]
   music_pitch_harmony:
     contract: Pitch/chroma/key/tuning features and chord recognition.
-    current_catalog_defaults: ["autochord.recognize_chords", "librosa.analyze_pitch", "librosa.extract_chroma", "librosa.detect_key", "librosa.estimate_tuning"]
+    current_catalog_defaults: ["librosa.analyze_pitch", "librosa.extract_chroma", "librosa.detect_key", "librosa.estimate_tuning"]
   timbre_spectral:
     contract: Low-level spectral/timbre/noisiness features.
     current_catalog_defaults: ["librosa.extract_mfcc", "librosa.analyze_spectral_features", "librosa.extract_zero_crossing_rate"]
@@ -393,12 +393,10 @@ skills:
       - slot: omni_perception
         optional: true
     guardrails:
-      - "For chord recognition questions, prefer autochord.recognize_chords over librosa chroma/pitch tools."
-      - "Current librosa key/pitch tools are weak evidence for polyphonic music; use autochord for chord-level analysis."
+      - "For chord recognition questions, prefer dedicated chord-recognition tools over generic chroma or pitch analysis when such tools are available in the current registry."
+      - "Treat pitch-only or key-only tools as weak evidence for polyphonic harmony unless they are corroborated by a more direct harmony-analysis tool."
     default_bindings_from_ref_flows:
       music_pitch_harmony:
-        - tool: "autochord.recognize_chords"
-          reference: "Current catalog dedicated chord recognition (major/minor triads, time-localized)."
         - tool: "librosa.analyze_pitch"
           reference: "Current catalog pYIN pitch estimate fallback."
         - tool: "librosa.detect_key"

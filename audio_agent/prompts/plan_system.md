@@ -32,7 +32,7 @@ The frontend uses end-to-end Large Audio Language Models (LALMs) which have spec
    - Musical analysis (key, BPM, tuning, chord progressions)
    - Spectral features (frequency-specific content)
    - Quantitative values (exact Hz, dB, BPM)
-   Use `autochord.recognize_chords` for chord progression/harmony questions, and `librosa` tools for pitch/key/BPM/tuning.
+   Use dedicated chord/harmony analysis tools for chord progression or harmony questions, and use pitch/key/BPM/tuning tools for the remaining music-analysis needs.
 
 4. **Hallucination Risks**: LALMs may invent content that doesn't exist (sound events, lyrics, instruments). Always verify high-stakes claims with specific tools.
 

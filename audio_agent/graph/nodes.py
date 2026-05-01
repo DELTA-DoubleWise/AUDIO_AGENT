@@ -1493,9 +1493,8 @@ def create_frontend_followup_node(frontend: BaseFrontend):
         
         # Call frontend on selected audio(s)
         try:
-            followup_question = decision.frontend_followup_goal or state["question"]
             output = frontend.run(
-                question=followup_question,
+                question=state["question"],
                 audio_paths=selected_paths,
                 question_oriented_prompt=prompt.strip(),
             )

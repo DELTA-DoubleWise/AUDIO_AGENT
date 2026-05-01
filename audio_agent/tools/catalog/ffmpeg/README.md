@@ -11,31 +11,9 @@ Audio processing tool using [FFmpeg](https://ffmpeg.org/) for format conversion,
 
 ## Tools
 
-### `process_audio`
-
-Process an audio file using FFmpeg (clip, resample, convert format).
-
-**Input:**
-```json
-{
-  "input_path": "/path/to/input.wav",
-  "output_path": "/path/to/output.wav",
-  "start_time": 0,
-  "duration": 3,
-  "sample_rate": 16000,
-  "channels": 1
-}
-```
-
-**Output:**
-```json
-{
-  "output_path": "/path/to/output.wav",
-  "duration": 3.0,
-  "sample_rate": 16000,
-  "channels": 1
-}
-```
+This server exposes specific FFmpeg operations as separate tools, such as
+`trim_audio`, `resample_audio`, `convert_channels`, `loudnorm`, denoising,
+filtering, and analysis utilities.
 
 ### `healthcheck`
 

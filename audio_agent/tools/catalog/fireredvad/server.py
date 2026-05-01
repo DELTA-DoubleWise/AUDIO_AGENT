@@ -47,7 +47,7 @@ class MCPServer:
                 "tools": [
                     {
                         "name": "fireredvad_predict",
-                        "description": "Industrial-grade Voice Activity Detection (VAD) - detects speech segments in audio with high precision. Returns timestamps of speech regions. Use when you need accurate speech/non-speech segmentation.",
+                        "description": "Voice activity detection tool for speech/non-speech segmentation. Returns timestamps of likely speech regions. Useful for routing speech-focused downstream tools, but it does not transcribe, identify speakers, or determine semantic content.",
                         "inputSchema": {
                             "type": "object",
                             "properties": {
@@ -61,7 +61,7 @@ class MCPServer:
                     },
                     {
                         "name": "fireredvad_aed",
-                        "description": "Industrial-grade Audio Event Detection (AED) - detects speech, singing, and music events in audio with high precision. Returns timestamps and ratios for each event type. Use for multi-class audio event detection.",
+                        "description": "Coarse audio event detector for speech, singing, and music regions. Returns timestamps and aggregate ratios for those broad classes only; it is not a general sound-event classifier or source-identity tool.",
                         "inputSchema": {
                             "type": "object",
                             "properties": {

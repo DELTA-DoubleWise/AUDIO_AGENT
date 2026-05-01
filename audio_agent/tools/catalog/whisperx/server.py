@@ -77,7 +77,7 @@ class WhisperXMCPServer:
                 "tools": [
                     {
                         "name": "transcribe_whisperx",
-                        "description": "Transcribe speech in audio to text with word-level timestamps using WhisperX. Supports 99 languages. Returns segments with start/end times and text. Strongly recommended to cross-validate results with other ASR/SD tools for critical applications.",
+                        "description": "Transcribe spoken content to text with timestamps using WhisperX. Useful as a fallback or cross-check against the primary ASR path, especially when an alternative alignment behavior is helpful. The output should be treated as recognized text rather than guaranteed ground truth.",
                         "inputSchema": {
                             "type": "object",
                             "properties": {
@@ -95,7 +95,7 @@ class WhisperXMCPServer:
                     },
                     {
                         "name": "transcribe_whisperx_with_diarization",
-                        "description": "Transcribe speech with speaker diarization using WhisperX and pyannote-audio. Identifies who spoke when. Returns segments with speaker labels (SPEAKER_01, SPEAKER_02, etc.). Strongly recommended to cross-validate results with other ASR/SD tools for critical applications.",
+                        "description": "Produce timestamped transcription with speaker labels in one integrated pass. Useful when you need a quick combined ASR-plus-diarization result, but less decomposed and controllable than running separate ASR and diarization tools.",
                         "inputSchema": {
                             "type": "object",
                             "properties": {

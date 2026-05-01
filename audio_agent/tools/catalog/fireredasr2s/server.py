@@ -29,7 +29,7 @@ class FireRedAsr2sMCPServer:
         self._tools = [
             {
                 "name": "transcribe_fireredasr",
-                "description": "Transcribe speech in audio to text using FireRedASR2S-AED. Supports Chinese (Mandarin and 20+ dialects), English, and code-switching. SOTA performance: 2.89% CER on Mandarin benchmarks.",
+                "description": "Transcribe spoken content in an audio file to text using FireRedASR2S-AED. Useful for Chinese, dialectal Chinese, English, and code-switching speech. The output should be treated as recognized text rather than guaranteed ground truth when exact wording is high-stakes.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -43,7 +43,7 @@ class FireRedAsr2sMCPServer:
             },
             {
                 "name": "transcribe_fireredasr_with_timestamps",
-                "description": "Transcribe speech with word-level timestamps using FireRedASR2S-AED. Returns each word with start/end times in seconds.",
+                "description": "Transcribe spoken content to text with word-level timestamps. Useful when both lexical content and temporal grounding are needed. Timestamp quality depends on the recognition and alignment behavior and should not be over-read as perfect segmentation.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -57,7 +57,7 @@ class FireRedAsr2sMCPServer:
             },
             {
                 "name": "lyric_asr",
-                "description": "Transcribe lyrics from singing/music audio using FireRedASR2S-AED. Optimized for song lyrics transcription. Supports Chinese (Mandarin + dialects) and English singing. Uses same SOTA model as speech transcription but specifically intended for music/lyric content.",
+                "description": "Transcribe sung lyrics from music audio to text. Useful for lyric-content recovery in singing-heavy audio, especially Chinese and English songs. The output can support lyric reasoning, but should not be over-read as a full music-structure or melody analysis tool.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {

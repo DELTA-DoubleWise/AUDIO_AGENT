@@ -49,7 +49,7 @@ class AutochordMCPServer:
         tools = [
             {
                 "name": "recognize_chords",
-                "description": "Recognize chord progression in an audio file. Returns time-localized chord labels (major/minor triads). Supports 25 chord classes: N (no chord) + 12 major + 12 minor. Useful for answering 'which chord is played', 'what is the chord progression', 'identify the harmony' questions.",
+                "description": "Recognize time-localized chord labels in an audio file using a 25-class vocabulary: N plus 12 major and 12 minor triads. Useful for triad-level chord progression questions, but it does not cover sevenths, inversions, slash chords, or richer harmonic labels.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {

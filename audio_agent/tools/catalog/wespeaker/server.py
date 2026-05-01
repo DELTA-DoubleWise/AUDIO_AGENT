@@ -40,7 +40,7 @@ class WeSpeakerServer:
         self._tools = [
             {
                 "name": "speaker_verify",
-                "description": "Verify if two audio files are from the same speaker. Returns a similarity score between 0 and 1 (higher = more likely same speaker).",
+                "description": "Verify whether two audio files are likely from the same speaker. Returns a similarity score that is useful for speaker-consistency checks, not for open-set speaker identification by name.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {

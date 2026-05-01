@@ -11,15 +11,8 @@ server:
     # CPU-only processing is sufficient for FFmpeg
 
 capabilities:
-  # 56+ comprehensive tools across 9 categories
+  # Comprehensive tools across 9 categories
   tools:
-    # =========================================================================
-    # LEGACY TOOLS (kept for compatibility)
-    # =========================================================================
-    - name: process_audio
-      description: "Process audio file using FFmpeg (legacy: clip, resample, convert)"
-      output_type: audio_file
-    
     # =========================================================================
     # PHASE 1: FORMAT & CODEC CONVERSION (5 tools)
     # =========================================================================

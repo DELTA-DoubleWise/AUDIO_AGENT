@@ -30,7 +30,7 @@ class ASRQwen3Server:
         self._tools = [
             {
                 "name": "transcribe_qwenasr",
-                "description": "Transcribe speech in audio to text using Qwen3-ASR-1.7B. Supports 52 languages including English, Chinese, Japanese, Korean, and 22 Chinese dialects.",
+                "description": "Transcribe spoken content in an audio file to text. Useful for recovering lexical content and supporting speech-based reasoning. The output should be treated as recognized text rather than guaranteed ground truth when exact wording is high-stakes.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -49,7 +49,7 @@ class ASRQwen3Server:
             },
             {
                 "name": "transcribe_qwenasr_with_timestamps",
-                "description": "Transcribe speech with word-level timestamps using forced alignment",
+                "description": "Transcribe spoken content to text with word-level timestamps using ASR plus forced alignment. Useful when both lexical content and temporal grounding are needed. Timestamp quality depends on the transcript and alignment and should not be over-read as perfect segmentation.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {

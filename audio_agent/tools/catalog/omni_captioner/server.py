@@ -37,7 +37,7 @@ class OmniCaptionerServer:
         self._tools = [
             {
                 "name": "omni_caption",
-                "description": "Generate text caption for an audio file using Qwen3-Omni",
+                "description": "Generate a model-based perceptual caption for an audio file. Useful for broad summaries of what the model hears and for open-ended description prompts. The output is a model judgment rather than an independent measurement and should not be treated as direct verification of other model outputs.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -56,7 +56,7 @@ class OmniCaptionerServer:
             },
             {
                 "name": "omni_caption_with_audio",
-                "description": "Generate caption + audio response for an audio file",
+                "description": "Generate a model-based caption plus spoken audio response for an audio file. Useful for presentation-style or interactive output. It does not provide independent analysis beyond the captioning model's own judgment.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -85,7 +85,7 @@ class OmniCaptionerServer:
             },
             {
                 "name": "verify_audio_quality",
-                "description": "Verify audio quality after enhancement/processing by analyzing spectrogram with VLM. Generates spectrogram and checks for artifacts, distortion, or quality issues.",
+                "description": "Inspect processed audio for obvious artifacts, distortion, or quality regressions using a model over spectrogram-like representations. Useful for coarse post-processing checks. It should not be treated as a direct judge of semantic correctness or content preservation.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {

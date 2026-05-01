@@ -54,7 +54,7 @@ class SileroVADMCPServer:
                 "tools": [
                     {
                         "name": "vad_predict",
-                        "description": "Lightweight Voice Activity Detection (VAD) using Silero model - quickly detects speech segments in audio. Use for fast speech detection when processing speed is prioritized over precision.",
+                        "description": "Lightweight voice activity detection for quick speech/non-speech segmentation. Useful as a faster, lighter fallback to stronger VAD tools when speed matters more than precision.",
                         "inputSchema": {
                             "type": "object",
                             "properties": {

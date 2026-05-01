@@ -46,7 +46,7 @@ class LibrosaMCPServer:
             # Original tool (kept for compatibility)
             {
                 "name": "analyze_rhythm",
-                "description": "Musical rhythm analysis - detects tempo (BPM), beat positions, and onset events in music/audio. Use for music analysis tasks.",
+                "description": "Estimate tempo, beat positions, and onset-related rhythm cues from audio in one summary call. Useful for approximate BPM, faster/slower comparison, and beat-aligned timing evidence. Do not use it alone to infer musical style, expressive meaning, or precise event counts.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -63,7 +63,7 @@ class LibrosaMCPServer:
             # =========================================================================
             {
                 "name": "analyze_beats",
-                "description": "Detect tempo (BPM) and beat positions in audio. Returns tempo and beat timestamps.",
+                "description": "Estimate tempo (BPM) and beat positions in audio. Useful for approximate BPM, faster/slower comparison, and beat-aligned timing evidence. Do not use it alone to infer musical style, meter with high confidence, or precise event counts.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -83,7 +83,7 @@ class LibrosaMCPServer:
             },
             {
                 "name": "analyze_onsets",
-                "description": "Detect note onset events and onset strength in audio.",
+                "description": "Detect likely onset times and onset strength in audio. Useful for timing, attack structure, and approximate event boundaries. It does not identify notes, chords, instruments, or semantic event types by itself.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -100,7 +100,7 @@ class LibrosaMCPServer:
             # =========================================================================
             {
                 "name": "extract_mfcc",
-                "description": "Extract MFCC (Mel-frequency cepstral coefficients) features for timbre analysis.",
+                "description": "Extract MFCC timbre features from audio. Useful as low-level diagnostic evidence for texture or timbre comparison, not as a direct classifier for speaker identity, genre, or emotion.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -119,7 +119,7 @@ class LibrosaMCPServer:
             },
             {
                 "name": "analyze_spectral_features",
-                "description": "Extract spectral features: centroid, bandwidth, rolloff, contrast, and flatness.",
+                "description": "Extract low-level spectral descriptors such as centroid, bandwidth, rolloff, contrast, and flatness. Useful for diagnostic analysis of brightness, noisiness, or spectral spread, not for direct semantic labeling.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -133,7 +133,7 @@ class LibrosaMCPServer:
             },
             {
                 "name": "extract_rms_energy",
-                "description": "Extract RMS energy (loudness) features including dynamic range.",
+                "description": "Extract RMS energy and related loudness statistics. Useful for volume and dynamics comparison, but not direct evidence of emotion, stress, or source identity.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -147,7 +147,7 @@ class LibrosaMCPServer:
             },
             {
                 "name": "extract_zero_crossing_rate",
-                "description": "Extract zero-crossing rate (ZCR) for texture/noise analysis.",
+                "description": "Extract zero-crossing rate (ZCR) as a low-level texture or noisiness cue. Useful as supporting diagnostic evidence only, not as a semantic classifier.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -164,7 +164,7 @@ class LibrosaMCPServer:
             # =========================================================================
             {
                 "name": "extract_chroma",
-                "description": "Extract chroma features (12-dimensional pitch class profile) for harmonic analysis.",
+                "description": "Extract 12-dimensional chroma features (pitch-class energy profile). Useful for rough harmonic inspection and key-related diagnostics, but not sufficient alone to assert chord identity.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -178,7 +178,7 @@ class LibrosaMCPServer:
             },
             {
                 "name": "detect_key",
-                "description": "Estimate the musical key (e.g., 'C major', 'A minor') from audio.",
+                "description": "Estimate a coarse global musical key from audio. Useful as weak supporting evidence for tonal center, but not reliable for local chord progression or detailed harmony questions.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -192,7 +192,7 @@ class LibrosaMCPServer:
             },
             {
                 "name": "estimate_tuning",
-                "description": "Estimate tuning deviation from A440 in cents.",
+                "description": "Estimate tuning deviation from A440 in cents. Useful for tuning and intonation diagnostics, not for melody correctness or semantic music analysis.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -206,7 +206,7 @@ class LibrosaMCPServer:
             },
             {
                 "name": "analyze_pitch",
-                "description": "Extract pitch/F0 contour using pYIN algorithm. Returns mean pitch and voiced ratio.",
+                "description": "Estimate monophonic pitch/F0 contour using pYIN. Useful for melody or voiced-pitch diagnostics, but weak for polyphonic harmony, chord recognition, or phonemic stress analysis.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -223,7 +223,7 @@ class LibrosaMCPServer:
             # =========================================================================
             {
                 "name": "segment_audio",
-                "description": "Segment audio into non-silent regions. Returns list of segments with start/end times.",
+                "description": "Segment audio into non-silent regions using amplitude-based silence detection. Useful for rough structure finding and trimming, not for semantic segmentation by speaker, event, or scene.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -245,7 +245,7 @@ class LibrosaMCPServer:
             # =========================================================================
             {
                 "name": "get_audio_info",
-                "description": "Get basic audio file information: duration, sample rate, channels, format.",
+                "description": "Get basic audio file metadata: duration, sample rate, channels, and format. Reliable utility for preparation and bookkeeping, not content analysis.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -262,7 +262,7 @@ class LibrosaMCPServer:
             # =========================================================================
             {
                 "name": "apply_pitch_shift",
-                "description": "Shift the pitch of audio by specified semitones. Returns path to transformed audio.",
+                "description": "Apply pitch shifting to generate a transformed audio file. Useful for task-oriented transformation workflows, not for analysis by itself.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -288,7 +288,7 @@ class LibrosaMCPServer:
             },
             {
                 "name": "apply_time_stretch",
-                "description": "Time-stretch audio by a rate (1.0=original, 2.0=2x faster). Returns path to transformed audio.",
+                "description": "Apply time stretching to generate a transformed audio file without changing pitch. Useful for task-oriented transformation workflows, not for analysis by itself.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -310,7 +310,7 @@ class LibrosaMCPServer:
             },
             {
                 "name": "remove_silence",
-                "description": "Remove leading and trailing silence from audio. Returns path to trimmed audio.",
+                "description": "Remove leading and trailing silence based on an energy threshold. Useful for cleanup before downstream tools or re-perception, not for semantic content detection.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -333,7 +333,7 @@ class LibrosaMCPServer:
             },
             {
                 "name": "separate_harmonic_percussive",
-                "description": "Separate audio into harmonic (melodic) and percussive components using HPSS.",
+                "description": "Separate audio into harmonic and percussive components using HPSS. Useful for creating cleaner derived audio for downstream music analysis, but not a semantic classifier on its own.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
