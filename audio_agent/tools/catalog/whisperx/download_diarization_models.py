@@ -7,7 +7,7 @@ without an HF token.
 
 Usage:
     export HF_TOKEN=hf_xxx
-    export MODEL_DIR=/lihaoyu/workspace/AUDIO_AGENT/AUDIO_AGENT/models
+    export MODEL_DIR=/cpfs/user/jingpeng/workspace/AUDIO_AGENT/models
     python download_diarization_models.py
 """
 
@@ -16,7 +16,7 @@ import sys
 from pathlib import Path
 
 # Set model directory
-MODEL_DIR = os.environ.get("MODEL_DIR", "/lihaoyu/workspace/AUDIO_AGENT/AUDIO_AGENT/models")
+MODEL_DIR = os.environ.get("MODEL_DIR", "/cpfs/user/jingpeng/workspace/AUDIO_AGENT/models")
 os.environ["HF_HOME"] = MODEL_DIR
 
 

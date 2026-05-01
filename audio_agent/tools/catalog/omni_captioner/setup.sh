@@ -6,6 +6,9 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
+export UV_CACHE_DIR="${UV_CACHE_DIR:-$REPO_ROOT/.cache/uv}"
+mkdir -p "$UV_CACHE_DIR"
 
 echo "============================================================"
 echo "Setting up Omni Captioner environment (API-based)"
@@ -13,7 +16,9 @@ echo "============================================================"
 echo ""
 
 # Find uv - check persistent location first, then PATH
-if [ -f "/lihaoyu/workspace/AUDIO_AGENT/.uv/bin/uv" ]; then
+if [ -f "$REPO_ROOT/.uv/bin/uv" ]; then
+    UV="$REPO_ROOT/.uv/bin/uv"
+elif [ -f "/lihaoyu/workspace/AUDIO_AGENT/.uv/bin/uv" ]; then
     UV="/lihaoyu/workspace/AUDIO_AGENT/.uv/bin/uv"
 elif command -v uv &> /dev/null; then
     UV="uv"
@@ -23,6 +28,7 @@ else
 fi
 
 echo "Using uv: $UV"
+echo "Using UV_CACHE_DIR: $UV_CACHE_DIR"
 echo "uv version: $($UV --version)"
 echo ""
 

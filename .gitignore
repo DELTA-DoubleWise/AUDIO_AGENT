@@ -63,3 +63,17 @@ tool_preparation/SERVER_SPECIFIC_*.md
 /audio_agent/tools/catalog/*/.artifact/
 /audio_agent/tools/catalog/*/artifacts/
 /audio_agent/tools/catalog/*/artifact/
+
+# Runtime logs
+nohup.out
+nohup_benchmark.out
+
+# Temporary files
+.efc_*
+=0.*
+
+# Reference/analysis artifacts
+ref_flow/
+
+# Zip archives
+*.zip

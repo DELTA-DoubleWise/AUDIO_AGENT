@@ -38,3 +38,11 @@ py-modules = ["server", "model"]
 # uv-specific configuration
 [tool.uv]
 # allow-prereleases = true
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }

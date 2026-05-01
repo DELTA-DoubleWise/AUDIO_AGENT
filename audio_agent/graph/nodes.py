@@ -207,6 +207,78 @@ def create_initial_prompt_node(planner: BasePlanner):
     return initial_prompt_node
 
 
+def create_question_clarification_node(planner: BasePlanner):
+    """
+    Factory to create a question clarification node.
+
+    Uses the planner (text LLM) to classify and clarify the question
+    before any frontend/audio processing. This node is only active
+    when config.use_dual_frontend is True.
+    """
+    def question_clarification_node(state: AgentState) -> dict:
+        config = state.get("config", {})
+        if not config.get("use_dual_frontend", False):
+            return {}
+
+        log_node_start("question_clarification_node", {
+            "question": state.get("question", "")[:50],
+        })
+
+        validate_state_has_fields(
+            state,
+            ["question"],
+            context="question_clarification_node",
+        )
+
+        question = state["question"]
+
+        try:
+            clarification = planner.clarify_question(question)
+        except PlannerError:
+            raise
+        except Exception as e:
+            log_error("question_clarification_node", e)
+            raise PlannerError(
+                f"Question clarification failed: {e}",
+                details={"planner": planner.name},
+            ) from e
+
+        if clarification is None:
+            raise PlannerError(
+                "Planner returned None for question clarification",
+                details={"planner": planner.name},
+            )
+
+        log_node_end("question_clarification_node", {
+            "question_type": clarification.question_type,
+            "needs_verification": clarification.needs_verification,
+            "requires_cot": clarification.requires_cot,
+            "suggested_focus_count": len(clarification.suggested_focus),
+        })
+
+        return {
+            "question_clarification": clarification,
+            "evidence_log": [
+                EvidenceItem(
+                    source=f"planner:{planner.name}:question_clarification",
+                    content=(
+                        f"Type: {clarification.question_type}, "
+                        f"Needs verification: {clarification.needs_verification}, "
+                        f"Rationale: {clarification.rationale}"
+                    ),
+                    evidence_type="question_clarification",
+                    confidence=0.8,
+                    metadata={
+                        "clarified_question": clarification.clarified_question,
+                        "suggested_focus": clarification.suggested_focus,
+                    },
+                )
+            ],
+        }
+
+    return question_clarification_node
+
+
 def create_frontend_evidence_node(frontend: BaseFrontend):
     """
     Factory to create a frontend evidence node with the given frontend.
@@ -258,9 +330,12 @@ def create_frontend_evidence_node(frontend: BaseFrontend):
         
         audio_paths = [a.path for a in original_audios]
         
-        # Run frontend with all original audio paths and optional question-oriented prompt
+        config = state.get("config", {})
+        use_dual = config.get("use_dual_frontend", False)
+        
+        # --- Call A: Verifier (legacy caption) ---
         try:
-            output = frontend.run(question, audio_paths, question_oriented_prompt)
+            output_caption = frontend.run(question, audio_paths, question_oriented_prompt)
         except FrontendError:
             raise
         except Exception as e:
@@ -270,32 +345,66 @@ def create_frontend_evidence_node(frontend: BaseFrontend):
                 details={"frontend": frontend.name}
             ) from e
         
-        if output is None:
+        if output_caption is None:
             raise FrontendError(
                 "Frontend returned None",
                 details={"frontend": frontend.name}
             )
         
-        # Create initial evidence from frontend output
-        initial_evidence = EvidenceItem(
-            source=f"frontend:{frontend.name}",
-            content=output.question_guided_caption,
+        # --- Call B: Observer (direct answer) — only in dual mode ---
+        output_direct = None
+        if use_dual:
+            clarification = state.get("question_clarification")
+            direct_prompt = question_oriented_prompt or ""
+            if clarification:
+                direct_prompt += f"\n\n[Analysis] Question type: {clarification.question_type}"
+                if clarification.suggested_focus:
+                    direct_prompt += f"\nFocus areas: {', '.join(clarification.suggested_focus)}"
+                if clarification.requires_cot:
+                    direct_prompt += "\n\nInclude your step-by-step reasoning process."
+                else:
+                    direct_prompt += "\n\nAnswer directly without explaining your reasoning."
+
+            if hasattr(frontend, "run_direct_answer"):
+                output_direct = frontend.run_direct_answer(question, audio_paths, direct_prompt)
+            else:
+                # Fallback for frontends that don't implement run_direct_answer yet
+                output_direct = frontend.run(question, audio_paths, direct_prompt)
+        
+        # --- Build evidence items ---
+        evidence_items = []
+        evidence_items.append(EvidenceItem(
+            source=f"frontend:{frontend.name}:caption",
+            content=output_caption.question_guided_caption,
             evidence_type="question_guided_caption",
             confidence=0.5,
             metadata={},
-        )
+        ))
 
-        log_node_end(
-            "frontend_evidence_node",
-            {
-                "caption_length": len(output.question_guided_caption),
-            },
-        )
+        if output_direct:
+            evidence_items.append(EvidenceItem(
+                source=f"frontend:{frontend.name}:observer",
+                content=output_direct.question_guided_caption,
+                evidence_type="observer_direct_answer",
+                confidence=0.5,
+                metadata={"chain_of_thought": output_direct.chain_of_thought},
+            ))
 
-        return {
-            "initial_frontend_output": output,
-            "evidence_log": [initial_evidence],
+        log_node_end("frontend_evidence_node", {
+            "caption_length": len(output_caption.question_guided_caption),
+            "observer_present": output_direct is not None,
+            "direct_answer_length": len(output_direct.question_guided_caption) if output_direct else 0,
+        })
+
+        result: dict = {
+            "initial_frontend_output": output_caption,
+            "evidence_log": evidence_items,
         }
+
+        if output_direct:
+            result["frontend_direct_output"] = output_direct
+
+        return result
     
     return frontend_evidence_node
 

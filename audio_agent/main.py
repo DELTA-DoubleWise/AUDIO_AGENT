@@ -70,7 +70,7 @@ class AudioAgent:
             set_debug_mode(True)
         
         # Build the graph
-        self._graph = build_graph(frontend, planner, registry, fuser)
+        self._graph = build_graph(frontend, planner, registry, fuser, config=self.config)
         
         # Set up run logger
         self._run_logger: RunLogger | None = None
@@ -255,6 +255,7 @@ class AudioAgent:
             max_steps=effective_max_steps,
             temp_dir=temp_dir,
             audio_list=audio_list,
+            config=self.config.model_dump(),
         )
         
         try:
@@ -375,5 +376,56 @@ def create_openai_planner(
         api_key=api_key,
         base_url=base_url,
         enable_thinking=enable_thinking,
+        **kwargs,
+    )
+
+
+def create_gemini_planner(
+    api_key: str | None = None,
+    base_url: str | None = None,
+    model_name: str = "gemini-3-flash",
+    temperature: float = 0.7,
+    max_tokens: int = 4096,
+    timeout: float = 120.0,
+    **kwargs,
+) -> "GeminiPlanner":
+    """
+    Create a Gemini API planner.
+
+    Works with Gemini 3 Flash and Gemini 2.5 Pro via the company proxy.
+    The actual model is determined by the API key used.
+
+    Args:
+        api_key: API key. If None, reads from GEMINI_API_KEY env var,
+            then falls back to known default keys.
+        base_url: Gemini API endpoint URL. Defaults to company proxy.
+        model_name: Model identifier for logging ("gemini-3-flash" or "gemini-2.5-pro").
+        temperature: Sampling temperature (0.0 to 2.0).
+        max_tokens: Maximum output tokens.
+        timeout: Request timeout in seconds.
+        **kwargs: Additional arguments passed to GeminiPlanner.
+
+    Returns:
+        Configured GeminiPlanner instance.
+
+    Example:
+        # Gemini 3 Flash (default)
+        planner = create_gemini_planner()
+
+        # Gemini 2.5 Pro
+        planner = create_gemini_planner(model_name="gemini-2.5-pro")
+
+        # Custom API key
+        planner = create_gemini_planner(api_key="xxx")
+    """
+    from audio_agent.planner.gemini_planner import GeminiPlanner
+
+    return GeminiPlanner(
+        api_key=api_key,
+        base_url=base_url,
+        model_name=model_name,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        timeout=timeout,
         **kwargs,
     )

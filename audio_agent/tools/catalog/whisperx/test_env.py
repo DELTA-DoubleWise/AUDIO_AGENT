@@ -73,7 +73,7 @@ def test_inference():
     # Look for test fixtures
     fixture_paths = [
         Path(__file__).resolve().parents[4] / "tests" / "fixtures" / "shared" / "asr" / "en_16k.wav",
-        Path("/lihaoyu/workspace/AUDIO_AGENT/AUDIO_AGENT/tests/fixtures/shared/asr/en_16k.wav"),
+        Path("/cpfs/user/jingpeng/workspace/sure-eval/data/datasets/sure_benchmark/SURE_Test_Suites/librispeech-test-clean/1089-134686-0001.wav"),
     ]
     
     fixture_path = None

@@ -17,23 +17,24 @@ server:
   working_dir: "."
   
   env:
-    MODEL_PATH: "/lihaoyu/workspace/AUDIO_AGENT/models/Qwen3-ASR-1.7B"
+    MODEL_PATH: "/cpfs/user/jingpeng/workspace/AUDIO_AGENT/models/Qwen3-ASR-1.7B"
     DEVICE: "auto"
     LANGUAGE: "auto"  # auto, zh, en, ja, ko, etc.
-    ALIGNER_PATH: "/lihaoyu/workspace/AUDIO_AGENT/models/Qwen3-ForcedAligner-0.6B"
-    USE_ALIGNER: "true"
+    ALIGNER_PATH: "Qwen/Qwen3-ForcedAligner-0.6B"
+    USE_ALIGNER: "false"
+    HF_HOME: "/cpfs/user/jingpeng/workspace/AUDIO_AGENT/models"
   
   resources:
     memory_gb: 8
-    gpu: true  # GPU recommended but not required
-    cpu_cores: 4
+    gpu: true
+    cpu_cores: 2
   
   lifecycle: "session"
   startup_timeout_sec: 300  # Model loading can take time
 
 # Tool definitions
 tools:
-  - name: "asr_transcribe"
+  - name: "transcribe_qwenasr"
     description: "Transcribe speech in audio to text using Qwen3-ASR-1.7B. Supports 52 languages including English, Chinese, Japanese, Korean, and 22 Chinese dialects."
     input_schema:
       type: object
@@ -47,7 +48,7 @@ tools:
           default: "auto"
       required: ["audio_path"]
   
-  - name: "asr_transcribe_with_timestamps"
+  - name: "transcribe_qwenasr_with_timestamps"
     description: "Transcribe speech with word-level timestamps using forced alignment"
     input_schema:
       type: object

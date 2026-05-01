@@ -21,9 +21,9 @@ class FireRedAsr2sMCPServer:
         self._model = None
         self._model_path = os.environ.get(
             "MODEL_PATH",
-            "/lihaoyu/workspace/AUDIO_AGENT/AUDIO_AGENT/models/fireredasr2s/"
+            "/cpfs/user/jingpeng/workspace/AUDIO_AGENT/models/fireredasr2s"
         )
-        self._device = os.environ.get("DEVICE", "auto")
+        self._device = os.environ.get("DEVICE", "cpu")
         
         # Tool definitions
         self._tools = [

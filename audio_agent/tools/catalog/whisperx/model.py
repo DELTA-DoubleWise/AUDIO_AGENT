@@ -116,7 +116,11 @@ class ModelWrapper:
         """
         self.config = config or {}
         self.model_arch = self.config.get("model_arch") or os.environ.get("MODEL_ARCH", "small")
-        self.device = self.config.get("device") or os.environ.get("DEVICE", "cuda")
+        _device = self.config.get("device") or os.environ.get("DEVICE", "cpu")
+        if _device == "auto":
+            import torch
+            _device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.device = _device
         self.vad_method = self.config.get("vad_method") or os.environ.get("VAD_METHOD", "pyannote")
         self.hf_home = self.config.get("hf_home") or os.environ.get("HF_HOME")
         self._model = None
@@ -384,7 +388,7 @@ class ModelWrapper:
                     # Load diarization model from local path (set via DIARIZATION_MODEL_PATH env var)
                     diarize_model_path = os.environ.get(
                         "DIARIZATION_MODEL_PATH",
-                        "/lihaoyu/workspace/AUDIO_AGENT/AUDIO_AGENT/models/pyannote-speaker-diarization-community-1"
+                        "/cpfs/user/jingpeng/workspace/AUDIO_AGENT/models/pyannote-speaker-diarization-community-1"
                     )
                     diarize_model = DiarizationPipeline(
                         model_name=diarize_model_path,

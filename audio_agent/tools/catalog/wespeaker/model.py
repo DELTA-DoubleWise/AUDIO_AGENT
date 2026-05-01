@@ -63,7 +63,7 @@ class ModelWrapper:
         self.model_root = Path(__file__).resolve().parent
         self.cache_dir = Path(
             self.config.get(
-                "cache_dir", "/lihaoyu/workspace/AUDIO_AGENT/AUDIO_AGENT/models/wespeaker"
+                "cache_dir", "/cpfs/user/jingpeng/workspace/AUDIO_AGENT/models/wespeaker"
             )
         )
         self.model_name = str(self.config.get("model_name", "english"))

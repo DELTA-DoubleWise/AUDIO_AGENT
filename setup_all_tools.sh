@@ -5,34 +5,28 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TOOLS_DIR="$SCRIPT_DIR/AUDIO_AGENT/audio_agent/tools/catalog"
+TOOLS_DIR="$SCRIPT_DIR/audio_agent/tools/catalog"
+export UV_CACHE_DIR="${UV_CACHE_DIR:-$SCRIPT_DIR/.cache/uv}"
+mkdir -p "$UV_CACHE_DIR"
 
 echo "============================================================"
 echo "Setting up all MCP tools with persistent uv"
 echo "============================================================"
 echo ""
 
-# Activate persistent uv first
-echo "Activating persistent uv..."
-if [ ! -f "$SCRIPT_DIR/.uv/activate.sh" ]; then
-    echo "Error: Persistent uv activation script not found at $SCRIPT_DIR/.uv/activate.sh"
-    exit 1
-fi
-
-source "$SCRIPT_DIR/.uv/activate.sh"
-
 # Verify uv is available
 if ! command -v uv &> /dev/null; then
-    echo "Error: uv command not found after activation"
+    echo "Error: uv command not found"
     exit 1
 fi
 
 echo "  uv location: $(which uv)"
 echo "  uv version: $(uv --version)"
+echo "  UV_CACHE_DIR: $UV_CACHE_DIR"
 echo ""
 
 # List of tools
-TOOLS=("asr_qwen3" "diarizen" "ffmpeg" "librosa" "omni_captioner" "snakers4_silero-vad")
+TOOLS=("asr_qwen3" "diarizen" "ffmpeg" "fireredasr2s" "fireredvad" "librosa" "omni_captioner" "snakers4_silero-vad" "wespeaker" "whisperx")
 TOTAL=${#TOOLS[@]}
 CURRENT=0
 FAILED=()
@@ -97,7 +91,6 @@ else
     echo "✓ All tools set up successfully!"
     echo ""
     echo "To verify after server restart:"
-    echo "  source /lihaoyu/workspace/AUDIO_AGENT/.uv/activate.sh"
     echo "  ./verify_all_tools.sh"
 fi
 

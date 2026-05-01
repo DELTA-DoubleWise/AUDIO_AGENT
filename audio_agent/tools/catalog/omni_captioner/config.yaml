@@ -13,7 +13,6 @@ server:
   working_dir: "."
   
   env:
-    DASHSCOPE_API_KEY: "sk-f8ae3fc37bdd4953977e813f77b7324f"
     DASHSCOPE_BASE_URL: "https://dashscope.aliyuncs.com/compatible-mode/v1"
     DEFAULT_MODEL: "qwen3.5-omni-plus"
     DEFAULT_VOICE: "Cherry"

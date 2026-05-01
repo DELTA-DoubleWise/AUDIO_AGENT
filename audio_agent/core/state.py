@@ -5,7 +5,7 @@ This module defines the central state object that flows through the graph.
 Uses TypedDict for LangGraph compatibility with Pydantic models as field types.
 """
 
-from typing import TypedDict, Annotated
+from typing import TypedDict, Annotated, Any
 from operator import add
 
 from audio_agent.core.schemas import (
@@ -18,6 +18,7 @@ from audio_agent.core.schemas import (
     ToolResult,
     AudioItem,
     FormatCheckResult,
+    QuestionClarification,
 )
 from audio_agent.core.constants import AgentStatus
 
@@ -99,6 +100,15 @@ class AgentState(TypedDict, total=False):
     # Evidence summary (consolidated narrative before final answer)
     evidence_summary: str | None
     
+    # Question clarification (optional, set before frontend runs)
+    question_clarification: QuestionClarification | None
+    
+    # Second frontend output (direct answer from observer call)
+    frontend_direct_output: FrontendOutput | None
+    
+    # Runtime configuration (feature flags passed from AgentConfig)
+    config: dict[str, Any] | None
+    
     # Final outputs
     final_answer: FinalAnswer | None
     error_message: str | None
@@ -115,6 +125,7 @@ def create_initial_state(
     max_steps: int = 10,
     temp_dir: str | None = None,
     audio_list: list[AudioItem] | None = None,
+    config: dict[str, Any] | None = None,
 ) -> AgentState:
     """
     Factory function to create a valid initial agent state.
@@ -161,6 +172,9 @@ def create_initial_state(
         format_check_result=None,
         format_check_count=0,
         evidence_summary=None,
+        question_clarification=None,
+        frontend_direct_output=None,
+        config=config,
         final_answer=None,
         error_message=None,
         step_count=0,

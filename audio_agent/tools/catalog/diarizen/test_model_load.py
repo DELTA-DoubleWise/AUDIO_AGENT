@@ -11,7 +11,7 @@ def test_model_loading():
     """Test loading the DiariZen pipeline from local model path."""
     model_path = os.environ.get(
         "MODEL_PATH",
-        "/lihaoyu/workspace/AUDIO_AGENT/models/diarizen-wavlm-large-s80-md"
+        "BUT-FIT/diarizen-wavlm-large-s80-md"
     )
     
     print(f"Testing DiariZen model loading...")
@@ -72,7 +72,7 @@ def test_model_loading():
 def test_diarization():
     """Test diarization with a sample audio file."""
     # Find a sample audio file
-    sample_audio = "/lihaoyu/workspace/AUDIO_AGENT/AUDIO_AGENT/audio_agent/examples/diarizen.wav"
+    sample_audio = "/cpfs/user/jingpeng/workspace/sure-eval/src/sure_eval/models/diarizen/diarizen_src/example/EN2002a_30s.wav"
     
     if not os.path.exists(sample_audio):
         print(f"⚠ Sample audio not found: {sample_audio}")
@@ -84,7 +84,7 @@ def test_diarization():
     
     model_path = os.environ.get(
         "MODEL_PATH",
-        "/lihaoyu/workspace/AUDIO_AGENT/models/diarizen-wavlm-large-s80-md"
+        "BUT-FIT/diarizen-wavlm-large-s80-md"
     )
     
     try:

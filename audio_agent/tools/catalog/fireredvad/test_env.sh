@@ -34,7 +34,7 @@ echo "Testing VAD..."
 $PYTHON_EXE -c "
 from model import ModelWrapper
 wrapper = ModelWrapper()
-result = wrapper.predict('/lihaoyu/workspace/AUDIO_AGENT/sure/tests/fixtures/librispeech/sample_1_367-130732-0006.wav')
+result = wrapper.predict('/cpfs/user/jingpeng/workspace/sure-eval/data/datasets/sure_benchmark/SURE_Test_Suites/librispeech-test-clean/1089-134686-0001.wav')
 print(f'✓ VAD prediction successful: {len(result.timestamps)} speech segments')
 " || exit 1
 echo ""
@@ -44,7 +44,7 @@ echo "Testing AED..."
 $PYTHON_EXE -c "
 from model import ModelWrapper
 wrapper = ModelWrapper()
-result = wrapper.predict_aed('/lihaoyu/workspace/AUDIO_AGENT/sure/tests/fixtures/librispeech/sample_1_367-130732-0006.wav')
+result = wrapper.predict_aed('/cpfs/user/jingpeng/workspace/sure-eval/data/datasets/sure_benchmark/SURE_Test_Suites/librispeech-test-clean/1089-134686-0001.wav')
 events = [k for k, v in result.event2timestamps.items() if v]
 print(f'✓ AED prediction successful: detected events - {events}')
 " || exit 1

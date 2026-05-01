@@ -8,11 +8,11 @@ server:
   command: [".venv/bin/python", "server.py"]
   working_dir: "."
   env:
-    MODEL_DEVICE: "cpu"
+    MODEL_DEVICE: "auto"
     TORCH_NUM_THREADS: "1"
   resources:
     memory_gb: 2
-    gpu: false
+    gpu: true
     cpu_cores: 2
   lifecycle: "session"
   startup_timeout_sec: 300

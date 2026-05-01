@@ -65,6 +65,10 @@ class AgentConfig(BaseModel):
         le=10,
         description="Maximum retries for planner/frontend model output parsing errors"
     )
+    use_dual_frontend: bool = Field(
+        default=True,
+        description="Enable dual frontend calls (verifier caption + observer direct answer)"
+    )
     
     model_config = {
         "frozen": False,  # Allow modification after creation
