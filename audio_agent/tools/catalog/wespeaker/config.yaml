@@ -12,11 +12,11 @@ server:
   env:
     WESPEAKER_HOME: "/lihaoyu/workspace/AUDIO_AGENT/AUDIO_AGENT/models/wespeaker"
     WESPEAKER_MODEL: "english"
-    WESPEAKER_DEVICE: "cpu"
+    WESPEAKER_DEVICE: "auto"
   
   resources:
     memory_gb: 4
-    gpu: false
+    gpu: true
     cpu_cores: 2
   
   lifecycle: "session"

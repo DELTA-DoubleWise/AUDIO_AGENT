@@ -98,9 +98,9 @@ class ModelWrapper:
         self.config = config or {}
         self.model_path = self.config.get("model_path") or os.environ.get(
             "MODEL_PATH",
-            "/lihaoyu/workspace/AUDIO_AGENT/AUDIO_AGENT/models/fireredasr2s/"
+            "/cpfs/user/jingpeng/workspace/AUDIO_AGENT/models/fireredasr2s"
         )
-        self.device = self.config.get("device") or os.environ.get("DEVICE", "auto")
+        self.device = self.config.get("device") or os.environ.get("DEVICE", "cpu")
         self._model = None
         self._config = None
 

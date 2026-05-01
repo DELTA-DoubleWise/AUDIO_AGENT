@@ -50,16 +50,17 @@ class ModelWrapper:
         self.vad_model_dir = Path(
             self.config.get(
                 "vad_model_dir",
-                "/lihaoyu/workspace/AUDIO_AGENT/AUDIO_AGENT/models/fireredvad/VAD",
+                "/cpfs/user/jingpeng/workspace/AUDIO_AGENT/models/fireredvad/VAD",
             )
         )
         self.aed_model_dir = Path(
             self.config.get(
                 "aed_model_dir",
-                "/lihaoyu/workspace/AUDIO_AGENT/AUDIO_AGENT/models/fireredvad/AED",
+                "/cpfs/user/jingpeng/workspace/AUDIO_AGENT/models/fireredvad/AED",
             )
         )
-        self.use_gpu = bool(self.config.get("use_gpu", False))
+        _env_device = os.environ.get("MODEL_DEVICE", "cpu").lower()
+        self.use_gpu = bool(self.config.get("use_gpu", _env_device in ["cuda", "gpu", "auto"]))
         self._vad_model = None
         self._aed_model = None
 

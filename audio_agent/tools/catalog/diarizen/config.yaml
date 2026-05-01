@@ -19,10 +19,11 @@ server:
   env:
     MODEL_PATH: "/lihaoyu/workspace/AUDIO_AGENT/models/diarizen-wavlm-large-s80-md"
     DEVICE: "auto"
+    HF_HOME: "/lihaoyu/workspace/AUDIO_AGENT/models"
   
   resources:
     memory_gb: 8
-    gpu: true  # GPU recommended but not required
+    gpu: true
     cpu_cores: 4
   
   lifecycle: "session"

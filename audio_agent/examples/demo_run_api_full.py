@@ -48,6 +48,7 @@ from audio_agent.core.constants import AgentStatus
 from audio_agent.core.logging import setup_logger, set_debug_mode
 from audio_agent.fusion.default_fuser import DefaultEvidenceFuser
 from audio_agent.frontend.openai_compatible_frontend import OpenAICompatibleFrontend
+from audio_agent.frontend.gemini_frontend import GeminiFrontend
 from audio_agent.main import AudioAgent
 from audio_agent.planner.openai_compatible_planner import OpenAICompatiblePlanner
 from audio_agent.tools.registry import ToolRegistry
@@ -188,6 +189,21 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="List available tools and exit",
     )
+    parser.add_argument(
+        "--use-gemini",
+        action="store_true",
+        help="Use Gemini 2.5 Pro as the frontend model instead of OpenAI-compatible API",
+    )
+    parser.add_argument(
+        "--gemini-api-key",
+        default=None,
+        help="API key for Gemini frontend (default: GEMINI_API_KEY env var)",
+    )
+    parser.add_argument(
+        "--gemini-base-url",
+        default="https://runway.devops.rednote.life/openai/google/v1:generateContent",
+        help="Gemini API base URL",
+    )
     return parser
 
 
@@ -206,7 +222,10 @@ async def amain() -> int:
     
     print_separator("Audio Agent Framework Demo (Full API Mode)")
     print("\nThis demo runs the agent with:")
-    print(f"- {args.frontend_model} frontend (API-based)")
+    if args.use_gemini:
+        print(f"- Gemini 2.5 Pro frontend (API-based)")
+    else:
+        print(f"- {args.frontend_model} frontend (API-based)")
     print(f"- {args.planner_model} planner (API-based)")
     print("- Auto-registered MCP tools from catalog")
     print("\nNo local GPU or model downloads required!\n")
@@ -216,8 +235,17 @@ async def amain() -> int:
     if not api_key:
         api_key = os.environ.get("DASHSCOPE_API_KEY") or os.environ.get("OPENAI_API_KEY")
     
-    if not api_key:
+    if not api_key and not args.use_gemini:
         print("Error: API key required. Provide via --api-key or set DASHSCOPE_API_KEY / OPENAI_API_KEY environment variable.")
+        return 1
+    
+    # Get Gemini API key if using Gemini frontend
+    gemini_api_key = args.gemini_api_key
+    if args.use_gemini and not gemini_api_key:
+        gemini_api_key = os.environ.get("GEMINI_API_KEY")
+    
+    if args.use_gemini and not gemini_api_key:
+        print("Error: Gemini API key required. Provide via --gemini-api-key or set GEMINI_API_KEY environment variable.")
         return 1
     
     # Set up logging
@@ -231,15 +259,26 @@ async def amain() -> int:
     )
     
     # Create the agent components
-    print(f"Creating audio agent with {args.frontend_model} frontend and {args.planner_model} planner...")
+    if args.use_gemini:
+        print(f"Creating audio agent with Gemini 2.5 Pro frontend and {args.planner_model} planner...")
+    else:
+        print(f"Creating audio agent with {args.frontend_model} frontend and {args.planner_model} planner...")
     try:
-        frontend = OpenAICompatibleFrontend(
-            model=args.frontend_model,
-            api_key=api_key,
-            base_url=args.base_url,
-            temperature=args.temperature,
-            max_tokens=args.max_tokens,
-        )
+        if args.use_gemini:
+            frontend = GeminiFrontend(
+                api_key=gemini_api_key,
+                base_url=args.gemini_base_url,
+                temperature=args.temperature,
+                max_tokens=args.max_tokens,
+            )
+        else:
+            frontend = OpenAICompatibleFrontend(
+                model=args.frontend_model,
+                api_key=api_key,
+                base_url=args.base_url,
+                temperature=args.temperature,
+                max_tokens=args.max_tokens,
+            )
         planner = OpenAICompatiblePlanner(
             model=args.planner_model,
             api_key=api_key,
@@ -294,7 +333,10 @@ async def amain() -> int:
         print(f"Audio paths ({len(audio_paths)}):")
         for i, path in enumerate(audio_paths, 1):
             print(f"  [{i}] {path}")
-    print(f"Frontend model: {args.frontend_model} (API)")
+    if args.use_gemini:
+        print(f"Frontend model: Gemini 2.5 Pro (API)")
+    else:
+        print(f"Frontend model: {args.frontend_model} (API)")
     print(f"Planner model: {args.planner_model} (API)")
     print(f"Enable thinking: {args.enable_thinking}")
     

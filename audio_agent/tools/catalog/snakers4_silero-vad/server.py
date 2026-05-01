@@ -17,7 +17,12 @@ class SileroVADMCPServer:
     def __init__(self):
         self._initialized = False
         self.model: VADModel | None = None
-        self.model_device = "cpu"
+        import torch
+        _env_device = os.environ.get("MODEL_DEVICE", "cpu").lower()
+        if _env_device == "auto":
+            self.model_device = "cuda" if torch.cuda.is_available() else "cpu"
+        else:
+            self.model_device = _env_device
 
     def _get_model(self) -> VADModel:
         if self.model is None:

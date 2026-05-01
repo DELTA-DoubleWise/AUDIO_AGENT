@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field
 
 from audio_agent.core.errors import PlannerError
 from audio_agent.core.logging import get_logger
-from audio_agent.core.schemas import InitialPlan, PlannerDecision, ToolSpec, FormatCheckResult
+from audio_agent.core.schemas import InitialPlan, PlannerDecision, ToolSpec, FormatCheckResult, QuestionClarification
 from audio_agent.core.state import AgentState
 from audio_agent.planner.base import BasePlanner
 from audio_agent.utils.model_io import parse_json_object_text, validate_message_sequence
@@ -141,6 +141,18 @@ class BaseModelPlanner(BasePlanner):
             question=question,
             frontend_caption=frontend_caption,
         )
+
+        # Append observer direct answer if available (dual-frontend mode)
+        if frontend_output and frontend_output.direct_answer:
+            user_text += f"""
+
+## Observer Direct Answer (SEPARATE CALL — may conflict with caption above)
+{frontend_output.direct_answer}
+
+### Observer Chain of Thought
+{frontend_output.chain_of_thought or "No chain of thought provided."}
+"""
+
         skills_ref = render_skills_reference()
         if skills_ref:
             user_text = f"{user_text}\n\n{skills_ref}"
@@ -213,6 +225,16 @@ class BaseModelPlanner(BasePlanner):
                 "confidence": "float - 0.0 to 1.0",
             },
             "frontend_caption": frontend_output.question_guided_caption,
+            "frontend_direct_answer": (
+                frontend_output.direct_answer
+                if frontend_output and frontend_output.direct_answer
+                else None
+            ),
+            "frontend_chain_of_thought": (
+                frontend_output.chain_of_thought
+                if frontend_output and frontend_output.chain_of_thought
+                else None
+            ),
             "initial_plan": initial_plan.model_dump(mode="json"),
             "evidence_log": evidence_summary,
             "tool_call_history": tool_history_summary,
@@ -504,6 +526,7 @@ class BaseModelPlanner(BasePlanner):
 
     def _call_with_retries(self, callable, context: str):
         """Call model and normalize output with retries on PlannerError."""
+        import random
         logger = get_logger()
         last_error = None
         for attempt in range(self.max_retries + 1):
@@ -512,11 +535,15 @@ class BaseModelPlanner(BasePlanner):
             except PlannerError as e:
                 last_error = e
                 if attempt < self.max_retries:
+                    delay = min(1.0 * (2 ** attempt), 8.0)
+                    jitter = delay * random.uniform(0, 0.25)
+                    sleep_time = delay + jitter
                     logger.warning(
-                        f"{context} failed (attempt {attempt + 1}/{self.max_retries + 1}), retrying: {e}"
+                        f"{context} failed (attempt {attempt + 1}/{self.max_retries + 1}), "
+                        f"retrying in {sleep_time:.1f}s: {e}"
                     )
                     import time
-                    time.sleep(0.5 * (2 ** attempt))
+                    time.sleep(sleep_time)
                 else:
                     logger.error(f"{context} exhausted all retries: {e}")
         raise PlannerError(
@@ -670,6 +697,85 @@ class BaseModelPlanner(BasePlanner):
                 "raw_output": str(raw_output)[:1000],
             },
         )
+
+    # =============================================================================
+    # Question Clarification Methods
+    # =============================================================================
+
+    def build_clarify_question_system_prompt(self) -> str:
+        """Build system prompt for question clarification."""
+        return load_prompt("question_clarify_system")
+
+    def build_clarify_question_user_instruction(self, question: str) -> str:
+        """Build user instruction for question clarification."""
+        return load_prompt("question_clarify_user").format(question=question)
+
+    def build_clarify_question_model_input(self, question: str) -> UnifiedPlannerInput:
+        """Build API-style planner input for question clarification."""
+        system_prompt = self.build_clarify_question_system_prompt()
+        user_text = self.build_clarify_question_user_instruction(question)
+        return UnifiedPlannerInput(
+            system_prompt=system_prompt,
+            task_type="clarify_question",
+            question=question,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_text},
+            ],
+            user_payload={"question": question, "task": "clarify_question"},
+            metadata={"planner_name": self.name, "task_type": "clarify_question"},
+        )
+
+    def normalize_clarify_question_output(self, raw_output: Any) -> QuestionClarification:
+        """Normalize model output into QuestionClarification."""
+        if isinstance(raw_output, QuestionClarification):
+            return raw_output
+        if isinstance(raw_output, str):
+            raw_output = parse_json_object_text(
+                raw_output,
+                error_cls=PlannerError,
+                subject="Planner",
+            )
+        if isinstance(raw_output, dict):
+            required = {"clarified_question", "question_type"}
+            keys = set(raw_output.keys())
+            missing = sorted(required - keys)
+            if missing:
+                raise PlannerError(
+                    "Malformed question clarification output: missing required fields",
+                    details={"missing_fields": missing, "output_keys": sorted(keys)},
+                )
+            sanitized = {k: v for k, v in raw_output.items() if v is not None}
+            try:
+                return QuestionClarification(**sanitized)
+            except Exception as e:
+                raise PlannerError(
+                    "Malformed question clarification output: schema validation failed",
+                    details={"error": str(e), "raw_output": raw_output},
+                ) from e
+        raise PlannerError(
+            "Malformed question clarification output: expected dict, JSON text, or QuestionClarification",
+            details={"output_type": type(raw_output).__name__, "raw_output": str(raw_output)[:1000]},
+        )
+
+    def clarify_question(self, question: str) -> QuestionClarification:
+        """Question clarification phase — text-only analysis before frontend processing."""
+        question = self.validate_question(question)
+        model_input = self.build_clarify_question_model_input(question)
+
+        def _call():
+            try:
+                raw_output = self.call_model(model_input)
+            except PlannerError:
+                raise
+            except Exception as e:
+                raise PlannerError(
+                    f"Planner model call failed during question clarification: {type(e).__name__}: {e}",
+                    details={"planner": self.name},
+                ) from e
+            return self.normalize_clarify_question_output(raw_output)
+
+        return self._call_with_retries(_call, "clarify_question()")
 
     def clarify_intent(self, state: AgentState) -> tuple[str, str | None]:
         """

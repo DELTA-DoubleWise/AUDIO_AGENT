@@ -31,7 +31,7 @@ class WeSpeakerServer:
         # Default configuration
         self._cache_dir = os.environ.get(
             "WESPEAKER_HOME", 
-            "/lihaoyu/workspace/AUDIO_AGENT/AUDIO_AGENT/models/wespeaker"
+            "/cpfs/user/jingpeng/workspace/AUDIO_AGENT/models/wespeaker"
         )
         self._model_name = os.environ.get("WESPEAKER_MODEL", "english")
         self._device = os.environ.get("WESPEAKER_DEVICE", "cpu")
@@ -201,8 +201,9 @@ class WeSpeakerServer:
             
             # Format response
             similarity = result.similarity_score
-            verdict = "SAME SPEAKER" if similarity > 0.6 else "DIFFERENT SPEAKERS"
-            if 0.4 <= similarity <= 0.6:
+            # Use a conservative decision band so borderline scores remain reviewable.
+            verdict = "SAME SPEAKER" if similarity > 0.75 else "DIFFERENT SPEAKERS"
+            if 0.55 <= similarity <= 0.75:
                 verdict = "UNCERTAIN"
             
             result_text = f"""Speaker Verification Result
@@ -217,9 +218,9 @@ class WeSpeakerServer:
 - Device: {result.device}
 
 **Interpretation:**
-- Score > 0.6: Likely same speaker
-- Score < 0.4: Likely different speakers  
-- 0.4-0.6: Uncertain, may need manual review
+- Score > 0.75: Likely same speaker
+- Score < 0.55: Likely different speakers  
+- 0.55-0.75: Uncertain, may need manual review
 """
             
             return {

@@ -122,3 +122,16 @@ Output:
 ```
 
 If the intent is unclear, express uncertainty in focus_points or notes.
+
+
+## Observer Direct Answer (if available)
+
+The "Observer Direct Answer" below is the frontend model's OWN direct attempt to answer the question — not a structured caption. It may include reasoning if the question analysis determined it would be helpful.
+
+IMPORTANT:
+- The observer's answer is INDEPENDENT from the caption above. They may agree or disagree.
+- The observer's stated confidence is SELF-REPORTED — models tend to be OVERCONFIDENT. Do not trust it blindly.
+- A confidence of 0.8 does NOT mean 80% reliability. It may reflect the model's own bias rather than true certainty.
+- If caption and observer AGREE on key facts BUT their REASONING differs → verification is STILL NEEDED
+- If they DISAGREE on critical facts → those areas are HIGH-PRIORITY for tool verification
+- If the observer seems highly confident while the caption is cautious → the caption's uncertainty is often more trustworthy

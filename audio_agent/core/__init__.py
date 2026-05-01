@@ -14,6 +14,7 @@ from audio_agent.core.schemas import (
     ToolCallRecord,
     ToolResult,
     FinalAnswer,
+    QuestionClarification,
 )
 from audio_agent.core.errors import (
     AudioAgentError,
@@ -41,6 +42,7 @@ __all__ = [
     "ToolCallRecord",
     "ToolResult",
     "FinalAnswer",
+    "QuestionClarification",
     "AudioAgentError",
     "StateValidationError",
     "ToolRegistryError",

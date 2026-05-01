@@ -9,6 +9,7 @@ from langgraph.graph import StateGraph, START, END
 from audio_agent.core.state import AgentState
 from audio_agent.graph.nodes import (
     create_initial_prompt_node,
+    create_question_clarification_node,
     create_frontend_evidence_node,
     create_initial_plan_node,
     create_planner_decision_node,
@@ -35,12 +36,14 @@ from audio_agent.graph.routing import (
     NODE_EVIDENCE_SUMMARIZATION,
     NODE_FINAL_ANSWER,
     NODE_FORMAT_CHECK,
+    NODE_QUESTION_CLARIFICATION,
 )
 from audio_agent.frontend.base import BaseFrontend
 from audio_agent.planner.base import BasePlanner
 from audio_agent.tools.registry import ToolRegistry
 from audio_agent.tools.executor import ToolExecutor
 from audio_agent.fusion.base import BaseEvidenceFuser
+from audio_agent.config.settings import AgentConfig
 
 
 def build_graph(
@@ -48,6 +51,7 @@ def build_graph(
     planner: BasePlanner,
     registry: ToolRegistry,
     fuser: BaseEvidenceFuser,
+    config: AgentConfig | None = None,
 ) -> StateGraph:
     """
     Build the complete audio agent LangGraph workflow.
@@ -88,8 +92,9 @@ def build_graph(
     # Create executor from registry
     executor = ToolExecutor(registry)
     
+    use_dual = config.use_dual_frontend if config else False
+
     # Create node functions with injected dependencies
-    initial_prompt_node_fn = create_initial_prompt_node(planner)
     initial_prompt_node_fn = create_initial_prompt_node(planner)
     frontend_node = create_frontend_evidence_node(frontend)
     initial_plan_node_fn = create_initial_plan_node(planner)
@@ -118,12 +123,19 @@ def build_graph(
     graph.add_node(NODE_ANSWER, answer_node)
     graph.add_node(NODE_FAILURE, failure_node)
     
+    if use_dual:
+        question_clarification_node_fn = create_question_clarification_node(planner)
+        graph.add_node(NODE_QUESTION_CLARIFICATION, question_clarification_node_fn)
+    
     # Add edges
     # START -> initial_prompt_node
     graph.add_edge(START, NODE_INITIAL_PROMPT)
     
-    # initial_prompt_node -> frontend_evidence_node
-    graph.add_edge(NODE_INITIAL_PROMPT, "frontend_evidence_node")
+    if use_dual:
+        graph.add_edge(NODE_INITIAL_PROMPT, NODE_QUESTION_CLARIFICATION)
+        graph.add_edge(NODE_QUESTION_CLARIFICATION, "frontend_evidence_node")
+    else:
+        graph.add_edge(NODE_INITIAL_PROMPT, "frontend_evidence_node")
     
     # frontend_evidence_node -> initial_plan_node
     graph.add_edge("frontend_evidence_node", NODE_INITIAL_PLAN)
@@ -182,6 +194,7 @@ def build_graph_with_config(
     registry: ToolRegistry,
     fuser: BaseEvidenceFuser,
     checkpointer=None,
+    config: AgentConfig | None = None,
 ):
     """
     Build graph with optional checkpointing support.

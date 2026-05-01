@@ -1,0 +1,380 @@
+version: 0.1
+description: >
+  Benchmark-derived tool/model preferences. Resolver uses these rankings to
+  fill abstract skill slots. If no matching ranking has an available concrete
+  tool, it falls back to task_skills.yaml defaults.
+
+source_images:
+  - id: table3_track_i_frontend_perception_scenario_stress
+    note: "User-provided image: front-end perception evaluation under stress tests. Error rates in %, lower is better; RPS higher is better."
+  - id: table4_track_ii_horizontal_speech_understanding
+    note: "User-provided image: horizontal comparison on ASR/GR/S2TT/SER/SLU. ASR lower is better; other scores higher are better."
+
+dataset_registry:
+  cs_dialogue:
+    name: CS-Dialogue
+    description: "Spontaneous Mandarin-English code-switching dialogue ASR dataset."
+    language: ["zh", "en"]
+    scenario: "code-switching spontaneous dialogue"
+    metric_hint: "MER"
+    source: "https://jglobal.jst.go.jp/en/public/202502217000295383"
+  kespeech:
+    name: KeSpeech
+    description: "Mandarin speech with eight Chinese subdialects, large speaker coverage, ASR/dialect/speaker tasks."
+    language: ["zh"]
+    scenario: "Mandarin and subdialect speech"
+    metric_hint: "CER"
+    source: "https://openreview.net/forum?id=b3Zoeq2sCLq"
+  voxpopuli_en:
+    name: VoxPopuli-en
+    description: "English speech from European Parliament-style public speech; used here as noisy/broadcast English ASR stress."
+    language: ["en"]
+    scenario: "public/broadcast speech with noise"
+    metric_hint: "WER"
+    source: "https://github.com/facebookresearch/voxpopuli"
+  aishell_5:
+    name: AISHELL-5
+    description: "Open-source in-car multi-channel, multi-speaker Mandarin dataset for diarization and ASR; challenging noise/reverb setting."
+    language: ["zh"]
+    scenario: "in-car, multi-channel, multi-speaker, noise/reverb"
+    metric_hint: "CER"
+    source: "https://www.alphaxiv.org/overview/2505.23036v1"
+  contextasr_en:
+    name: ContextASR-En
+    description: "Contextual English ASR benchmark; evaluates use of contextual/hotword/domain information."
+    language: ["en"]
+    scenario: "contextual ASR with hotwords or domain context"
+    metric_hint: "WER"
+    source: "https://chatpaper.com/paper/159288"
+  contextasr_zh:
+    name: ContextASR-Zh
+    description: "Contextual Chinese ASR benchmark; evaluates hotword/domain/context-aware recognition."
+    language: ["zh"]
+    scenario: "contextual ASR with hotwords or domain context"
+    metric_hint: "CER"
+    source: "https://chatpaper.com/paper/159288"
+  librispeech_clean:
+    name: LibriSpeech clean
+    description: "English read audiobook speech; clean ASR subset."
+    language: ["en"]
+    scenario: "clean read speech from audiobooks"
+    metric_hint: "WER"
+    source: "https://www.openslr.org/12"
+  librispeech_other:
+    name: LibriSpeech other
+    description: "English read audiobook speech; harder/noisier LibriSpeech subset."
+    language: ["en"]
+    scenario: "less-clean read speech from audiobooks"
+    metric_hint: "WER"
+    source: "https://www.openslr.org/12"
+  aishell_1:
+    name: AISHELL-1
+    description: "Open-source Mandarin read-speech ASR corpus with about 400 speakers and over 170 hours."
+    language: ["zh"]
+    scenario: "clean Mandarin read speech"
+    metric_hint: "CER"
+    source: "https://arxiv.org/abs/1709.05522"
+  covost2_zh2en:
+    name: CoVoST2 Zh2En
+    description: "Chinese-to-English speech-to-text translation task from CoVoST2."
+    language: ["zh", "en"]
+    scenario: "speech translation"
+    metric_hint: "character-level BLEU"
+    source: "https://arxiv.org/abs/2007.10310"
+  covost2_en2zh:
+    name: CoVoST2 En2Zh
+    description: "English-to-Chinese speech-to-text translation task from CoVoST2."
+    language: ["en", "zh"]
+    scenario: "speech translation"
+    metric_hint: "character-level BLEU"
+    source: "https://arxiv.org/abs/2007.10310"
+  iemocap:
+    name: IEMOCAP
+    description: "Interactive emotional dyadic speech corpus commonly used for speech emotion recognition."
+    language: ["en"]
+    scenario: "acted/improvised dyadic emotional speech"
+    metric_hint: "accuracy"
+    source: "https://sail.usc.edu/iemocap/"
+  mmsu_reason:
+    name: MMSU-Reason
+    description: "Spoken language understanding and reasoning benchmark subset."
+    language: ["multi"]
+    scenario: "speech understanding and reasoning"
+    metric_hint: "accuracy"
+    source: "https://arxiv.org/abs/2506.04779"
+  ami:
+    name: AMI Meeting Corpus
+    description: "English multi-party meeting corpus, about 100 hours, scenario and non-scenario meetings, commonly used for ASR/diarization; meetings often involve 3-4 participants and overlapping speech."
+    language: ["en"]
+    scenario: "multi-party meetings with far/near-field microphones and overlap"
+    metric_hint: "WER/DER"
+    source: "https://groups.inf.ed.ac.uk/ami/corpus/"
+
+tool_keys:
+  sensevoice_small:
+    display_name: SenseVoice-Small
+    catalog_tool: null
+    availability: external_or_uninstalled
+  whisper_large_v3:
+    display_name: Whisper large-v3
+    catalog_tool: "whisperx.transcribe_audio"
+    agent_tool_name: "transcribe_audio"
+    availability: installed_but_check_config_model_arch
+  parakeet_en:
+    display_name: Parakeet-en
+    catalog_tool: null
+    availability: external_or_uninstalled
+  gemini_3_0_pro:
+    display_name: Gemini 3.0pro
+    catalog_tool: null
+    availability: external_lalm
+  gemini_2_5_pro:
+    display_name: Gemini 2.5pro
+    catalog_tool: null
+    availability: external_lalm
+  qwen3_asr_1_7b:
+    display_name: Qwen3-ASR-1.7B
+    catalog_tool: "asr_qwen3.transcribe_qwenasr"
+    agent_tool_name: "transcribe_qwenasr"
+    availability: installed_catalog
+  firered_llm_l_7b:
+    display_name: FireRedLLM-L-7B
+    catalog_tool: null
+    fallback_catalog_tool: "fireredasr2s.transcribe_fireredasr"
+    fallback_agent_tool_name: "transcribe_fireredasr"
+    availability: external_or_uninstalled
+  kimi_audio:
+    display_name: Kimi Audio
+    catalog_tool: null
+    availability: external_lalm
+  qwen3_omni:
+    display_name: Qwen3 Omni
+    catalog_tool: "omni_captioner.omni_caption"
+    agent_tool_name: "omni_caption"
+    availability: installed_as_perception_tool_not_pure_asr
+  stepaudio_r1:
+    display_name: Step-Audio-R1
+    catalog_tool: null
+    availability: external_or_uninstalled
+  pipeline_reference:
+    display_name: Pipeline
+    catalog_tool: null
+    availability: reported_system_not_single_tool
+
+ranking_policy:
+  match_order:
+    - exact_skill_and_dataset
+    - exact_skill_any_dataset
+    - default_bindings_from_skill
+  availability_policy:
+    - prefer_available_catalog_tool
+    - if_report_winner_has_fallback_catalog_tool_use_fallback_with_warning
+    - otherwise_try_next_ranked_model
+    - otherwise_use_skill_default_binding
+
+tool_rankings:
+  - id: table3_codeswitch_cs_dialogue
+    skill_id: speech.asr.codeswitch_zh_en_dialogue
+    dataset_id: cs_dialogue
+    slot: speech_asr
+    metric: MER
+    direction: lower
+    source_table: table3_track_i_frontend_perception_scenario_stress
+    rows:
+      - {tool_key: qwen3_asr_1_7b, score: 7.00, rps: 1.00}
+      - {tool_key: firered_llm_l_7b, score: 7.44, rps: 0.94}
+      - {tool_key: sensevoice_small, score: 7.52, rps: 0.93}
+      - {tool_key: kimi_audio, score: 11.94, rps: 0.59}
+      - {tool_key: whisper_large_v3, score: 15.91, rps: 0.44}
+      - {tool_key: gemini_2_5_pro, score: 17.96, rps: 0.39}
+
+  - id: table3_dialect_kespeech
+    skill_id: speech.asr.mandarin_dialect
+    dataset_id: kespeech
+    slot: speech_asr
+    metric: CER
+    direction: lower
+    source_table: table3_track_i_frontend_perception_scenario_stress
+    rows:
+      - {tool_key: firered_llm_l_7b, score: 3.81, rps: 1.00}
+      - {tool_key: qwen3_asr_1_7b, score: 5.12, rps: 0.74}
+      - {tool_key: kimi_audio, score: 7.80, rps: 0.49}
+      - {tool_key: sensevoice_small, score: 12.46, rps: 0.31}
+      - {tool_key: whisper_large_v3, score: 30.65, rps: 0.12}
+      - {tool_key: gemini_2_5_pro, score: 31.82, rps: 0.12}
+
+  - id: table3_noise_voxpopuli_en
+    skill_id: speech.asr.noisy_english
+    dataset_id: voxpopuli_en
+    slot: speech_asr
+    metric: WER
+    direction: lower
+    source_table: table3_track_i_frontend_perception_scenario_stress
+    rows:
+      - {tool_key: parakeet_en, score: 6.72, rps: 1.00}
+      - {tool_key: qwen3_asr_1_7b, score: 7.41, rps: 0.91}
+      - {tool_key: gemini_2_5_pro, score: 9.03, rps: 0.74}
+      - {tool_key: kimi_audio, score: 10.63, rps: 0.63}
+      - {tool_key: firered_llm_l_7b, score: 11.87, rps: 0.57}
+      - {tool_key: sensevoice_small, score: 12.50, rps: 0.54}
+      - {tool_key: whisper_large_v3, score: 12.62, rps: 0.53}
+
+  - id: table3_noise_reverb_aishell5
+    skill_id: speech.asr.noise_reverb_mandarin_multispeaker
+    dataset_id: aishell_5
+    slot: speech_asr
+    metric: CER
+    direction: lower
+    source_table: table3_track_i_frontend_perception_scenario_stress
+    rows:
+      - {tool_key: firered_llm_l_7b, score: 24.74, rps: 1.00}
+      - {tool_key: qwen3_asr_1_7b, score: 25.46, rps: 0.97}
+      - {tool_key: sensevoice_small, score: 38.63, rps: 0.64}
+      - {tool_key: whisper_large_v3, score: 45.11, rps: 0.55}
+      - {tool_key: kimi_audio, score: 45.72, rps: 0.54}
+      - {tool_key: gemini_2_5_pro, score: 64.49, rps: 0.38}
+
+  - id: table3_context_asr_en
+    skill_id: speech.asr.contextual_named_entities_en
+    dataset_id: contextasr_en
+    slot: speech_asr
+    metric: WER
+    direction: lower
+    source_table: table3_track_i_frontend_perception_scenario_stress
+    note: "For entries with hotword/no-hotword pairs, left value is used by RPS in source table."
+    rows:
+      - {tool_key: gemini_2_5_pro, score: 3.47, alternate_score: 7.38, rps: 1.00}
+      - {tool_key: qwen3_asr_1_7b, score: 5.58, rps: 0.62}
+      - {tool_key: kimi_audio, score: 6.66, alternate_score: 7.56, rps: 0.52}
+      - {tool_key: firered_llm_l_7b, score: 8.01, rps: 0.43}
+      - {tool_key: whisper_large_v3, score: 8.37, rps: 0.41}
+      - {tool_key: parakeet_en, score: 8.67, rps: 0.40}
+      - {tool_key: sensevoice_small, score: 14.52, rps: 0.24}
+
+  - id: table3_context_asr_zh
+    skill_id: speech.asr.contextual_named_entities_zh
+    dataset_id: contextasr_zh
+    slot: speech_asr
+    metric: CER
+    direction: lower
+    source_table: table3_track_i_frontend_perception_scenario_stress
+    rows:
+      - {tool_key: qwen3_asr_1_7b, score: 2.50, rps: 1.00}
+      - {tool_key: gemini_2_5_pro, score: 2.78, rps: 0.90}
+      - {tool_key: firered_llm_l_7b, score: 2.78, alternate_score: 6.33, rps: 0.73}
+      - {tool_key: kimi_audio, score: 2.96, alternate_score: 3.82, rps: 0.84}
+      - {tool_key: sensevoice_small, score: 6.44, rps: 0.39}
+      - {tool_key: whisper_large_v3, score: 8.29, rps: 0.30}
+
+  - id: table4_asr_librispeech
+    skill_id: speech.asr.clean_english_read
+    dataset_id: librispeech_clean
+    slot: speech_asr
+    metric: WER
+    direction: lower
+    source_table: table4_track_ii_horizontal_speech_understanding
+    rows:
+      - {tool_key: qwen3_omni, score: 1.70, split: clean}
+      - {tool_key: kimi_audio, score: 2.30, split: clean}
+      - {tool_key: gemini_2_5_pro, score: 3.07, split: clean}
+      - {tool_key: gemini_3_0_pro, score: 2.90, split: clean}
+      - {tool_key: qwen3_omni, score: 3.05, split: other}
+      - {tool_key: kimi_audio, score: 3.83, split: other}
+      - {tool_key: gemini_2_5_pro, score: 4.93, split: other}
+      - {tool_key: gemini_3_0_pro, score: 5.10, split: other}
+
+  - id: table4_asr_aishell1
+    skill_id: speech.asr.mandarin_clean_read
+    dataset_id: aishell_1
+    slot: speech_asr
+    metric: CER
+    direction: lower
+    source_table: table4_track_ii_horizontal_speech_understanding
+    rows:
+      - {tool_key: kimi_audio, score: 0.80}
+      - {tool_key: qwen3_omni, score: 1.02}
+      - {tool_key: gemini_3_0_pro, score: 3.60}
+      - {tool_key: gemini_2_5_pro, score: 4.49}
+      - {tool_key: pipeline_reference, display_name: Pipeline, score: 5.93}
+
+  - id: table4_gr_librispeech
+    skill_id: speech.slu_reasoning
+    dataset_id: librispeech_clean
+    slot: omni_perception
+    metric: accuracy
+    direction: higher
+    source_table: table4_track_ii_horizontal_speech_understanding
+    rows:
+      - {tool_key: kimi_audio, score: 92.02}
+      - {tool_key: qwen3_omni, score: 82.74}
+      - {tool_key: gemini_3_0_pro, score: 78.50}
+      - {tool_key: gemini_2_5_pro, score: 59.64}
+      - {tool_key: pipeline_reference, display_name: Pipeline, score: 53.69}
+
+  - id: table4_s2tt_zh2en_covost2
+    skill_id: speech.s2tt.zh_to_en
+    dataset_id: covost2_zh2en
+    slot: omni_perception
+    metric: character_bleu
+    direction: higher
+    source_table: table4_track_ii_horizontal_speech_understanding
+    rows:
+      - {tool_key: qwen3_omni, score: 46.25}
+      - {tool_key: gemini_2_5_pro, score: 41.44}
+      - {tool_key: pipeline_reference, display_name: Pipeline, score: 18.12}
+      - {tool_key: gemini_3_0_pro, score: 15.92}
+
+  - id: table4_s2tt_en2zh_covost2
+    skill_id: speech.s2tt.en_to_zh
+    dataset_id: covost2_en2zh
+    slot: omni_perception
+    metric: character_bleu
+    direction: higher
+    source_table: table4_track_ii_horizontal_speech_understanding
+    rows:
+      - {tool_key: gemini_2_5_pro, score: 60.14}
+      - {tool_key: pipeline_reference, display_name: Pipeline, score: 53.37}
+      - {tool_key: qwen3_omni, score: 50.61}
+      - {tool_key: gemini_3_0_pro, score: 15.50}
+
+  - id: table4_ser_iemocap
+    skill_id: speech.emotion_ser
+    dataset_id: iemocap
+    slot: omni_perception
+    metric: accuracy
+    direction: higher
+    source_table: table4_track_ii_horizontal_speech_understanding
+    rows:
+      - {tool_key: kimi_audio, score: 69.38}
+      - {tool_key: gemini_3_0_pro, score: 66.56}
+      - {tool_key: qwen3_omni, score: 66.16}
+      - {tool_key: gemini_2_5_pro, score: 63.01}
+      - {tool_key: pipeline_reference, display_name: Pipeline, score: 52.62}
+
+  - id: table4_slu_mmsu_reason
+    skill_id: speech.slu_reasoning
+    dataset_id: mmsu_reason
+    slot: omni_perception
+    metric: accuracy
+    direction: higher
+    source_table: table4_track_ii_horizontal_speech_understanding
+    rows:
+      - {tool_key: gemini_3_0_pro, score: 89.07}
+      - {tool_key: gemini_2_5_pro, score: 84.64}
+      - {tool_key: qwen3_omni, score: 83.61}
+      - {tool_key: pipeline_reference, display_name: Pipeline, score: 76.45}
+      - {tool_key: kimi_audio, score: 75.33}
+
+default_reference_workflows:
+  ARC-Agent-NO1:
+    repo_path: "/cpfs/user/jingpeng/workspace/AUDIO_AGENT/ref_flow/ARC-Agent-NO1/taltech_agent_challenge_source.zip"
+    principles:
+      - "Always gather evidence from speech LLM observations and acoustic tools when source models disagree or the task is complex."
+      - "Use whole-audio tools first, then segment-specific validation."
+      - "Category routing defaults: counting/music/speaker/emotion/scene/timing/content/signal."
+  xlance-audio-reasoning-agent:
+    repo_path: "/cpfs/user/jingpeng/workspace/AUDIO_AGENT/ref_flow/xlance-audio-reasoning-agent"
+    principles:
+      - "Compare Qwen-Omni and Step-Audio-R1 answers."
+      - "Use auxiliary SED, caption, audio features, and visual解析结果 as arbitration evidence."
+      - "Separate consistent and inconsistent cases; inconsistent cases need stronger selection/verification."

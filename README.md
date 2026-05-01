@@ -128,15 +128,17 @@ audio_agent/
 ## Installation
 
 ```bash
-# Create and activate conda environment
-conda create -n audio_agent python=3.11
-conda activate audio_agent
+# Create a uv-managed Python 3.11 environment in the repo root
+UV_CACHE_DIR=.cache/uv uv venv --python 3.11 .venv
+
+# Activate it
+source .venv/bin/activate
 
 # Install the package
-pip install -e .
+UV_CACHE_DIR=.cache/uv uv pip install --python .venv/bin/python -e .
 
-# Or install dependencies directly
-pip install -r requirements.txt
+# Or install development extras
+UV_CACHE_DIR=.cache/uv uv pip install --python .venv/bin/python -e '.[api,dev,download]'
 ```
 
 ## Running the Demo
@@ -219,7 +221,7 @@ The `demo_run_api_full.py` script is ideal for:
 
 ## Pre-downloading Models
 
-By default, the framework uses local model paths to avoid re-downloading models on every login. Models are stored in `/lihaoyu/workspace/AUDIO_AGENT/models/`.
+By default, the framework uses local model paths to avoid re-downloading models on every login. Models are stored in `/cpfs/user/jingpeng/workspace/AUDIO_AGENT/models/`.
 
 **Download all models (one-time setup):**
 

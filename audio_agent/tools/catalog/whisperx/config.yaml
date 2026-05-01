@@ -18,7 +18,7 @@ server:
   
   env:
     MODEL_ARCH: "small"
-    DEVICE: "cuda"  # Use GPU if available (falls back to CPU if not)
+    DEVICE: "cpu"
     VAD_METHOD: "pyannote"
     # Path to pre-downloaded pyannote diarization model
     DIARIZATION_MODEL_PATH: "/lihaoyu/workspace/AUDIO_AGENT/AUDIO_AGENT/models/pyannote-speaker-diarization-community-1"
@@ -27,7 +27,7 @@ server:
   
   resources:
     memory_gb: 8
-    gpu: true  # GPU recommended but not required
+    gpu: false
     cpu_cores: 4
   
   lifecycle: "session"

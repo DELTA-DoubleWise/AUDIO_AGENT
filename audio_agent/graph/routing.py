@@ -25,6 +25,7 @@ NODE_FINAL_ANSWER = "final_answer_node"
 NODE_FORMAT_CHECK = "format_check_node"
 NODE_EVIDENCE_SUMMARIZATION = "evidence_summarization_node"
 NODE_PLANNER = NODE_PLANNER_DECISION  # Backward-compatible alias
+NODE_QUESTION_CLARIFICATION = "question_clarification_node"
 END = "__end__"
 
 

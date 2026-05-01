@@ -27,7 +27,7 @@ def test_model_load() -> bool:
         
         model_path = os.environ.get(
             "MODEL_PATH",
-            "/lihaoyu/workspace/AUDIO_AGENT/AUDIO_AGENT/models/fireredasr2s/"
+            "/lihaoyu/workspace/AUDIO_AGENT/AUDIO_AGENT/models/fireredasr2s"
         )
         
         if not os.path.exists(model_path):

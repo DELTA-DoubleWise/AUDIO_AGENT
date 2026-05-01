@@ -63,6 +63,14 @@ class FrontendOutput(BaseModel):
         min_length=1,
         description="Concise caption focused on information relevant to the user question",
     )
+    direct_answer: str | None = Field(
+        default=None,
+        description="Direct answer from the observer frontend call (may include CoT)",
+    )
+    chain_of_thought: str | None = Field(
+        default=None,
+        description="Optional reasoning chain from the observer frontend",
+    )
     timestamp: datetime = Field(default_factory=datetime.now)
     model_config = {"extra": "forbid"}
 
@@ -73,6 +81,21 @@ class FrontendOutput(BaseModel):
             raise ValueError("question_guided_caption must be non-empty after stripping")
 
         return self
+
+
+class QuestionClarification(BaseModel):
+    """
+    Output from the question clarification step.
+    Produced by the planner (text LLM) before any frontend/audio processing.
+    """
+    clarified_question: str = Field(..., min_length=1, description="Rephrased/condensed version of the user's question")
+    question_type: str = Field(..., description="Category: 'direct_answer', 'needs_tools', 'ambiguous'")
+    needs_verification: bool = Field(default=False, description="Whether tool verification is likely needed")
+    requires_cot: bool = Field(default=True, description="Whether the observer frontend should provide reasoning")
+    suggested_focus: list[str] = Field(default_factory=list, description="Suggested focus points for the frontend")
+    rationale: str = Field(default="", description="Explanation for this classification")
+    timestamp: datetime = Field(default_factory=datetime.now)
+    model_config = {"extra": "forbid"}
 
 
 # =============================================================================

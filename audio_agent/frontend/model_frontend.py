@@ -294,6 +294,7 @@ class BaseModelFrontend(BaseFrontend):
 
     def _call_with_retries(self, callable, context: str):
         """Call model and normalize output with retries on FrontendError."""
+        import random
         logger = get_logger()
         last_error = None
         for attempt in range(self.max_retries + 1):
@@ -302,11 +303,13 @@ class BaseModelFrontend(BaseFrontend):
             except FrontendError as e:
                 last_error = e
                 if attempt < self.max_retries:
+                    sleep_time = 0.5
                     logger.warning(
-                        f"{context} failed (attempt {attempt + 1}/{self.max_retries + 1}), retrying: {e}"
+                        f"{context} failed (attempt {attempt + 1}/{self.max_retries + 1}), "
+                        f"retrying in {sleep_time:.1f}s: {e}"
                     )
                     import time
-                    time.sleep(0.5 * (2 ** attempt))
+                    time.sleep(sleep_time)
                 else:
                     logger.error(f"{context} exhausted all retries: {e}")
         raise FrontendError(

@@ -11,6 +11,7 @@ from audio_agent.core.schemas import (
     PlannerActionType,
     ToolSpec,
     FormatCheckResult,
+    QuestionClarification,
 )
 from audio_agent.core.errors import PlannerError
 from audio_agent.planner.base import BasePlanner
@@ -156,6 +157,23 @@ class DummyPlanner(BasePlanner):
             rationale="Sufficient evidence collected from multiple tools. Frontend model will generate the final answer.",
             draft_answer=None,
             confidence=0.75,
+        )
+
+    def clarify_question(self, question: str) -> QuestionClarification:
+        """Dummy question clarification — deterministic classification."""
+        question = self.validate_question(question)
+        question_lower = question.lower()
+
+        tool_keywords = ["transcribe", "speaker", "diarize", "beat", "bpm", "pitch", "sample rate", "format"]
+        needs_tools = any(kw in question_lower for kw in tool_keywords)
+
+        return QuestionClarification(
+            clarified_question=question,
+            question_type="needs_tools" if needs_tools else "direct_answer",
+            needs_verification=needs_tools,
+            requires_cot=True,
+            suggested_focus=["speech content", "acoustic properties"] if needs_tools else ["general audio content"],
+            rationale="Dummy classification based on keyword matching.",
         )
 
     def clarify_intent(self, state: AgentState) -> tuple[str, str | None]:
