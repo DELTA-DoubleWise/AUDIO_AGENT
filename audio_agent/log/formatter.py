@@ -395,41 +395,93 @@ def format_evidence_summary(evidence_summary: str | None) -> str:
     return "\n".join(lines)
 
 
-def format_frontend_final_answer(planner_trace: list[Any]) -> str:
-    """Format the frontend-generated final answer from the planner trace."""
-    # Find the last ANSWER decision with a draft_answer
-    answer_decision = None
-    for decision in reversed(planner_trace):
-        action = getattr(decision, 'action', 'Unknown')
-        draft_answer = getattr(decision, 'draft_answer', None)
-        if action == 'answer' and draft_answer:
-            answer_decision = decision
-            break
 
-    if not answer_decision:
+def format_question_clarification(clarification: Any) -> str:
+    """Format QuestionClarification as Markdown."""
+    if not clarification:
+        return "## Question Clarification\n\n*No question clarification generated*\n\n"
+
+    lines = [
+        "## Question Clarification",
+        "",
+        f"- **Type**: {getattr(clarification, 'question_type', 'N/A')}",
+        f"- **Needs Verification**: {getattr(clarification, 'needs_verification', False)}",
+        f"- **Requires CoT**: {getattr(clarification, 'requires_cot', True)}",
+        f"- **Confidence**: {getattr(clarification, 'confidence', 0.0):.2f}",
+        "",
+    ]
+
+    clarified = getattr(clarification, 'clarified_question', None)
+    if clarified:
+        lines.append("**Clarified Question**:")
+        lines.append(f"> {clarified}")
+        lines.append("")
+
+    suggested = getattr(clarification, 'suggested_focus', [])
+    if suggested:
+        lines.append("**Suggested Focus Points**:")
+        for item in suggested:
+            lines.append(f"- {item}")
+        lines.append("")
+
+    rationale = getattr(clarification, 'rationale', None)
+    if rationale:
+        lines.append("**Rationale**:")
+        lines.append(f"> {rationale}")
+        lines.append("")
+
+    return "\n".join(lines)
+
+
+def format_frontend_direct_output(direct_output: Any) -> str:
+    """Format frontend direct (observer) output as Markdown."""
+    if not direct_output:
+        return "## Frontend Direct Output (Observer)\n\n*No observer output generated*\n\n"
+
+    caption = getattr(direct_output, 'question_guided_caption', None)
+    cot = getattr(direct_output, 'chain_of_thought', None)
+
+    lines = [
+        "## Frontend Direct Output (Observer)",
+        "",
+    ]
+
+    if cot:
+        lines.append("**Chain of Thought**:")
+        lines.append("```")
+        lines.append(cot)
+        lines.append("```")
+        lines.append("")
+
+    if caption:
+        lines.append("**Direct Answer**:")
+        lines.append("```")
+        lines.append(caption)
+        lines.append("```")
+        lines.append("")
+
+    return "\n".join(lines)
+
+
+def format_frontend_final_answer(final_answer: Any) -> str:
+    """Format the frontend-generated final answer."""
+    if not final_answer:
         return "## Frontend Final Answer\n\n*No frontend final answer generated*\n\n"
 
     lines = ["## Frontend Final Answer", ""]
 
-    confidence = getattr(answer_decision, 'confidence', 0.0)
-    rationale = getattr(answer_decision, 'rationale', '')
-    draft_answer = getattr(answer_decision, 'draft_answer', '')
+    answer = getattr(final_answer, 'answer', '')
+    confidence = getattr(final_answer, 'confidence', 0.0)
 
     lines.append(f"- **Confidence**: {confidence:.2f}")
     lines.append("")
     lines.append("**Generated Answer**:")
     lines.append("```")
-    # Truncate very long answers
-    answer_str = str(draft_answer)
+    answer_str = str(answer)
     if len(answer_str) > 2000:
         answer_str = answer_str[:2000] + "\n... (truncated)"
     lines.append(answer_str)
     lines.append("```")
-
-    if rationale:
-        lines.append("")
-        lines.append("**Rationale**:")
-        lines.append(f"> {rationale}")
 
     lines.append("")
     return "\n".join(lines)

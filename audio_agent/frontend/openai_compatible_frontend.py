@@ -264,6 +264,82 @@ class OpenAICompatibleFrontend(BaseModelFrontend):
 
         return text_response.strip()
 
+    def run_direct_answer(
+        self,
+        question: str,
+        audio_paths: list[str],
+        question_oriented_prompt: str | None = None,
+    ) -> "FrontendOutput":
+        """
+        Run frontend in direct-answer (observer) mode.
+
+        Uses frontend_direct_system.md instead of frontend_system.md.
+        The returned FrontendOutput.question_guided_caption contains the direct answer text.
+        """
+        from audio_agent.core.schemas import FrontendOutput
+
+        self.validate_inputs(question, audio_paths)
+        stripped_paths = [p.strip() for p in audio_paths]
+
+        # Load direct-answer prompts
+        system_prompt = load_prompt("frontend_direct_system")
+        audio_list_text = "\n".join(f"- Audio {i}: {p}" for i, p in enumerate(stripped_paths))
+        prompt_text = question_oriented_prompt or "No customized prompt available."
+        user_text = load_prompt("frontend_direct_user").format(
+            question=question,
+            audio_list=audio_list_text,
+            question_oriented_prompt=prompt_text,
+        )
+
+        # Build messages with audio
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": user_text},
+                ]
+            }
+        ]
+
+        # Add audio for each path
+        for audio_path in stripped_paths:
+            audio_data_url, audio_format = self._encode_audio(audio_path)
+            messages[1]["content"].append({
+                "type": "input_audio",
+                "input_audio": {
+                    "data": audio_data_url,
+                    "format": audio_format,
+                }
+            })
+
+        # Call API (non-streaming for reliability)
+        client = self.model_handle
+        try:
+            response = client.chat.completions.create(
+                model=self._model,
+                messages=messages,
+                temperature=self._temperature,
+                max_tokens=self._max_tokens,
+                stream=False,
+                modalities=["text"],
+            )
+        except Exception as e:
+            raise FrontendError(
+                f"API call failed for direct answer: {e}",
+                details={"model": self._model, "error_type": type(e).__name__},
+            ) from e
+
+        if not response.choices or len(response.choices) == 0:
+            raise FrontendError("Empty response from API", details={"model": self._model})
+
+        text = response.choices[0].message.content or ""
+        text = text.strip()
+        if not text:
+            raise FrontendError("API returned empty direct answer", details={"model": self._model})
+
+        return FrontendOutput(question_guided_caption=text)
+
     def generate_final_answer(
         self,
         question: str,

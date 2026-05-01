@@ -179,6 +179,36 @@ def build_parser() -> argparse.ArgumentParser:
         help="Maximum number of agent steps.",
     )
     parser.add_argument(
+        "--use-dual-frontend",
+        action="store_true",
+        default=True,
+        help="Enable dual-frontend mode with verifier + observer calls (default: True).",
+    )
+    parser.add_argument(
+        "--disable-dual-frontend",
+        action="store_false",
+        dest="use_dual_frontend",
+        help="Disable dual-frontend mode.",
+    )
+    parser.add_argument(
+        "--enable-format-check",
+        action="store_true",
+        default=True,
+        help="Enable mandatory format validation before final answer (default: True).",
+    )
+    parser.add_argument(
+        "--disable-format-check",
+        action="store_false",
+        dest="enable_format_check",
+        help="Disable format checking.",
+    )
+    parser.add_argument(
+        "--max-format-checks",
+        type=int,
+        default=2,
+        help="Maximum format check retries (default: 2).",
+    )
+    parser.add_argument(
         "--tools",
         nargs="+",
         default=None,
@@ -256,6 +286,9 @@ async def amain() -> int:
     config = AgentConfig(
         max_steps=args.max_steps,
         debug=True,
+        use_dual_frontend=args.use_dual_frontend,
+        enable_format_check=args.enable_format_check,
+        max_format_checks=args.max_format_checks,
     )
     
     # Create the agent components
