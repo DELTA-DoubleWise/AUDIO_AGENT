@@ -50,13 +50,13 @@ class ModelWrapper:
         self.vad_model_dir = Path(
             self.config.get(
                 "vad_model_dir",
-                "/cpfs/user/jingpeng/workspace/AUDIO_AGENT/models/fireredvad/VAD",
+                "/lihaoyu/workspace/AUDIO_AGENT/AUDIO_AGENT/models/fireredvad/VAD",
             )
         )
         self.aed_model_dir = Path(
             self.config.get(
                 "aed_model_dir",
-                "/cpfs/user/jingpeng/workspace/AUDIO_AGENT/models/fireredvad/AED",
+                "/lihaoyu/workspace/AUDIO_AGENT/AUDIO_AGENT/models/fireredvad/AED",
             )
         )
         _env_device = os.environ.get("MODEL_DEVICE", "cpu").lower()
