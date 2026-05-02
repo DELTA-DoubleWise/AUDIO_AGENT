@@ -248,6 +248,36 @@ class GeminiFrontend(BaseModelFrontend):
             },
         )
 
+    def build_followup_api_model_input(
+        self,
+        question: str,
+        audio_paths: list[str],
+        followup_prompt: str,
+    ) -> UnifiedFrontendInput:
+        """Build Gemini follow-up input; only payload packaging is provider-specific."""
+        common = self.build_followup_common_fields(
+            question, audio_paths, followup_prompt, FrontendInputFormat.API_MODEL
+        )
+        payload = self._build_gemini_payload(
+            common["system_prompt"], common["user_text"], audio_paths
+        )
+
+        return UnifiedFrontendInput(
+            system_prompt=common["system_prompt"],
+            question=question,
+            audio_paths=audio_paths,
+            user_payload=common["user_payload"],
+            messages=[
+                {"role": "system", "content": common["system_prompt"]},
+                {"role": "user", "content": common["user_text"]},
+            ],
+            metadata={
+                **common["metadata"],
+                "model": "gemini-2.5-pro",
+                "gemini_payload": payload,
+            },
+        )
+
     def call_model(self, model_input: UnifiedFrontendInput) -> str:
         """Call Gemini API and return caption text."""
         payload = model_input.metadata.get("gemini_payload")

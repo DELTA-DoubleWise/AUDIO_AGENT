@@ -105,6 +105,55 @@ class BaseModelFrontend(BaseFrontend):
             question_oriented_prompt=prompt_text,
         )
 
+    def build_followup_task_instruction(
+        self,
+        question: str,
+        audio_paths: list[str],
+        followup_prompt: str,
+    ) -> str:
+        """Instruction text for planner-requested frontend follow-up calls."""
+        audio_list_text = "\n".join([f"- Audio {i}: {path}" for i, path in enumerate(audio_paths)])
+        return load_prompt("frontend_followup_user").format(
+            question=question,
+            audio_list=audio_list_text,
+            followup_prompt=followup_prompt,
+        )
+
+    def build_followup_common_fields(
+        self,
+        question: str,
+        audio_paths: list[str],
+        followup_prompt: str,
+        input_format: FrontendInputFormat,
+    ) -> dict[str, Any]:
+        """
+        Build provider-independent fields for frontend follow-up calls.
+
+        Provider subclasses should reuse this and only customize the audio
+        transport/package shape when the base message layout is not valid for
+        their backend.
+        """
+        user_payload = self._build_common_user_payload(question, audio_paths)
+        user_payload.update(
+            {
+                "task": "frontend_followup",
+                "followup_prompt": followup_prompt,
+            }
+        )
+        return {
+            "system_prompt": load_prompt("frontend_followup_system"),
+            "user_text": self.build_followup_task_instruction(
+                question, audio_paths, followup_prompt
+            ),
+            "user_payload": user_payload,
+            "metadata": {
+                "frontend_name": self.name,
+                "input_format": input_format.value,
+                "task": "frontend_followup",
+                "audio_count": len(audio_paths),
+            },
+        }
+
     def _build_common_user_payload(self, question: str, audio_paths: list[str]) -> dict[str, Any]:
         """Normalized provider-agnostic payload for adapters/logging."""
         return {
@@ -250,6 +299,103 @@ class BaseModelFrontend(BaseFrontend):
         self._validate_built_model_input(model_input)
         return model_input
 
+    def build_followup_api_model_input(
+        self,
+        question: str,
+        audio_paths: list[str],
+        followup_prompt: str,
+    ) -> UnifiedFrontendInput:
+        """Build API-style input for frontend follow-up re-perception."""
+        common = self.build_followup_common_fields(
+            question, audio_paths, followup_prompt, FrontendInputFormat.API_MODEL
+        )
+
+        return UnifiedFrontendInput(
+            system_prompt=common["system_prompt"],
+            question=question,
+            audio_paths=audio_paths,
+            user_payload=common["user_payload"],
+            messages=[
+                {"role": "system", "content": common["system_prompt"]},
+                {"role": "user", "content": common["user_text"]},
+            ],
+            metadata=common["metadata"],
+        )
+
+    def build_followup_local_multimodal_model_input(
+        self,
+        question: str,
+        audio_paths: list[str],
+        followup_prompt: str,
+    ) -> UnifiedFrontendInput:
+        """Build local multimodal input for frontend follow-up re-perception."""
+        common = self.build_followup_common_fields(
+            question, audio_paths, followup_prompt, FrontendInputFormat.LOCAL_MULTIMODAL
+        )
+
+        content: list[dict[str, Any]] = [{"type": "text", "text": common["user_text"]}]
+        for audio_path in audio_paths:
+            content.append({"type": "audio", "audio": audio_path})
+
+        return UnifiedFrontendInput(
+            system_prompt=common["system_prompt"],
+            question=question,
+            audio_paths=audio_paths,
+            user_payload=common["user_payload"],
+            messages=[
+                {"role": "system", "content": common["system_prompt"]},
+                {"role": "user", "content": content},
+            ],
+            metadata=common["metadata"],
+        )
+
+    def build_followup_model_input(
+        self,
+        question: str,
+        audio_paths: list[str],
+        followup_prompt: str,
+    ) -> UnifiedFrontendInput:
+        """Build follow-up model input via explicit format-mode dispatch."""
+        if not followup_prompt or not followup_prompt.strip():
+            raise FrontendError("Frontend follow-up requires a non-empty followup_prompt")
+
+        mode = self.input_format
+        if isinstance(mode, str):
+            try:
+                mode = FrontendInputFormat(mode)
+            except ValueError as e:
+                raise FrontendError(
+                    "Unsupported frontend input format",
+                    details={"input_format": mode},
+                ) from e
+        elif not isinstance(mode, FrontendInputFormat):
+            raise FrontendError(
+                "Unsupported frontend input format type",
+                details={"input_format_type": type(mode).__name__},
+            )
+
+        if mode == FrontendInputFormat.API_MODEL:
+            model_input = self.build_followup_api_model_input(
+                question, audio_paths, followup_prompt
+            )
+        elif mode == FrontendInputFormat.LOCAL_MULTIMODAL:
+            model_input = self.build_followup_local_multimodal_model_input(
+                question, audio_paths, followup_prompt
+            )
+        else:
+            raise FrontendError(
+                "Unsupported frontend input format",
+                details={"input_format": mode.value},
+            )
+
+        if not isinstance(model_input, UnifiedFrontendInput):
+            raise FrontendError(
+                "Malformed follow-up model input: builder must return UnifiedFrontendInput",
+                details={"returned_type": type(model_input).__name__},
+            )
+        self._validate_built_model_input(model_input)
+        return model_input
+
     def normalize_model_output(
         self,
         raw_output: Any,
@@ -374,6 +520,35 @@ class BaseModelFrontend(BaseFrontend):
             # Combine into single FrontendOutput
             combined_caption = "\n\n".join(captions)
             return FrontendOutput(question_guided_caption=combined_caption)
+
+    def run_followup(
+        self,
+        question: str,
+        audio_paths: list[str],
+        followup_prompt: str,
+    ) -> FrontendOutput:
+        """Run a planner-authored follow-up request on selected audio artifact(s)."""
+        self.validate_inputs(question, audio_paths)
+        if not followup_prompt or not followup_prompt.strip():
+            raise FrontendError("Frontend follow-up requires a non-empty followup_prompt")
+        stripped_paths = [p.strip() for p in audio_paths]
+        model_input = self.build_followup_model_input(
+            question.strip(), stripped_paths, followup_prompt.strip()
+        )
+
+        def _call_followup():
+            try:
+                raw_output = self.call_model(model_input)
+            except FrontendError:
+                raise
+            except Exception as e:
+                raise FrontendError(
+                    f"Frontend follow-up model call failed: {type(e).__name__}: {e}",
+                    details={"frontend": self.name},
+                ) from e
+            return self.normalize_model_output(raw_output, model_input)
+
+        return self._call_with_retries(_call_followup, "run_followup()")
 
     def build_final_answer_model_input(
         self,

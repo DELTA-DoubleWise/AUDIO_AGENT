@@ -36,6 +36,13 @@ class DummyFrontend(BaseModelFrontend):
         """
         Return mock model output as plain text caption.
         """
+        if model_input.metadata.get("task") == "frontend_followup":
+            prompt = model_input.user_payload.get("followup_prompt", "")
+            return (
+                f"[Dummy Follow-up] Answering the planner request for "
+                f"'{model_input.question}': {prompt}"
+            )
+
         prompt = model_input.metadata.get("question_oriented_prompt") or "No customized prompt available."
         return (
             f"General Caption: The audio appears to include speech content relevant to the question "

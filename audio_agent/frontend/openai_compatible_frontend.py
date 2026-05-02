@@ -215,6 +215,46 @@ class OpenAICompatibleFrontend(BaseModelFrontend):
             },
         )
 
+    def build_followup_api_model_input(
+        self,
+        question: str,
+        audio_paths: list[str],
+        followup_prompt: str,
+    ) -> UnifiedFrontendInput:
+        """Build API input for follow-up; only audio packaging is provider-specific."""
+        stripped_paths = [p.strip() for p in audio_paths]
+        common = self.build_followup_common_fields(
+            question, stripped_paths, followup_prompt, FrontendInputFormat.API_MODEL
+        )
+
+        content: list[dict[str, Any]] = [{"type": "text", "text": common["user_text"]}]
+        for audio_path in stripped_paths:
+            audio_data_url, audio_format = self._encode_audio(audio_path)
+            content.append(
+                {
+                    "type": "input_audio",
+                    "input_audio": {
+                        "data": audio_data_url,
+                        "format": audio_format,
+                    },
+                }
+            )
+
+        return UnifiedFrontendInput(
+            system_prompt=common["system_prompt"],
+            question=question,
+            audio_paths=stripped_paths,
+            user_payload=common["user_payload"],
+            messages=[
+                {"role": "system", "content": common["system_prompt"]},
+                {"role": "user", "content": content},
+            ],
+            metadata={
+                **common["metadata"],
+                "model": self._model,
+            },
+        )
+
     def call_model(self, model_input: UnifiedFrontendInput) -> str:
         """
         Call the API model and return the caption text.

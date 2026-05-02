@@ -142,6 +142,8 @@ audio_agent/
 │   ├── frontend_user.md             # Frontend user instruction template
 │   ├── frontend_direct_system.md    # Direct observer frontend system prompt
 │   ├── frontend_direct_user.md      # Direct observer frontend user instruction
+│   ├── frontend_followup_system.md  # Targeted frontend follow-up system prompt
+│   ├── frontend_followup_user.md    # Targeted frontend follow-up user instruction
 │   ├── frontend_final_answer_system.md  # Frontend final answer system prompt
 │   ├── frontend_final_answer_user.md    # Frontend final answer user instruction
 │   ├── initial_prompt_system.md     # Planner: question-oriented prompt generation system prompt
@@ -590,6 +592,8 @@ All prompts are externalized as markdown files in `audio_agent/prompts/`. This a
 | `frontend_user.md` | Frontend user instruction | `{question}`, `{audio_list}`, `{question_oriented_prompt}` |
 | `frontend_direct_system.md` | Direct observer frontend system prompt | None |
 | `frontend_direct_user.md` | Direct observer frontend user instruction | `{question}`, `{audio_list}`, `{question_oriented_prompt}` |
+| `frontend_followup_system.md` | Targeted frontend follow-up system prompt | None |
+| `frontend_followup_user.md` | Targeted frontend follow-up user instruction | `{question}`, `{audio_list}`, `{followup_prompt}` |
 | `frontend_final_answer_system.md` | Frontend final answer system prompt | None |
 | `frontend_final_answer_user.md` | Frontend final answer user instruction | `{question}`, `{expected_output_format}`, `{initial_plan_text}`, `{frontend_direct_text}`, `{evidence_and_history_text}`, `{audio_summary}`, `{format_critique_section}` |
 | `initial_prompt_system.md` | Planner system prompt for question-oriented frontend prompt generation | None |

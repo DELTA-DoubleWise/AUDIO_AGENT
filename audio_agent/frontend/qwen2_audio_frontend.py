@@ -22,6 +22,7 @@ from typing import Any
 from urllib.request import urlopen
 
 from audio_agent.core.errors import FrontendError
+from audio_agent.core.schemas import FrontendOutput
 from audio_agent.frontend.model_frontend import (
     BaseModelFrontend,
     FrontendInputFormat,
@@ -132,6 +133,58 @@ class Qwen2AudioFrontend(BaseModelFrontend):
                 "input_format": FrontendInputFormat.LOCAL_MULTIMODAL.value,
             },
         )
+
+    def build_followup_local_multimodal_model_input(
+        self,
+        question: str,
+        audio_paths: list[str],
+        followup_prompt: str,
+    ) -> UnifiedFrontendInput:
+        """Build Qwen2-Audio follow-up input; only audio content shape is specific."""
+        common = self.build_followup_common_fields(
+            question, audio_paths, followup_prompt, FrontendInputFormat.LOCAL_MULTIMODAL
+        )
+
+        content: list[dict[str, str]] = []
+        for audio_path in audio_paths:
+            audio_content: dict[str, str] = {"type": "audio"}
+            if self._is_remote_audio(audio_path):
+                audio_content["audio_url"] = audio_path
+            else:
+                audio_content["audio"] = audio_path
+            content.append(audio_content)
+        content.append(
+            {
+                "type": "text",
+                "text": common["user_text"],
+            }
+        )
+
+        return UnifiedFrontendInput(
+            system_prompt=common["system_prompt"],
+            question=question,
+            audio_paths=audio_paths,
+            user_payload=common["user_payload"],
+            messages=[
+                {"role": "system", "content": common["system_prompt"]},
+                {"role": "user", "content": content},
+            ],
+            metadata=common["metadata"],
+        )
+
+    def run_followup(
+        self,
+        question: str,
+        audio_paths: list[str],
+        followup_prompt: str,
+    ) -> FrontendOutput:
+        """Run follow-up re-perception; Qwen2-Audio adapter supports one audio per call."""
+        if len(audio_paths) != 1:
+            raise FrontendError(
+                "Qwen2AudioFrontend supports exactly one audio for follow-up re-perception",
+                details={"audio_count": len(audio_paths)},
+            )
+        return super().run_followup(question, audio_paths, followup_prompt)
 
     def _is_remote_audio(self, audio_path_or_uri: str) -> bool:
         """Return True if the audio reference is an HTTP(S) URL."""

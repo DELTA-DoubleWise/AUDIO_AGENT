@@ -1405,12 +1405,12 @@ def create_frontend_followup_node(frontend: BaseFrontend):
         
         selected_paths = [a.path for a in selected_audios]
         
-        # Call frontend on selected audio(s)
+        # Call frontend on selected audio(s) using the dedicated follow-up prompt path.
         try:
-            output = frontend.run(
+            output = frontend.run_followup(
                 question=state["question"],
                 audio_paths=selected_paths,
-                question_oriented_prompt=prompt.strip(),
+                followup_prompt=prompt.strip(),
             )
         except Exception as e:
             raise FrontendError(

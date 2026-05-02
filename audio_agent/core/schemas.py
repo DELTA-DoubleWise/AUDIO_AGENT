@@ -306,7 +306,7 @@ class PlannerDecision(BaseModel):
     )
     frontend_followup_goal: str | None = Field(
         default=None,
-        description="What uncertainty this follow-up is resolving (optional metadata)"
+        description="Record-only metadata describing what uncertainty this follow-up resolves; not sent to the frontend"
     )
     draft_answer: str | None = Field(default=None)
     confidence: float = Field(default=0.0, ge=0.0, le=1.0)

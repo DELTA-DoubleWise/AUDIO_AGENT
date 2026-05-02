@@ -119,6 +119,28 @@ class TestBaseModelFrontend:
         assert isinstance(output, FrontendOutput)
         assert output.question_guided_caption.startswith("Echo:")
 
+    def test_run_followup_uses_dedicated_prompt(self):
+        class InspectingFrontend(EchoModelFrontend):
+            def call_model(self, model_input: UnifiedFrontendInput):
+                assert model_input.metadata["task"] == "frontend_followup"
+                assert "Planner follow-up request:" in model_input.messages[1]["content"]
+                assert "General Caption:" not in model_input.messages[1]["content"]
+                return "follow-up answer"
+
+        frontend = InspectingFrontend()
+        output = frontend.run_followup(
+            question="Original question",
+            audio_paths=["/tmp/audio.wav"],
+            followup_prompt="Is there a cough in this segment?",
+        )
+
+        assert output.question_guided_caption == "follow-up answer"
+
+    def test_run_followup_rejects_empty_prompt(self):
+        frontend = EchoModelFrontend()
+        with pytest.raises(FrontendError, match="non-empty followup_prompt"):
+            frontend.run_followup("Question", ["/tmp/audio.wav"], " ")
+
     def test_normalize_model_output_rejects_empty_string(self):
         class EmptyFrontend(EchoModelFrontend):
             def call_model(self, model_input: UnifiedFrontendInput):

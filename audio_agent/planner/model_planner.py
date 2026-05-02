@@ -223,7 +223,7 @@ class BaseModelPlanner(BasePlanner):
                 "selected_audio_id": "str | null - REQUIRED for call_tool, must be a valid audio_id from Available Audio Files",
                 "selected_audio_ids": "list[str] | [] - REQUIRED for call_frontend, must be valid audio_ids from Available Audio Files",
                 "frontend_followup_prompt": "str | null - REQUIRED for call_frontend, the exact prompt/question to send to the frontend model",
-                "frontend_followup_goal": "str | null - OPTIONAL for call_frontend, describes what uncertainty this inspection resolves",
+                "frontend_followup_goal": "str | null - OPTIONAL record-only metadata for call_frontend; describes what uncertainty this inspection resolves but is not sent to the frontend model",
                 "draft_answer": "str | null - you do NOT need to provide this for answer; the frontend model will generate the final answer",
                 "confidence": "float - 0.0 to 1.0",
             },

@@ -8,6 +8,7 @@ producing question-guided evidence/captions from raw audio.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from typing import Any
 
 from audio_agent.core.errors import FrontendError
 from audio_agent.core.schemas import FrontendOutput
@@ -75,6 +76,22 @@ class BaseFrontend(ABC):
         """
         raise NotImplementedError(
             f"Frontend {self.name} does not support final answer generation"
+        )
+
+    def run_followup(
+        self,
+        question: str,
+        audio_paths: list[str],
+        followup_prompt: str,
+    ) -> FrontendOutput:
+        """
+        Re-perceive selected audio artifact(s) for a planner-authored follow-up request.
+
+        This is distinct from run(), which produces an initial question-guided caption.
+        Follow-up calls should answer the planner's specific request directly.
+        """
+        raise NotImplementedError(
+            f"Frontend {self.name} does not support follow-up re-perception"
         )
 
     def validate_inputs(self, question: str, audio_paths: list[str]) -> None:

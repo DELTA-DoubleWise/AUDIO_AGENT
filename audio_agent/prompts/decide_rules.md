@@ -32,7 +32,7 @@
 3.6 **Frontend Follow-Up Rule (CALL_FRONTEND):**
    - Use `action='call_frontend'` when a tool has produced a materially better audio source and the remaining uncertainty is best resolved by direct audio perception (not by numbers or metadata).
    - Examples: isolated speaker track needs emotion analysis, trimmed segment needs chord identification, denoised clip needs background sound description.
-   - Requires: `selected_audio_ids` (list of valid audio_ids from Available Audio Files), `frontend_followup_prompt` (non-empty, the exact question/instruction for the frontend), `frontend_followup_goal` (optional, what uncertainty this resolves).
+   - Requires: `selected_audio_ids` (list of valid audio_ids from Available Audio Files), `frontend_followup_prompt` (non-empty, the exact question/instruction for the frontend), `frontend_followup_goal` (optional record-only metadata; it is not sent to the frontend model).
    - The frontend follow-up prompt should be specific and scoped to the selected audio(s). It may ask a subquestion, a verification question, or the original question on a cleaner clip.
    - Do NOT use `call_frontend` when the next need is measurement, segmentation, isolation, or transformation — use `call_tool` instead.
    - Do NOT use `call_frontend` as a fallback for weak reasoning. Use it only when transformed audio genuinely changes what the frontend can perceive.
