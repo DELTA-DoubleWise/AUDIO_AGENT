@@ -605,6 +605,7 @@ All prompts are externalized as markdown files in `audio_agent/prompts/`. This a
 | `decide_system.md` | Planner decision system prompt | None |
 | `decide_user.md` | Planner decision user instruction | `{question}`, `{frontend_caption}`, `{initial_plan}`, `{evidence_log}`, `{tool_call_history}`, `{available_tools}`, `{step_count}`, `{max_steps}` |
 | `decide_rules.md` | Planner decision rules (numbered list) | None |
+| `disabled_audio_output_decision_guidance.md` | Archived decision-stage audio-output guidance, not loaded by default | None |
 | `format_check_system.md` | Format check: system prompt for format validation | None |
 | `format_check_user.md` | Format check: user instruction template | `{question}`, `{expected_format}`, `{proposed_answer}`, `{is_audio_output_task}` |
 | `evidence_summary_system.md` | Evidence summarization system prompt | None |

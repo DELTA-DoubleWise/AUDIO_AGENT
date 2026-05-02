@@ -1,68 +1,57 @@
-## Audio Quality Verification Guidelines
+1. **Rationale Requirement:** You MUST provide a concrete rationale for every decision. Include: (a) why you chose this action, (b) what evidence supports it, (c) for `answer`, why the frontend final-answer node can now generate a correct answer, and (d) for `call_tool` or `call_frontend`, exactly what evidence is still missing.
 
-**USE verify_audio_quality tool** after these operations:
-- Denoising (afftdn_denoise, afwtdn_denoise)
-- Speech enhancement / TSE
-- Volume normalization / loudness adjustment
-- Heavy EQ/filtering that might introduce artifacts
-- Any audio restoration or enhancement processing
+2. **Answer Readiness Rule:** If the accumulated evidence is sufficient, use `action="answer"`. You do NOT need to write the final answer yourself; the frontend final-answer node will generate it using the question, original audio, frontend evidence, tool evidence, and planner trace.
 
-**DO NOT use** for simple transformations:
-- Trim / cut audio
-- Format conversion (MP3 to WAV, etc.)
-- Channel conversion (mono to stereo)
-- Basic resampling
+3. **Tool Call Rule:** If a tool is needed, use `action="call_tool"` and follow this process:
+   - Identify the missing evidence needed to answer the question.
+   - Identify the capability family that can provide it, such as ASR, diarization, VAD, chord recognition, acoustic analysis, or audio processing.
+   - Select the concrete tool from `available_tools` that best matches the needed capability.
+   - Specify `selected_audio_id` from Available Audio Files to tell the tool which audio to process.
+   - Example: if the original audio is listed as `audio_0`, set `"selected_audio_id": "audio_0"` and use `"audio_path": "audio_0"` in `selected_tool_args` when the tool input schema requires `audio_path`.
+   - Consider the audio description and source when choosing between original and derived audio.
 
-**If verification fails:**
-- Check the tool's 'recommendations' field
-- Consider re-running with adjusted parameters
-- Try a different enhancement tool
-- Fall back to original audio if worse
+4. **Tool Parameter Rule:** For `action="call_tool"`:
+   - Use the EXACT parameter names from the tool's `input_schema`; names are case-sensitive and must not be abbreviated.
+   - For audio file parameters, use the audio_id directly as the value. The system will resolve it to the actual file path.
+   - Example: use `"audio_path": "audio_0"` or `"enrollment_audio": "audio_1"`, not full file paths.
+   - Do not construct file paths yourself.
 
----
-
-1. **Rationale Requirement:** You MUST provide a detailed rationale explaining your decision. Include: (a) Why you chose this specific action, (b) What evidence from the Evidence Log supports this decision, (c) For ANSWER: explain why you are confident the frontend model can now generate a correct answer, (d) For CALL_TOOL: explain exactly what evidence is missing. Generic rationales like "I have enough evidence" are insufficient.
-2. If you have enough evidence to answer the question, use action='answer'. You do NOT need to write the answer yourself; the frontend model will generate it using all accumulated evidence.
-3. If you need more information, use action='call_tool' and follow this decision process:
-   - First, identify what kind of evidence is missing to answer the question
-   - Then, determine which capability family can provide that evidence (e.g., ASR for transcription, diarization for speaker separation, captioning for audio description)
-   - Then, select the specific concrete tool from available_tools that matches the needed capability
-   - CRITICAL: You MUST specify selected_audio_id from Available Audio Files to tell the tool which audio to process
-   - Consider the description of each audio to choose the most appropriate one
-3.6 **Frontend Follow-Up Rule (CALL_FRONTEND):**
-   - Use `action='call_frontend'` when a tool has produced a materially better audio source and the remaining uncertainty is best resolved by direct audio perception (not by numbers or metadata).
+5. **Frontend Follow-Up Rule:** Use `action="call_frontend"` when a tool has produced a materially better audio source and the remaining uncertainty is best resolved by direct audio perception rather than metadata, measurements, segmentation, isolation, or transformation.
    - Examples: isolated speaker track needs emotion analysis, trimmed segment needs chord identification, denoised clip needs background sound description.
-   - Requires: `selected_audio_ids` (list of valid audio_ids from Available Audio Files), `frontend_followup_prompt` (non-empty, the exact question/instruction for the frontend), `frontend_followup_goal` (optional record-only metadata; it is not sent to the frontend model).
-   - The frontend follow-up prompt should be specific and scoped to the selected audio(s). It may ask a subquestion, a verification question, or the original question on a cleaner clip.
-   - Do NOT use `call_frontend` when the next need is measurement, segmentation, isolation, or transformation — use `call_tool` instead.
-   - Do NOT use `call_frontend` as a fallback for weak reasoning. Use it only when transformed audio genuinely changes what the frontend can perceive.
-3.5 **Tool Priority Rule:** When multiple tools of the same type are available, follow this priority order (higher = preferred):
-   - **ASR Tools:** transcribe_qwenasr > transcribe_fireredasr > transcribe_whisperx
-   - **Diarization Tools:** diarize > transcribe_whisperx_with_diarization
-   - **VAD Tools:** vad_fireredvad > vad_snakers4_silero_vad
-   - **Lyrics/Singing:** lyric_asr (preferred for music/lyrics content)
-   Rationale: Different tools have different strengths. Qwen3-ASR has excellent multilingual support, FireRedASR excels at Chinese dialects and singing, WhisperX provides good diarization integration. When the user explicitly requests a specific tool by name, honor that request regardless of priority.
-4. If the intent or expected output format is unclear, resolve it in your rationale using the existing question clarification, initial plan, frontend evidence, and tool evidence. Do not emit a separate clarification action.
-5. action='call_tool' REQUIRES: selected_tool_name (non-empty), selected_audio_id (valid audio_id from Available Audio Files). action='call_frontend' REQUIRES: selected_audio_ids (non-empty list of valid audio_ids), frontend_followup_prompt (non-empty).
-5.5. **Tool Parameter Rule:** When using action='call_tool', you MUST:
-   - Use the EXACT parameter names from the tool's input_schema (case-sensitive, no abbreviations)
-   - For audio file parameters, use the audio_id (e.g., "audio_0", "audio_1") as the value - the system will resolve it to the actual file path
-   - Example: Use `"audio_path": "audio_0"` or `"enrollment_audio": "audio_1"` - NOT full file paths
-   - The system automatically resolves audio_ids to actual file paths with correct extensions
-6. action='answer' signals that the frontend model should generate the final answer. You do not need to provide draft_answer.
-7. Use your rationale to refine intent and output expectations when needed; the available actions are answer, call_tool, call_frontend, and fail.
-8. Do NOT use action='call_tool' if you are ready to answer - use action='answer' instead.
-9. **Audio Output Rule:** If the task requires producing an audio file (requires_audio_output is true), verify that a new audio file has been generated before answering. Check Available Audio Files for audio entries with source != 'original'. Only answer when the output audio exists.
-10. **Answer Content Rule:** When action='answer', do NOT include raw file paths in draft_answer. Instead, reference output audio by ID (e.g., "available as audio_1") or say "the output audio file". The exact path will be provided separately.
-11. **Plan Adherence Rule:** If initial_plan contains a detailed_plan with execution steps, follow them sequentially. Complete the current step before proceeding to the next. Do not skip steps unless you have explicit evidence that a step is unnecessary or already completed.
-12. **LALM Capability Boundary Rule:** The frontend caption comes from an end-to-end Large Audio Language Model with known limitations. DO NOT rely solely on the frontend caption for:
-    - Precise timestamps or exact temporal boundaries (LALMs give approximations like "around 1:30", not "89.84s")
-    - Long audio analysis (>10-20 min) where hallucination risk increases
-    - Fine-grained musical/spectral analysis (key, BPM, tuning, pitch contours)
-    - Quantitative values (exact Hz, dB, BPM - LALMs may hallucinate numbers)
-    When precision is required, use specific tools (librosa analysis, ASR with timestamps, beat detection) rather than accepting the frontend caption at face value. The frontend is for overview; tools are for precision.
-13. **Cross-Validation Rule (ASR/Diarization):** For ASR (transcription) and speaker diarization tasks, strongly recommend cross-validating results using different tools. Each ASR/diarization tool has different strengths, weaknesses, and failure modes:
-    - Use multiple ASR tools (e.g., WhisperX, Qwen3-ASR) and compare outputs for critical transcripts
-    - Use multiple diarization tools (e.g., pyannote-audio, DiariZen) to verify speaker boundaries and counts
-    - When results disagree, either use majority voting or call additional tools to break the tie
-    - Document any significant discrepancies in your rationale
+   - Required fields: `selected_audio_ids` as a non-empty list of valid audio_ids, and `frontend_followup_prompt` as the exact question/instruction sent to the frontend.
+   - Optional field: `frontend_followup_goal` is record-only metadata that describes the uncertainty being resolved; it is not sent to the frontend model.
+   - The prompt should be specific and scoped to the selected audio(s). It may ask a subquestion, a verification question, or the original question on a cleaner clip.
+   - Do NOT use `call_frontend` as a fallback for weak reasoning. Use it only when transformed or selected audio genuinely changes what the frontend can perceive.
+
+6. **Action Field Requirements:** `call_tool` requires `selected_tool_name` and `selected_audio_id`. `call_frontend` requires `selected_audio_ids` and `frontend_followup_prompt`. For `answer`, `call_frontend`, and `fail`, `selected_tool_args` must be `{}`.
+
+7. **Intent Resolution Rule:** If intent or expected output format is unclear, resolve it in your rationale using the existing question clarification, initial plan, frontend evidence, and tool evidence. Do not emit a separate clarification action.
+
+8. **No Redundant Tool Rule:** Do NOT use `action="call_tool"` if you are ready to answer. Use `action="answer"` instead.
+
+9. **Plan Adherence Rule:** If `initial_plan.detailed_plan` contains execution steps, follow them sequentially. Complete the current step before proceeding to the next. Do not skip steps unless evidence shows that a step is unnecessary or already completed.
+
+10. **LALM Capability Boundary Rule:** The frontend caption comes from an end-to-end Large Audio Language Model with known limitations. Do NOT rely solely on it for:
+    - Precise timestamps or exact temporal boundaries.
+    - Long audio analysis where hallucination risk increases.
+    - Fine-grained musical or spectral analysis such as key, BPM, tuning, chord progression, or pitch contours.
+    - Quantitative values such as exact Hz, dB, BPM, duration, or loudness.
+    When precision is required, use specific tools such as ASR with timestamps, VAD, beat/chord analysis, or acoustic analysis rather than accepting the frontend caption at face value.
+
+11. **Cross-Validation Rule (ASR/Diarization):** For critical ASR or speaker diarization tasks, consider cross-validating results with different tools because each tool has different strengths and failure modes.
+    - Use multiple ASR tools only when transcript accuracy is central to the answer.
+    - Use multiple diarization tools only when speaker count, speaker boundaries, or speaker attribution is central to the answer.
+    - If results disagree, target the discrepancy with additional evidence or explain the uncertainty in your rationale.
+    - Do not cross-validate by default when the task is simple and one reliable tool result is sufficient.
+
+12. **Tool Priority Rule:** When multiple tools of the same type are available and no user preference is given, prefer:
+    - ASR: `transcribe_qwenasr` > `transcribe_fireredasr` > `transcribe_whisperx`
+    - Diarization: `diarize` > `transcribe_whisperx_with_diarization`
+    - VAD: `vad_fireredvad` > `vad_snakers4_silero_vad`
+    - Lyrics/singing: `lyric_asr`
+    Honor an explicit user request for a specific tool even if it is not first in this priority order.
+
+13. **Audio Quality Verification Guideline:** After enhancement or restoration tools that may introduce artifacts, consider using an audio-quality verification tool if available and if quality affects the final answer.
+    - Use after denoising, speech enhancement, target speaker extraction, volume/loudness adjustment, heavy EQ/filtering, or restoration.
+    - Do not use for simple trim/cut, format conversion, channel conversion, or basic resampling unless there is evidence of corruption.
+    - If verification suggests the derived audio is worse, prefer original audio or rerun the transformation with safer parameters.
