@@ -42,7 +42,7 @@
    - **VAD Tools:** vad_fireredvad > vad_snakers4_silero_vad
    - **Lyrics/Singing:** lyric_asr (preferred for music/lyrics content)
    Rationale: Different tools have different strengths. Qwen3-ASR has excellent multilingual support, FireRedASR excels at Chinese dialects and singing, WhisperX provides good diarization integration. When the user explicitly requests a specific tool by name, honor that request regardless of priority.
-4. If the intent or expected output format is unclear, use action='clarify_intent' to reason about it.
+4. If the intent or expected output format is unclear, resolve it in your rationale using the existing question clarification, initial plan, frontend evidence, and tool evidence. Do not emit a separate clarification action.
 5. action='call_tool' REQUIRES: selected_tool_name (non-empty), selected_audio_id (valid audio_id from Available Audio Files). action='call_frontend' REQUIRES: selected_audio_ids (non-empty list of valid audio_ids), frontend_followup_prompt (non-empty).
 5.5. **Tool Parameter Rule:** When using action='call_tool', you MUST:
    - Use the EXACT parameter names from the tool's input_schema (case-sensitive, no abbreviations)
@@ -50,7 +50,7 @@
    - Example: Use `"audio_path": "audio_0"` or `"enrollment_audio": "audio_1"` - NOT full file paths
    - The system automatically resolves audio_ids to actual file paths with correct extensions
 6. action='answer' signals that the frontend model should generate the final answer. You do not need to provide draft_answer.
-7. action='clarify_intent' uses reasoning only - do not call tools.
+7. Use your rationale to refine intent and output expectations when needed; the available actions are answer, call_tool, call_frontend, and fail.
 8. Do NOT use action='call_tool' if you are ready to answer - use action='answer' instead.
 9. **Audio Output Rule:** If the task requires producing an audio file (requires_audio_output is true), verify that a new audio file has been generated before answering. Check Available Audio Files for audio entries with source != 'original'. Only answer when the output audio exists.
 10. **Answer Content Rule:** When action='answer', do NOT include raw file paths in draft_answer. Instead, reference output audio by ID (e.g., "available as audio_1") or say "the output audio file". The exact path will be provided separately.

@@ -15,7 +15,6 @@ from audio_agent.graph.nodes import (
     create_planner_decision_node,
     create_tool_executor_node,
     create_evidence_fusion_node,
-    create_intent_clarification_node,
     create_evidence_summarization_node,
     create_final_answer_node,
     create_format_check_node,
@@ -34,7 +33,6 @@ from audio_agent.graph.routing import (
     NODE_INITIAL_PROMPT,
     NODE_INITIAL_PLAN,
     NODE_PLANNER_DECISION,
-    NODE_INTENT_CLARIFICATION,
     NODE_EVIDENCE_SUMMARIZATION,
     NODE_FINAL_ANSWER,
     NODE_FORMAT_CHECK,
@@ -67,11 +65,11 @@ def build_graph(
       -> initial_plan_node
       -> planner_decision_node
       -> [conditional routing based on decision]
-         - ANSWER -> final_answer_node -> format_check_node -> [conditional]
+         - ANSWER -> evidence_summarization_node -> final_answer_node -> format_check_node -> [conditional]
             * Format OK -> answer_node -> END
             * Format Failed -> planner_decision_node (loop with critique)
          - CALL_TOOL -> tool_executor_node -> evidence_fusion_node -> planner_decision_node (loop)
-         - CLARIFY_INTENT -> intent_clarification_node -> planner_decision_node (loop)
+         - CALL_FRONTEND -> frontend_followup_node -> evidence_fusion_node -> planner_decision_node (loop)
          - FAIL -> failure_node -> END
     
     Args:
@@ -104,7 +102,6 @@ def build_graph(
     planner_decision_node_fn = create_planner_decision_node(planner, registry)
     tool_executor_node_fn = create_tool_executor_node(executor)
     evidence_fusion_node_fn = create_evidence_fusion_node(fuser)
-    intent_clarification_node_fn = create_intent_clarification_node(planner)
     evidence_summarization_node_fn = create_evidence_summarization_node(planner)
     final_answer_node_fn = create_final_answer_node(frontend)
     format_check_node_fn = create_format_check_node(planner)
@@ -120,7 +117,6 @@ def build_graph(
     graph.add_node(NODE_PLANNER_DECISION, planner_decision_node_fn)
     graph.add_node(NODE_TOOL_EXECUTOR, tool_executor_node_fn)
     graph.add_node(NODE_EVIDENCE_FUSION, evidence_fusion_node_fn)
-    graph.add_node(NODE_INTENT_CLARIFICATION, intent_clarification_node_fn)
     graph.add_node(NODE_EVIDENCE_SUMMARIZATION, evidence_summarization_node_fn)
     graph.add_node(NODE_FINAL_ANSWER, final_answer_node_fn)
     graph.add_node(NODE_FORMAT_CHECK, format_check_node_fn)
@@ -149,7 +145,7 @@ def build_graph(
     graph.add_edge(NODE_INITIAL_PLAN, NODE_PLANNER_DECISION)
     
     # planner_decision_node -> conditional routing
-    # Note: ANSWER now routes to format_check_node first (mandatory format check)
+    # ANSWER routes through evidence summarization before final answer and format check.
     graph.add_conditional_edges(
         NODE_PLANNER_DECISION,
         route_after_planner_decision,
@@ -157,7 +153,6 @@ def build_graph(
             NODE_EVIDENCE_SUMMARIZATION: NODE_EVIDENCE_SUMMARIZATION,
             NODE_TOOL_EXECUTOR: NODE_TOOL_EXECUTOR,
             NODE_FRONTEND_FOLLOWUP: NODE_FRONTEND_FOLLOWUP,
-            NODE_INTENT_CLARIFICATION: NODE_INTENT_CLARIFICATION,
             NODE_FAILURE: NODE_FAILURE,
         }
     )
@@ -187,9 +182,6 @@ def build_graph(
     # final_answer_node -> format_check_node
     graph.add_edge(NODE_FINAL_ANSWER, NODE_FORMAT_CHECK)
 
-    # intent_clarification_node -> planner_decision_node (loop back)
-    graph.add_edge(NODE_INTENT_CLARIFICATION, NODE_PLANNER_DECISION)
-    
     # Terminal nodes -> END
     graph.add_edge(NODE_ANSWER, END)
     graph.add_edge(NODE_FAILURE, END)
@@ -240,7 +232,6 @@ def build_graph_with_config(
     planner_decision_node_fn = create_planner_decision_node(planner, registry)
     tool_executor_node_fn = create_tool_executor_node(executor)
     evidence_fusion_node_fn = create_evidence_fusion_node(fuser)
-    intent_clarification_node_fn = create_intent_clarification_node(planner)
     evidence_summarization_node_fn = create_evidence_summarization_node(planner)
     final_answer_node_fn = create_final_answer_node(frontend)
     format_check_node_fn = create_format_check_node(planner)
@@ -254,7 +245,6 @@ def build_graph_with_config(
     graph.add_node(NODE_PLANNER_DECISION, planner_decision_node_fn)
     graph.add_node(NODE_TOOL_EXECUTOR, tool_executor_node_fn)
     graph.add_node(NODE_EVIDENCE_FUSION, evidence_fusion_node_fn)
-    graph.add_node(NODE_INTENT_CLARIFICATION, intent_clarification_node_fn)
     graph.add_node(NODE_EVIDENCE_SUMMARIZATION, evidence_summarization_node_fn)
     graph.add_node(NODE_FINAL_ANSWER, final_answer_node_fn)
     graph.add_node(NODE_FORMAT_CHECK, format_check_node_fn)
@@ -274,7 +264,6 @@ def build_graph_with_config(
             NODE_EVIDENCE_SUMMARIZATION: NODE_EVIDENCE_SUMMARIZATION,
             NODE_TOOL_EXECUTOR: NODE_TOOL_EXECUTOR,
             NODE_FRONTEND_FOLLOWUP: NODE_FRONTEND_FOLLOWUP,
-            NODE_INTENT_CLARIFICATION: NODE_INTENT_CLARIFICATION,
             NODE_FAILURE: NODE_FAILURE,
         }
     )
@@ -294,8 +283,6 @@ def build_graph_with_config(
     graph.add_edge(NODE_EVIDENCE_SUMMARIZATION, NODE_FINAL_ANSWER)
     graph.add_edge(NODE_FINAL_ANSWER, NODE_FORMAT_CHECK)
 
-    graph.add_edge(NODE_INTENT_CLARIFICATION, NODE_PLANNER_DECISION)
-    
     graph.add_edge(NODE_ANSWER, END)
     graph.add_edge(NODE_FAILURE, END)
     

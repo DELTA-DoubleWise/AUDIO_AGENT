@@ -193,14 +193,6 @@ class DummyPlanner(BasePlanner):
             rationale="Dummy classification based on keyword matching.",
         )
 
-    def clarify_intent(self, state: AgentState) -> tuple[str, str | None]:
-        """Clarify intent using dummy values."""
-        question = state.get("question", "")
-        return (
-            f"Understand the audio content related to: {question}",
-            "concise answer",
-        )
-
     def check_format(
         self,
         proposed_answer: str,

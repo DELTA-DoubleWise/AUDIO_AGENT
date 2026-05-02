@@ -29,7 +29,6 @@ START
        -> evidence_fusion_node -> planner_decision_node (loop)
      - CALL_FRONTEND -> frontend_followup_node (frontend re-perceives selected audio artifact(s) with planner-authored prompt)
        -> evidence_fusion_node -> planner_decision_node (loop)
-     - CLARIFY -> intent_clarification_node -> planner_decision_node
      - FAIL -> failure_node -> END
      - EXHAUSTED (max_steps reached) -> failure_node -> END
 ```
@@ -39,7 +38,6 @@ START
 - **Frontend Evidence**: The `frontend_evidence_node` feeds the `question_oriented_prompt` to the LALM, which produces a richer, structured `question_guided_caption` containing: (1) general caption, (2) focus point, (3) proposed answer + confidence, and (4) uncertainties / verification needs.
 - **Initial Planning**: Planner's `plan()` method generates a high-level approach using both the question and the frontend's structured caption, enabling audio-aware planning
 - **Tool Execution**: Tool executor automatically resolves `audio_id` references to actual paths and injects audio paths for tools that need them
-- **Intent Clarification**: When planner returns CLARIFY action, the intent_clarification_node refines the question before continuing
 - **Frontend Final Answer**: When the planner returns ANSWER (or is forced on the final step), the `final_answer_node` invokes the frontend (audio-capable) model with all original audio files and accumulated context to generate the final answer.
 - **Format Checking**: Mandatory format validation occurs before final answer. The planner (text LLM) checks if the proposed answer follows the expected output format. If format violations are found, the critique is added as evidence and planning continues.
 - **Final Step**: On the last step (`step_count >= max_steps - 1`), the planner decision node forces `action=ANSWER` with `draft_answer=None`, delegating final answer generation to the frontend model.
@@ -142,23 +140,24 @@ audio_agent/
 ├── prompts/                   # Markdown-based prompt files
 │   ├── frontend_system.md           # Frontend system prompt
 │   ├── frontend_user.md             # Frontend user instruction template
+│   ├── frontend_direct_system.md    # Direct observer frontend system prompt
+│   ├── frontend_direct_user.md      # Direct observer frontend user instruction
 │   ├── frontend_final_answer_system.md  # Frontend final answer system prompt
 │   ├── frontend_final_answer_user.md    # Frontend final answer user instruction
+│   ├── initial_prompt_system.md     # Planner: question-oriented prompt generation system prompt
+│   ├── initial_prompt_user.md       # Planner: question-oriented prompt generation user instruction
 │   ├── plan_system.md               # Planner: initial planning system prompt
 │   ├── plan_user.md                 # Planner: initial planning user instruction
+│   ├── question_clarify_system.md   # Optional dual-frontend question clarification system prompt
+│   ├── question_clarify_user.md     # Optional dual-frontend question clarification user instruction
 │   ├── decide_system.md             # Planner: decision system prompt
 │   ├── decide_user.md               # Planner: decision user instruction template
 │   ├── decide_rules.md              # Planner: decision rules (numbered list)
-│   ├── answer_system.md             # Planner: answer generation system prompt (legacy)
-│   ├── answer_user.md               # Planner: answer generation user instruction (legacy)
-│   ├── clarify_system.md            # Planner: intent clarification system prompt
-│   ├── clarify_user.md              # Planner: intent clarification user instruction
-│   ├── verification_system.md       # Verification: system prompt for answer review (legacy)
-│   ├── verification_user.md         # Verification: user instruction template (legacy)
 │   ├── format_check_system.md       # Format check: system prompt for format validation
 │   ├── format_check_user.md         # Format check: user instruction template
 │   ├── evidence_summary_system.md   # Evidence summarization system prompt
 │   ├── evidence_summary_user.md     # Evidence summarization user instruction
+│   ├── task_oriented_caption_skill.md  # Caption skill reference for initial prompt generation
 │   └── task_skills.yaml             # Task skill reference for initial planning
 ├── fusion/                    # Evidence fusion
 │   ├── base.py               # BaseEvidenceFuser ABC
@@ -563,7 +562,7 @@ When you modify code in these locations, update the corresponding documentation:
 
 1. **Frontend (Local Model)**: Subclass `BaseModelFrontend`, implement `initialize_model()`, `call_model()`, and `generate_final_answer()`. Prompts are loaded from markdown files via `load_prompt()`.
 2. **Frontend (API)**: Use `OpenAICompatibleFrontend` or subclass it. Override `build_api_model_input()` to customize how audio is sent to the API, and `generate_final_answer()` for final answer generation.
-3. **Planner (Local Model)**: Subclass `BaseModelPlanner`, implement `plan()`, `decide()`, and `clarify_intent()`. Prompts are loaded from markdown files.
+3. **Planner (Local Model)**: Subclass `BaseModelPlanner`, implement `plan()` and `decide()`. Prompts are loaded from markdown files.
 4. **Planner (API)**: Use `OpenAICompatiblePlanner` with any OpenAI-compatible API.
 5. **Tool**: Subclass `BaseTool`, implement `spec` property and `invoke()`
 6. **Fuser**: Subclass `BaseEvidenceFuser`, implement `fuse()`
@@ -588,24 +587,25 @@ All prompts are externalized as markdown files in `audio_agent/prompts/`. This a
 | File | Purpose | Variables |
 |------|---------|-----------|
 | `frontend_system.md` | Frontend system prompt | None |
-| `frontend_user.md` | Frontend user instruction | `{question}`, `{audio_paths}` |
+| `frontend_user.md` | Frontend user instruction | `{question}`, `{audio_list}`, `{question_oriented_prompt}` |
+| `frontend_direct_system.md` | Direct observer frontend system prompt | None |
+| `frontend_direct_user.md` | Direct observer frontend user instruction | `{question}`, `{audio_list}`, `{question_oriented_prompt}` |
 | `frontend_final_answer_system.md` | Frontend final answer system prompt | None |
-| `frontend_final_answer_user.md` | Frontend final answer user instruction | `{question}`, `{expected_output_format}`, `{initial_plan_text}`, `{evidence_text}`, `{planner_trace_text}`, `{tool_history_text}`, `{audio_summary}`, `{format_critique_section}` |
+| `frontend_final_answer_user.md` | Frontend final answer user instruction | `{question}`, `{expected_output_format}`, `{initial_plan_text}`, `{frontend_direct_text}`, `{evidence_and_history_text}`, `{audio_summary}`, `{format_critique_section}` |
+| `initial_prompt_system.md` | Planner system prompt for question-oriented frontend prompt generation | None |
+| `initial_prompt_user.md` | Planner user prompt for question-oriented frontend prompt generation | `{question}`, `{caption_skills_reference}` |
 | `plan_system.md` | Planner initial planning system prompt | None |
-| `plan_user.md` | Planner initial planning user instruction | `{question}` |
+| `plan_user.md` | Planner initial planning user instruction | `{question}`, `{frontend_caption}` |
+| `question_clarify_system.md` | Optional dual-frontend question clarification system prompt | None |
+| `question_clarify_user.md` | Optional dual-frontend question clarification user prompt | `{question}` |
 | `decide_system.md` | Planner decision system prompt | None |
 | `decide_user.md` | Planner decision user instruction | `{question}`, `{frontend_caption}`, `{initial_plan}`, `{evidence_log}`, `{tool_call_history}`, `{available_tools}`, `{step_count}`, `{max_steps}` |
 | `decide_rules.md` | Planner decision rules (numbered list) | None |
-| `answer_system.md` | Planner answer system prompt | None |
-| `answer_user.md` | Planner answer user instruction | `{question}`, `{evidence_text}` |
-| `clarify_system.md` | Planner clarify system prompt | None |
-| `clarify_user.md` | Planner clarify user instruction | `{question}`, `{clarified_intent}`, `{expected_format}`, `{evidence_text}` |
-| `verification_system.md` | Verification: system prompt for answer review | None |
-| `verification_user.md` | Verification: user instruction template | `{question}`, `{proposed_answer}` |
 | `format_check_system.md` | Format check: system prompt for format validation | None |
-| `format_check_user.md` | Format check: user instruction template | `{question}`, `{expected_format}`, `{proposed_answer}` |
+| `format_check_user.md` | Format check: user instruction template | `{question}`, `{expected_format}`, `{proposed_answer}`, `{is_audio_output_task}` |
 | `evidence_summary_system.md` | Evidence summarization system prompt | None |
 | `evidence_summary_user.md` | Evidence summarization user instruction | `{question}`, `{frontend_caption}`, `{evidence_text}`, `{planner_trace_text}`, `{tool_history_text}`, `{clarified_intent}`, `{expected_output_format}` |
+| `task_oriented_caption_skill.md` | Caption skill reference injected into initial prompt generation | None |
 | `task_skills.yaml` | Task skill reference for initial planning | Rendered as markdown cookbook |
 
 **Loading Prompts:**
@@ -806,9 +806,7 @@ validate_state_has_fields(
 
 9. **API Planner**: The framework includes `OpenAICompatiblePlanner` for API-based planning (e.g., qwen3.5-plus, kimi-k2.5 via DashScope or OpenAI). Use `create_openai_planner()` helper function.
 
-10. **Intent Clarification**: The planner can return a CLARIFY action when the question is unclear. This triggers the intent_clarification_node which refines the question before continuing.
-
-11. **Frontend Final Answer Generation**: When the planner decides to ANSWER (or is forced on the final step), the `final_answer_node` invokes the frontend model with all original audio files and accumulated context. The frontend generates the final answer directly, ensuring it is grounded in the actual audio content. The context includes:
+10. **Frontend Final Answer Generation**: When the planner decides to ANSWER (or is forced on the final step), the `final_answer_node` invokes the frontend model with all original audio files and accumulated context. The frontend generates the final answer directly, ensuring it is grounded in the actual audio content. The context includes:
     - `evidence_log` - all accumulated evidence items
     - `planner_trace` - all previous planner decisions
     - `tool_call_history` - record of all tool invocations

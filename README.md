@@ -29,7 +29,6 @@ START
        -> evidence_fusion_node -> planner_decision_node (loop)
      - CALL_FRONTEND -> frontend_followup_node (frontend re-perceives selected audio with custom prompt)
        -> evidence_fusion_node -> planner_decision_node (loop)
-     - CLARIFY_INTENT -> intent_clarification_node -> planner_decision_node (loop)
      - FAIL -> failure_node -> END
 ```
 
@@ -96,19 +95,24 @@ audio_agent/
 ├── prompts/               # Markdown prompt files
 │   ├── frontend_system.md           # Frontend system prompt
 │   ├── frontend_user.md             # Frontend user instruction
+│   ├── frontend_direct_system.md    # Direct observer frontend system prompt
+│   ├── frontend_direct_user.md      # Direct observer frontend user instruction
 │   ├── frontend_final_answer_system.md  # Frontend final answer system prompt
 │   ├── frontend_final_answer_user.md    # Frontend final answer user instruction
+│   ├── initial_prompt_system.md     # Planner prompt for frontend prompt generation
+│   ├── initial_prompt_user.md       # Planner instruction for frontend prompt generation
 │   ├── plan_system.md               # Planner planning system prompt
 │   ├── plan_user.md                 # Planner planning user instruction
+│   ├── question_clarify_system.md   # Optional dual-frontend question clarification system prompt
+│   ├── question_clarify_user.md     # Optional dual-frontend question clarification user instruction
 │   ├── decide_system.md             # Planner decision system prompt
 │   ├── decide_user.md               # Planner decision user instruction
 │   ├── decide_rules.md              # Planner decision rules
-│   ├── clarify_system.md            # Planner clarify system prompt
-│   ├── clarify_user.md              # Planner clarify user instruction
 │   ├── format_check_system.md       # Format check system prompt
 │   ├── format_check_user.md         # Format check user instruction
 │   ├── evidence_summary_system.md   # Evidence summarization system prompt
 │   ├── evidence_summary_user.md     # Evidence summarization user instruction
+│   ├── task_oriented_caption_skill.md  # Caption skill reference
 │   └── task_skills.yaml             # Task skill reference for initial planning
 ├── config/                # Configuration
 │   └── settings.py       # AgentConfig
@@ -493,20 +497,25 @@ All prompts are now externalized as markdown files in `audio_agent/prompts/`. Yo
 | File | Purpose | Variables |
 |------|---------|-----------|
 | `frontend_system.md` | Frontend system prompt | None |
-| `frontend_user.md` | Frontend user instruction | `{question}`, `{audio_path_or_uri}` |
+| `frontend_user.md` | Frontend user instruction | `{question}`, `{audio_list}`, `{question_oriented_prompt}` |
+| `frontend_direct_system.md` | Direct observer frontend system prompt | None |
+| `frontend_direct_user.md` | Direct observer frontend user instruction | `{question}`, `{audio_list}`, `{question_oriented_prompt}` |
 | `frontend_final_answer_system.md` | Frontend final answer system prompt | None |
 | `frontend_final_answer_user.md` | Frontend final answer user instruction | `{question}`, `{expected_output_format}`, `{initial_plan_text}`, `{frontend_direct_text}`, `{evidence_and_history_text}`, `{audio_summary}`, `{format_critique_section}` |
+| `initial_prompt_system.md` | Planner system prompt for question-oriented frontend prompt generation | None |
+| `initial_prompt_user.md` | Planner user prompt for question-oriented frontend prompt generation | `{question}`, `{caption_skills_reference}` |
 | `plan_system.md` | Planner initial planning system prompt | None |
-| `plan_user.md` | Planner initial planning user instruction | `{question}` |
+| `plan_user.md` | Planner initial planning user instruction | `{question}`, `{frontend_caption}` |
+| `question_clarify_system.md` | Optional dual-frontend question clarification system prompt | None |
+| `question_clarify_user.md` | Optional dual-frontend question clarification user prompt | `{question}` |
 | `decide_system.md` | Planner decision system prompt | None |
 | `decide_user.md` | Planner decision user instruction | `{question}`, `{frontend_caption}`, `{initial_plan}`, `{evidence_log}`, `{tool_call_history}`, `{available_tools}`, `{step_count}`, `{max_steps}` |
 | `decide_rules.md` | Planner decision rules | None |
-| `clarify_system.md` | Planner clarify system prompt | None |
-| `clarify_user.md` | Planner clarify user instruction | `{question}`, `{clarified_intent}`, `{expected_format}`, `{evidence_text}` |
 | `format_check_system.md` | Format check system prompt | None |
-| `format_check_user.md` | Format check user instruction | `{question}`, `{expected_format}`, `{proposed_answer}` |
+| `format_check_user.md` | Format check user instruction | `{question}`, `{expected_format}`, `{proposed_answer}`, `{is_audio_output_task}` |
 | `evidence_summary_system.md` | Evidence summarization system prompt | None |
 | `evidence_summary_user.md` | Evidence summarization user instruction | `{question}`, `{frontend_caption}`, `{evidence_text}`, `{planner_trace_text}`, `{tool_history_text}`, `{clarified_intent}`, `{expected_output_format}` |
+| `task_oriented_caption_skill.md` | Caption skill reference injected into initial prompt generation | None |
 | `task_skills.yaml` | Task skill reference for initial planning | Rendered as markdown cookbook |
 
 **Example: Customizing the frontend system prompt:**

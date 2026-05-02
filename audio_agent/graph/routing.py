@@ -20,7 +20,6 @@ NODE_ANSWER = "answer_node"
 NODE_TOOL_EXECUTOR = "tool_executor_node"
 NODE_FAILURE = "failure_node"
 NODE_EVIDENCE_FUSION = "evidence_fusion_node"
-NODE_INTENT_CLARIFICATION = "intent_clarification_node"
 NODE_FINAL_ANSWER = "final_answer_node"
 NODE_FORMAT_CHECK = "format_check_node"
 NODE_EVIDENCE_SUMMARIZATION = "evidence_summarization_node"
@@ -37,7 +36,6 @@ def route_after_planner_decision(state: AgentState) -> str:
     Routes:
     - ANSWER -> final_answer_node (frontend generates the answer)
     - CALL_TOOL -> tool_executor_node
-    - CLARIFY_INTENT -> intent_clarification_node
     - FAIL -> failure_node
     
     Note: max_steps exhaustion is handled in planner_decision_node by
@@ -79,10 +77,6 @@ def route_after_planner_decision(state: AgentState) -> str:
         logger.info(f"ROUTING: action={action.value} -> {NODE_FRONTEND_FOLLOWUP}")
         return NODE_FRONTEND_FOLLOWUP
     
-    elif action == PlannerActionType.CLARIFY_INTENT:
-        logger.info(f"ROUTING: action={action.value} -> {NODE_INTENT_CLARIFICATION}")
-        return NODE_INTENT_CLARIFICATION
-
     elif action == PlannerActionType.FAIL:
         logger.info(f"ROUTING: action={action.value} -> {NODE_FAILURE}")
         return NODE_FAILURE
@@ -137,23 +131,6 @@ def route_after_fusion(state: AgentState) -> str:
     """
     logger = get_logger()
     logger.info(f"ROUTING: after fusion -> {NODE_PLANNER_DECISION}")
-    return NODE_PLANNER_DECISION
-
-
-def route_after_intent_clarification(state: AgentState) -> str:
-    """
-    Route after intent clarification.
-    
-    Always loops back to planner for next decision.
-    
-    Args:
-        state: Current agent state
-    
-    Returns:
-        Name of the next node
-    """
-    logger = get_logger()
-    logger.info(f"ROUTING: after intent clarification -> {NODE_PLANNER_DECISION}")
     return NODE_PLANNER_DECISION
 
 

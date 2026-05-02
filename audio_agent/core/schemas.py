@@ -23,13 +23,11 @@ class PlannerActionType(str, Enum):
     - ANSWER: Signal readiness for final answer generation by the frontend model
     - CALL_TOOL: Invoke a tool to gather more evidence
     - CALL_FRONTEND: Ask the frontend model to re-perceive selected audio artifact(s)
-    - CLARIFY_INTENT: Clarify the user's intent and expected output format
     - FAIL: Stop with explicit failure (unrecoverable state)
     """
     ANSWER = "answer"
     CALL_TOOL = "call_tool"
     CALL_FRONTEND = "call_frontend"
-    CLARIFY_INTENT = "clarify_intent"
     FAIL = "fail"
 
 
@@ -353,7 +351,7 @@ class PlannerDecision(BaseModel):
                     "PlannerDecision with action=ANSWER must not carry frontend_followup_prompt"
                 )
         
-        # CLARIFY_INTENT and FAIL require no additional fields - uses rationale only
+        # FAIL requires no additional fields - uses rationale only
         return self
 
 
