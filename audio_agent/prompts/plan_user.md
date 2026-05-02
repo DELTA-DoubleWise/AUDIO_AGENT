@@ -1,137 +1,96 @@
 Question: {question}
 
-Frontend Caption: {frontend_caption}
+Frontend Caption:
+{frontend_caption}
 
-Produce an InitialPlan JSON object with keys:
-- `approach` (str): High-level approach to answer the question
-- `focus_points` (list[str]): Key points to investigate in the audio
-- `possible_tool_types` (list[str]): Tool types that might help (e.g., "asr", "diarization", "captioning")
-- `clarified_intent` (str | null): What the question is actually asking
-- `expected_output_format` (str | null): Expected format of the answer (e.g., "single sentence", "bullet points")
-- `requires_audio_output` (bool): Whether this task requires/produces an audio file as output
-- `notes` (str, optional): Additional notes or considerations
-- `detailed_plan` (list[ExecutionStep], optional): Todo list for complex questions (see below)
+Produce an InitialPlan JSON object with these keys:
 
-**Using the Frontend Caption:**
-- If the caption is clear and confident, you may keep the plan simple.
-- If the caption expresses uncertainty or ambiguity about any aspect, add verification steps for those aspects to your `focus_points` and `detailed_plan`.
-- Prioritize tools that can resolve the specific uncertainties mentioned (or implied) in the caption.
+- `approach` (str): High-level strategy. Include task mode: `direct_perception`, `verified_perception`, or `decomposed_evidence_construction`.
+- `focus_points` (list[str]): Concrete evidence gaps or audio aspects to inspect.
+- `possible_tool_types` (list[str]): Relevant tool categories only, such as `asr`, `diarization`, `vad`, `chord_recognition`, `audio_processing`, `acoustic_analysis`, or `frontend_followup`.
+- `clarified_intent` (str | null): What the question is asking.
+- `expected_output_format` (str | null): Expected final answer format.
+- `requires_audio_output` (bool): Whether the user asks for a processed/generated audio file.
+- `notes` (str, optional): Concise rationale, known vulnerability, or operation chain.
+- `detailed_plan` (list[ExecutionStep], optional): Sequential plan only when useful.
 
-**Audio Output Detection:**
-Set `requires_audio_output: true` when the user asks for:
-- Audio processing/transformation (trim, cut, merge, mix, etc.)
-- Audio enhancement (denoise, normalize, filter, etc.)
-- Format conversion (convert to MP3, WAV, etc.)
-- Audio extraction (extract from video, separate stems, etc.)
-- Any task where the deliverable is a processed audio file
+## Planning Steps
 
-Set `requires_audio_output: false` when the user asks for:
-- Information about the audio (transcription, caption, analysis)
-- Questions about content ("what is being said?", "who is speaking?")
-- Metadata extraction (duration, sample rate, etc.)
+1. Diagnose task mode.
+   - Use `direct_perception` for holistic recognition or semantic perception.
+   - Use `verified_perception` for direct questions involving known frontend weaknesses such as exact speech, speaker count, timestamps, chords/key, tempo, pitch, loudness, or duration.
+   - Use `decomposed_evidence_construction` when the question needs locating, separating, transforming, extracting, measuring, or comparing intermediate evidence.
 
-**Detailed Plan (for complex questions only):**
-For simple questions, use: `"detailed_plan": []`
-For complex questions requiring multiple steps, provide an array of ExecutionStep objects:
+2. Use frontend evidence.
+   - If the caption is clear and the task is direct perception, keep `detailed_plan` empty.
+   - If the caption is uncertain or conflicts with the observer direct answer appended below, plan targeted verification.
+   - Do not trust self-reported confidence blindly.
+
+3. Choose tool use policy.
+   - Direct perception: avoid tools unless there is a specific evidence gap.
+   - Verified perception: use one or a few narrow expert tools as incremental evidence.
+   - Decomposed evidence construction: create an operation-level chain using `locate`, `separate`, `transform`, `symbolic_extraction`, `acoustic_measurement`, and/or `compare`.
+
+4. Decide whether derived audio helps.
+   - If trimming, separation, denoising, normalization, or filtering would produce better evidence, include it in `detailed_plan`.
+   - If a derived audio artifact should be re-perceived by the frontend, include `frontend_followup` as a possible tool type or step.
+
+## Audio Output Detection
+
+Set `requires_audio_output: true` only when the final deliverable is processed audio, such as trim, cut, merge, mix, denoise, normalize, filter, convert, extract, or separate.
+
+Set `requires_audio_output: false` for questions asking for information about audio, such as transcription, content, speaker identity, scene, metadata, or analysis.
+
+## Detailed Plan Rules
+
+For simple direct perception tasks:
 
 ```json
 {{
-  "step_number": 1,
-  "description": "Transcribe audio to get speaker content and timing",
-  "tool_type": "asr",
-  "expected_output": "Transcript with speaker turn timestamps"
+  "detailed_plan": []
 }}
 ```
 
-**Example Simple Question:**
-Question: "What is the sample rate of this audio?"
-Output: `{{ "detailed_plan": [] }}`
+For verified perception, keep the plan short:
 
-**Example Complex Question:**
-Question: "What emotions does each speaker express?"
-Output:
-```json
-{{
-  "detailed_plan": [
-    {{
-      "step_number": 1,
-      "description": "Transcribe audio to identify speaker turns and content",
-      "tool_type": "asr",
-      "expected_output": "Transcript with speaker timestamps"
-    }},
-    {{
-      "step_number": 2,
-      "description": "Separate speakers to isolate individual audio streams",
-      "tool_type": "diarization",
-      "expected_output": "Speaker segments with labels"
-    }},
-    {{
-      "step_number": 3,
-      "description": "Analyze emotional tone of each speaker's segments",
-      "tool_type": "emotion_analysis",
-      "expected_output": "Emotion labels per speaker per segment"
-    }},
-    {{
-      "step_number": 4,
-      "description": "Synthesize emotion findings into final answer",
-      "tool_type": null,
-      "expected_output": "Summary of emotions per speaker"
-    }}
-  ]
-}}
-```
-
-**Example Cross-Validation Plan (for critical ASR/diarization tasks):**
-Question: "Transcribe this important meeting with speaker labels"
-Output:
 ```json
 {{
   "detailed_plan": [
     {{
       "step_number": 1,
-      "description": "Transcribe using WhisperX for initial transcript with word-level timestamps",
+      "description": "Verify the vulnerable aspect with a narrow expert tool",
       "tool_type": "asr",
-      "expected_output": "Transcript with precise timestamps"
-    }},
-    {{
-      "step_number": 2,
-      "description": "Cross-validate transcription using alternative ASR tool",
-      "tool_type": "asr",
-      "expected_output": "Second transcript for comparison"
-    }},
-    {{
-      "step_number": 3,
-      "description": "Perform speaker diarization using pyannote-audio",
-      "tool_type": "diarization",
-      "expected_output": "Speaker segments and speaker count"
-    }},
-    {{
-      "step_number": 4,
-      "description": "Cross-validate diarization using alternative method",
-      "tool_type": "diarization",
-      "expected_output": "Second diarization result for comparison"
-    }},
-    {{
-      "step_number": 5,
-      "description": "Compare ASR and diarization results, resolve discrepancies",
-      "tool_type": null,
-      "expected_output": "Validated final transcript with speaker labels"
+      "expected_output": "Transcript evidence for the exact spoken phrase"
     }}
   ]
 }}
 ```
 
-If the intent is unclear, express uncertainty in focus_points or notes.
+For decomposed evidence construction, use operation-level steps:
 
+```json
+{{
+  "detailed_plan": [
+    {{
+      "step_number": 1,
+      "description": "Locate the alarm event and the following speech segment",
+      "tool_type": "audio_localization",
+      "expected_output": "Relevant time span"
+    }},
+    {{
+      "step_number": 2,
+      "description": "Separate or trim the target segment for focused analysis",
+      "tool_type": "audio_processing",
+      "expected_output": "Derived audio artifact for the target region"
+    }},
+    {{
+      "step_number": 3,
+      "description": "Extract symbolic evidence from the derived audio",
+      "tool_type": "asr",
+      "expected_output": "Transcript of the target region"
+    }}
+  ]
+}}
+```
 
-## Observer Direct Answer (if available)
-
-The "Observer Direct Answer" below is the frontend model's OWN direct attempt to answer the question — not a structured caption. It may include reasoning if the question analysis determined it would be helpful.
-
-IMPORTANT:
-- The observer's answer is INDEPENDENT from the caption above. They may agree or disagree.
-- The observer's stated confidence is SELF-REPORTED — models tend to be OVERCONFIDENT. Do not trust it blindly.
-- A confidence of 0.8 does NOT mean 80% reliability. It may reflect the model's own bias rather than true certainty.
-- If caption and observer AGREE on key facts BUT their REASONING differs → verification is STILL NEEDED
-- If they DISAGREE on critical facts → those areas are HIGH-PRIORITY for tool verification
-- If the observer seems highly confident while the caption is cautious → the caption's uncertainty is often more trustworthy
+If the intent is unclear, state the uncertainty in `focus_points` or `notes` rather than inventing details.
