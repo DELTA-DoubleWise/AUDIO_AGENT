@@ -1,6 +1,9 @@
 User question: {question}
 
-Question-Oriented Guidance:
-{question_oriented_prompt}
+Audio files:
+{audio_list}
+
+Direct Answer Guidance:
+{direct_answer_guidance}
 
 Listen to the audio and answer the question directly. State your confidence level.

@@ -64,9 +64,10 @@ class TestBaseModelFrontend:
         # Content order: text instruction first, then audio(s)
         assert model_input.messages[1]["content"][0]["type"] == "text"
         assert model_input.messages[1]["content"][1]["type"] == "audio"
-        
+
     def test_build_model_input_multiple_audios(self):
         """Test that multiple audio paths are properly included."""
+
         class LocalFrontend(EchoModelFrontend):
             @property
             def input_format(self) -> FrontendInputFormat:
@@ -74,8 +75,7 @@ class TestBaseModelFrontend:
 
         frontend = LocalFrontend()
         model_input = frontend.build_model_input(
-            "Compare these two audios", 
-            ["/tmp/audio1.wav", "/tmp/audio2.wav"]
+            "Compare these two audios", ["/tmp/audio1.wav", "/tmp/audio2.wav"]
         )
 
         assert model_input.audio_paths == ["/tmp/audio1.wav", "/tmp/audio2.wav"]
@@ -98,7 +98,12 @@ class TestBaseModelFrontend:
 
     def test_malformed_builder_output_raises(self):
         class BadBuilderFrontend(EchoModelFrontend):
-            def build_api_model_input(self, question: str, audio_paths: list[str], question_oriented_prompt: str | None = None):
+            def build_api_model_input(
+                self,
+                question: str,
+                audio_paths: list[str],
+                question_oriented_prompt: str | None = None,
+            ):
                 return UnifiedFrontendInput(
                     system_prompt=load_prompt("frontend_system"),
                     question=question,
@@ -135,6 +140,25 @@ class TestBaseModelFrontend:
         )
 
         assert output.question_guided_caption == "follow-up answer"
+
+    def test_run_direct_answer_uses_dedicated_prompt(self):
+        class InspectingFrontend(EchoModelFrontend):
+            def call_model(self, model_input: UnifiedFrontendInput):
+                assert model_input.metadata["task"] == "observer_direct_answer"
+                assert "Direct Answer Guidance:" in model_input.messages[1]["content"]
+                assert "Question-Oriented Guidance:" not in model_input.messages[1]["content"]
+                assert "General Caption:" not in model_input.messages[1]["content"]
+                assert "Use brief reasoning." in model_input.messages[1]["content"]
+                return "direct observer answer"
+
+        frontend = InspectingFrontend()
+        output = frontend.run_direct_answer(
+            question="What happens in the audio?",
+            audio_paths=["/tmp/audio.wav"],
+            direct_answer_guidance="Use brief reasoning.",
+        )
+
+        assert output.question_guided_caption == "direct observer answer"
 
     def test_run_followup_rejects_empty_prompt(self):
         frontend = EchoModelFrontend()
@@ -209,6 +233,7 @@ class TestBaseModelFrontendRetries:
 
     def test_retry_recovers_after_transient_failure(self):
         """A frontend that fails once then succeeds should return the correct output."""
+
         class FlakyFrontend(EchoModelFrontend):
             def __init__(self, fail_count: int = 1):
                 self._fail_count = fail_count
@@ -229,6 +254,7 @@ class TestBaseModelFrontendRetries:
 
     def test_retry_exhausts_and_raises(self):
         """A frontend that always fails should raise after max_retries + 1 attempts."""
+
         class AlwaysBadFrontend(EchoModelFrontend):
             def __init__(self):
                 self._call_count = 0
@@ -245,6 +271,7 @@ class TestBaseModelFrontendRetries:
 
     def test_zero_retries_raises_immediately(self):
         """With max_retries=0, the first failure should raise immediately."""
+
         class AlwaysBadFrontend(EchoModelFrontend):
             def __init__(self):
                 self._call_count = 0

@@ -13,13 +13,13 @@ from audio_agent.frontend.model_frontend import BaseModelFrontend, UnifiedFronte
 class DummyFrontend(BaseModelFrontend):
     """
     Dummy frontend that returns mock evidence.
-    
+
     Useful for:
     - Testing the framework end-to-end
     - Development without GPU/API dependencies
     - Demonstrating the expected interface
     """
-    
+
     @property
     def name(self) -> str:
         return "dummy_frontend"
@@ -43,7 +43,10 @@ class DummyFrontend(BaseModelFrontend):
                 f"'{model_input.question}': {prompt}"
             )
 
-        prompt = model_input.metadata.get("question_oriented_prompt") or "No customized prompt available."
+        prompt = (
+            model_input.metadata.get("question_oriented_prompt")
+            or "No customized prompt available."
+        )
         return (
             f"General Caption: The audio appears to include speech content relevant to the question "
             f"'{model_input.question}'. There may also be background sounds.\n\n"
@@ -60,7 +63,7 @@ class DummyFrontend(BaseModelFrontend):
     ) -> str:
         """
         Return a mock final answer.
-        
+
         This allows testing the final answer flow without real model calls.
         """
         evidence_count = len(context.get("evidence_log", []))
@@ -73,7 +76,7 @@ class DummyFrontend(BaseModelFrontend):
         self,
         question: str,
         audio_paths: list[str],
-        question_oriented_prompt: str | None = None,
+        direct_answer_guidance: str | None = None,
     ) -> FrontendOutput:
         """Return a mock direct answer for testing."""
         return FrontendOutput(

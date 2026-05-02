@@ -159,7 +159,7 @@ class OpenAICompatibleFrontend(BaseModelFrontend):
 
         Overrides base to include audio in the messages using the input_audio
         content type supported by OpenAI-compatible APIs.
-        
+
         Note: audio_paths will always have exactly one audio when this is called,
         since the base run() method iterates through multiple audios separately.
         """
@@ -189,10 +189,10 @@ class OpenAICompatibleFrontend(BaseModelFrontend):
                         "input_audio": {
                             "data": audio_data_url,
                             "format": audio_format,
-                        }
-                    }
-                ]
-            }
+                        },
+                    },
+                ],
+            },
         ]
 
         return UnifiedFrontendInput(
@@ -308,7 +308,7 @@ class OpenAICompatibleFrontend(BaseModelFrontend):
         self,
         question: str,
         audio_paths: list[str],
-        question_oriented_prompt: str | None = None,
+        direct_answer_guidance: str | None = None,
     ) -> "FrontendOutput":
         """
         Run frontend in direct-answer (observer) mode.
@@ -324,11 +324,11 @@ class OpenAICompatibleFrontend(BaseModelFrontend):
         # Load direct-answer prompts
         system_prompt = load_prompt("frontend_direct_system")
         audio_list_text = "\n".join(f"- Audio {i}: {p}" for i, p in enumerate(stripped_paths))
-        prompt_text = question_oriented_prompt or "No customized prompt available."
+        guidance_text = direct_answer_guidance or "No additional guidance."
         user_text = load_prompt("frontend_direct_user").format(
             question=question,
             audio_list=audio_list_text,
-            question_oriented_prompt=prompt_text,
+            direct_answer_guidance=guidance_text,
         )
 
         # Build messages with audio
@@ -338,20 +338,22 @@ class OpenAICompatibleFrontend(BaseModelFrontend):
                 "role": "user",
                 "content": [
                     {"type": "text", "text": user_text},
-                ]
-            }
+                ],
+            },
         ]
 
         # Add audio for each path
         for audio_path in stripped_paths:
             audio_data_url, audio_format = self._encode_audio(audio_path)
-            messages[1]["content"].append({
-                "type": "input_audio",
-                "input_audio": {
-                    "data": audio_data_url,
-                    "format": audio_format,
+            messages[1]["content"].append(
+                {
+                    "type": "input_audio",
+                    "input_audio": {
+                        "data": audio_data_url,
+                        "format": audio_format,
+                    },
                 }
-            })
+            )
 
         # Call API (non-streaming for reliability)
         client = self.model_handle
@@ -395,9 +397,7 @@ class OpenAICompatibleFrontend(BaseModelFrontend):
         stripped_paths = [p.strip() for p in audio_paths]
 
         # Build unified input using base method
-        model_input = self.build_final_answer_model_input(
-            question.strip(), stripped_paths, context
-        )
+        model_input = self.build_final_answer_model_input(question.strip(), stripped_paths, context)
         if not isinstance(model_input, UnifiedFrontendInput):
             raise FrontendError(
                 "Malformed model input: builder must return UnifiedFrontendInput",
@@ -415,13 +415,15 @@ class OpenAICompatibleFrontend(BaseModelFrontend):
                     if isinstance(block, dict) and block.get("type") == "audio":
                         audio_path = block.get("audio")
                         audio_data_url, audio_format = self._encode_audio(audio_path)
-                        new_content.append({
-                            "type": "input_audio",
-                            "input_audio": {
-                                "data": audio_data_url,
-                                "format": audio_format,
+                        new_content.append(
+                            {
+                                "type": "input_audio",
+                                "input_audio": {
+                                    "data": audio_data_url,
+                                    "format": audio_format,
+                                },
                             }
-                        })
+                        )
                     else:
                         new_content.append(block)
                 messages.append({"role": "user", "content": new_content})

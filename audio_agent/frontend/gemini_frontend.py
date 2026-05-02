@@ -110,12 +110,14 @@ class GeminiFrontend(BaseModelFrontend):
         parts: list[dict[str, Any]] = []
         for audio_path in audio_paths:
             audio_b64 = self._encode_audio(audio_path)
-            parts.append({
-                "inline_data": {
-                    "mime_type": "audio/wav",
-                    "data": audio_b64,
+            parts.append(
+                {
+                    "inline_data": {
+                        "mime_type": "audio/wav",
+                        "data": audio_b64,
+                    }
                 }
-            })
+            )
         parts.append({"text": user_text})
 
         return {
@@ -223,7 +225,9 @@ class GeminiFrontend(BaseModelFrontend):
     ) -> UnifiedFrontendInput:
         """Build Gemini-format input."""
         system_prompt = load_prompt("frontend_system")
-        user_text = self.build_frontend_task_instruction(question, audio_paths, question_oriented_prompt)
+        user_text = self.build_frontend_task_instruction(
+            question, audio_paths, question_oriented_prompt
+        )
 
         payload = self._build_gemini_payload(system_prompt, user_text, audio_paths)
 
@@ -299,22 +303,30 @@ class GeminiFrontend(BaseModelFrontend):
 
         evidence_summary = context.get("evidence_summary")
         evidence_log = context.get("evidence_log", [])
-        evidence_text = "\n".join(
-            f"[{item.source}] {item.content}"
-            for item in evidence_log
-        ) if evidence_log else "No evidence collected."
+        evidence_text = (
+            "\n".join(f"[{item.source}] {item.content}" for item in evidence_log)
+            if evidence_log
+            else "No evidence collected."
+        )
 
         planner_trace = context.get("planner_trace", [])
-        planner_trace_text = "\n".join(
-            f"Step {i+1}: {d.action.value} - {d.rationale}"
-            for i, d in enumerate(planner_trace)
-        ) if planner_trace else "No planner decisions yet."
+        planner_trace_text = (
+            "\n".join(
+                f"Step {i+1}: {d.action.value} - {d.rationale}" for i, d in enumerate(planner_trace)
+            )
+            if planner_trace
+            else "No planner decisions yet."
+        )
 
         tool_history = context.get("tool_call_history", [])
-        tool_history_text = "\n".join(
-            f"- {record.request.tool_name}: success={record.result.success}"
-            for record in tool_history
-        ) if tool_history else "No tools called."
+        tool_history_text = (
+            "\n".join(
+                f"- {record.request.tool_name}: success={record.result.success}"
+                for record in tool_history
+            )
+            if tool_history
+            else "No tools called."
+        )
 
         initial_plan = context.get("initial_plan")
         initial_plan_text = initial_plan.approach if initial_plan else "No initial plan."
@@ -322,25 +334,29 @@ class GeminiFrontend(BaseModelFrontend):
         initial_frontend_output = context.get("initial_frontend_output")
         frontend_direct_text = (
             initial_frontend_output.question_guided_caption
-            if initial_frontend_output else "No frontend direct output."
+            if initial_frontend_output
+            else "No frontend direct output."
         )
 
-        audio_summary = "\n".join(
-            f"- {a.audio_id}: {a.description}"
-            for a in context.get("audio_list", [])
-        ) if context.get("audio_list") else "No audio information."
+        audio_summary = (
+            "\n".join(f"- {a.audio_id}: {a.description}" for a in context.get("audio_list", []))
+            if context.get("audio_list")
+            else "No audio information."
+        )
 
-        expected_output_format = context.get("expected_output_format") or "No specific format required."
+        expected_output_format = (
+            context.get("expected_output_format") or "No specific format required."
+        )
         format_critique = context.get("format_critique")
         format_critique_section = (
             f"\n## Format Critique (previous attempt failed)\n{format_critique}\n"
-            if format_critique else ""
+            if format_critique
+            else ""
         )
 
         if evidence_summary:
             evidence_and_history_text = (
-                f"## Evidence and Reasoning Summary\n"
-                f"{evidence_summary}\n\n"
+                f"## Evidence and Reasoning Summary\n" f"{evidence_summary}\n\n"
             )
         else:
             evidence_and_history_text = (
@@ -394,9 +410,7 @@ class GeminiFrontend(BaseModelFrontend):
         self.validate_inputs(question, audio_paths)
         stripped_paths = [p.strip() for p in audio_paths]
 
-        model_input = self.build_final_answer_model_input(
-            question.strip(), stripped_paths, context
-        )
+        model_input = self.build_final_answer_model_input(question.strip(), stripped_paths, context)
         if not isinstance(model_input, UnifiedFrontendInput):
             raise FrontendError(
                 "Malformed model input: builder must return UnifiedFrontendInput",
@@ -427,7 +441,7 @@ class GeminiFrontend(BaseModelFrontend):
         self,
         question: str,
         audio_paths: list[str],
-        question_oriented_prompt: str | None = None,
+        direct_answer_guidance: str | None = None,
     ) -> FrontendOutput:
         """
         Run frontend in direct-answer (observer) mode.
@@ -439,7 +453,13 @@ class GeminiFrontend(BaseModelFrontend):
         stripped_paths = [p.strip() for p in audio_paths]
 
         system_prompt = load_prompt("frontend_direct_system")
-        user_text = self.build_frontend_task_instruction(question, stripped_paths, question_oriented_prompt)
+        audio_list_text = "\n".join(f"- Audio {i}: {path}" for i, path in enumerate(stripped_paths))
+        guidance_text = direct_answer_guidance or "No additional guidance."
+        user_text = load_prompt("frontend_direct_user").format(
+            question=question,
+            audio_list=audio_list_text,
+            direct_answer_guidance=guidance_text,
+        )
         payload = self._build_gemini_payload(system_prompt, user_text, stripped_paths)
 
         def _call():

@@ -591,7 +591,7 @@ All prompts are externalized as markdown files in `audio_agent/prompts/`. This a
 | `frontend_system.md` | Frontend system prompt | None |
 | `frontend_user.md` | Frontend user instruction | `{question}`, `{audio_list}`, `{question_oriented_prompt}` |
 | `frontend_direct_system.md` | Direct observer frontend system prompt | None |
-| `frontend_direct_user.md` | Direct observer frontend user instruction | `{question}`, `{audio_list}`, `{question_oriented_prompt}` |
+| `frontend_direct_user.md` | Direct observer frontend user instruction | `{question}`, `{audio_list}`, `{direct_answer_guidance}` |
 | `frontend_followup_system.md` | Targeted frontend follow-up system prompt | None |
 | `frontend_followup_user.md` | Targeted frontend follow-up user instruction | `{question}`, `{audio_list}`, `{followup_prompt}` |
 | `frontend_final_answer_system.md` | Frontend final answer system prompt | None |

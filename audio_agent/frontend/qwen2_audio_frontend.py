@@ -99,23 +99,28 @@ class Qwen2AudioFrontend(BaseModelFrontend):
         question_oriented_prompt: str | None = None,
     ) -> UnifiedFrontendInput:
         """Build Qwen2-Audio-style multimodal input with local/remote audio key selection.
-        
+
         Note: audio_paths will always have exactly one audio when this is called,
         since the base run() method iterates through multiple audios separately.
         """
         audio_path = audio_paths[0]
         user_payload = self._build_common_user_payload(question, audio_paths)
-        
+
         # Build content with single audio and text
         audio_content: dict[str, str] = {"type": "audio"}
         if self._is_remote_audio(audio_path):
             audio_content["audio_url"] = audio_path
         else:
             audio_content["audio"] = audio_path
-        
+
         content = [
             audio_content,
-            {"type": "text", "text": self.build_frontend_task_instruction(question, audio_paths, question_oriented_prompt)},
+            {
+                "type": "text",
+                "text": self.build_frontend_task_instruction(
+                    question, audio_paths, question_oriented_prompt
+                ),
+            },
         ]
 
         system_prompt = load_prompt("frontend_system")
@@ -143,6 +148,44 @@ class Qwen2AudioFrontend(BaseModelFrontend):
         """Build Qwen2-Audio follow-up input; only audio content shape is specific."""
         common = self.build_followup_common_fields(
             question, audio_paths, followup_prompt, FrontendInputFormat.LOCAL_MULTIMODAL
+        )
+
+        content: list[dict[str, str]] = []
+        for audio_path in audio_paths:
+            audio_content: dict[str, str] = {"type": "audio"}
+            if self._is_remote_audio(audio_path):
+                audio_content["audio_url"] = audio_path
+            else:
+                audio_content["audio"] = audio_path
+            content.append(audio_content)
+        content.append(
+            {
+                "type": "text",
+                "text": common["user_text"],
+            }
+        )
+
+        return UnifiedFrontendInput(
+            system_prompt=common["system_prompt"],
+            question=question,
+            audio_paths=audio_paths,
+            user_payload=common["user_payload"],
+            messages=[
+                {"role": "system", "content": common["system_prompt"]},
+                {"role": "user", "content": content},
+            ],
+            metadata=common["metadata"],
+        )
+
+    def build_direct_answer_local_multimodal_model_input(
+        self,
+        question: str,
+        audio_paths: list[str],
+        direct_answer_guidance: str | None = None,
+    ) -> UnifiedFrontendInput:
+        """Build Qwen2-Audio direct observer input; only audio content shape is specific."""
+        common = self.build_direct_answer_common_fields(
+            question, audio_paths, direct_answer_guidance, FrontendInputFormat.LOCAL_MULTIMODAL
         )
 
         content: list[dict[str, str]] = []
@@ -216,7 +259,7 @@ class Qwen2AudioFrontend(BaseModelFrontend):
 
     def call_model(self, model_input: UnifiedFrontendInput) -> str:
         """Run Qwen2-Audio generation and return raw text output.
-        
+
         Note: This processes a single audio per call. The base run() method
         handles multiple audios by making separate calls.
         """
