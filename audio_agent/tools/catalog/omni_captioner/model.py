@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 import base64
+import json
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -34,8 +35,27 @@ class VerificationResult:
     analysis: str
 
 
+@dataclass
+class PlotInspectionResult:
+    """Result of VLM inspection over a combined audio-plot image."""
+    plot_path: str
+    structured_result: dict[str, Any]
+    raw_response: str
+    parsing_warning: str | None = None
+
+
 class OmniCaptionerModel:
     """Wrapper for Qwen3-Omni API for audio captioning."""
+
+    DEFAULT_AUDIO_PLOT_TYPES = (
+        "waveform",
+        "mel_spectrogram",
+        "rms_energy",
+        "onset_envelope",
+        "spectral_rolloff",
+    )
+    OPTIONAL_AUDIO_PLOT_TYPES = ("cqt_chroma", "bpm_curve")
+    SUPPORTED_AUDIO_PLOT_TYPES = DEFAULT_AUDIO_PLOT_TYPES + OPTIONAL_AUDIO_PLOT_TYPES
     
     def __init__(
         self,
@@ -276,6 +296,366 @@ class OmniCaptionerModel:
         plt.close()
         
         return str(output_path)
+
+    def _load_audio_for_plots(
+        self,
+        audio_path: str | Path,
+        time_range: dict[str, Any] | None = None,
+    ) -> tuple[Any, int, float, float]:
+        """Load mono audio and optionally crop it to a validated time range."""
+        path = Path(audio_path)
+        if not path.exists():
+            raise FileNotFoundError(f"Audio file not found: {path}")
+
+        try:
+            import librosa
+            import numpy as np
+        except ImportError as e:
+            raise RuntimeError(f"Required packages not installed: {e}") from e
+
+        y, sr = librosa.load(str(path), sr=None, mono=True)
+        if sr <= 0:
+            raise ValueError(f"Invalid sample rate for audio file: {sr}")
+        if y.size == 0:
+            raise ValueError("Audio file is empty")
+
+        duration = float(len(y) / sr)
+        start = 0.0
+        end = duration
+
+        if time_range:
+            if not isinstance(time_range, dict):
+                raise ValueError("time_range must be an object with optional start/end")
+            start = float(time_range.get("start", 0.0))
+            end = float(time_range.get("end", duration))
+            if start < 0 or end <= start or end > duration:
+                raise ValueError(
+                    f"Invalid time_range: start={start}, end={end}, duration={duration}"
+                )
+            start_sample = int(round(start * sr))
+            end_sample = int(round(end * sr))
+            y = y[start_sample:end_sample]
+            if y.size == 0:
+                raise ValueError("Selected time_range produced empty audio")
+
+        if not np.isfinite(y).all():
+            raise ValueError("Audio contains non-finite samples")
+
+        return y, sr, start, end
+
+    def _validate_plot_types(self, plot_types: list[str] | None) -> list[str]:
+        """Validate plot type selection and preserve caller order."""
+        selected = list(plot_types) if plot_types else list(self.DEFAULT_AUDIO_PLOT_TYPES)
+        if not selected:
+            raise ValueError("plot_types cannot be empty")
+
+        supported = set(self.SUPPORTED_AUDIO_PLOT_TYPES)
+        invalid = [plot_type for plot_type in selected if plot_type not in supported]
+        if invalid:
+            raise ValueError(
+                "Unsupported plot_types: "
+                + ", ".join(invalid)
+                + ". Supported: "
+                + ", ".join(self.SUPPORTED_AUDIO_PLOT_TYPES)
+            )
+
+        deduped: list[str] = []
+        for plot_type in selected:
+            if plot_type not in deduped:
+                deduped.append(plot_type)
+        return deduped
+
+    def _generate_combined_audio_plots(
+        self,
+        audio_path: str | Path,
+        plot_types: list[str] | None = None,
+        time_range: dict[str, Any] | None = None,
+        output_path: str | Path | None = None,
+    ) -> tuple[str, list[str], float, float]:
+        """Generate a single stacked PNG containing selected audio visualizations."""
+        selected_plot_types = self._validate_plot_types(plot_types)
+        path = Path(audio_path)
+        if not path.exists():
+            raise FileNotFoundError(f"Audio file not found: {path}")
+
+        try:
+            import librosa
+            import librosa.display
+            import matplotlib
+            matplotlib.use("Agg")
+            import matplotlib.pyplot as plt
+            import numpy as np
+        except ImportError as e:
+            raise RuntimeError(f"Required packages not installed: {e}") from e
+
+        y, sr, start_time, end_time = self._load_audio_for_plots(path, time_range)
+
+        if output_path is None:
+            output_fd, output_path = tempfile.mkstemp(suffix=".png")
+            os.close(output_fd)
+        else:
+            output_path = Path(output_path)
+
+        duration = float(len(y) / sr)
+        time_offset = start_time
+        rows = len(selected_plot_types)
+        fig, axes = plt.subplots(rows, 1, figsize=(14, max(3.0 * rows, 4.0)), squeeze=False)
+        axes_list = axes[:, 0]
+        time_axis = np.linspace(time_offset, time_offset + duration, num=len(y), endpoint=False)
+
+        for ax, plot_type in zip(axes_list, selected_plot_types):
+            if plot_type == "waveform":
+                ax.plot(time_axis, y, linewidth=0.7)
+                ax.set_ylabel("Amplitude")
+                ax.set_title("Waveform")
+                ax.set_xlim(time_offset, time_offset + duration)
+
+            elif plot_type == "mel_spectrogram":
+                mel = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=96)
+                mel_db = librosa.power_to_db(mel, ref=np.max)
+                img = librosa.display.specshow(
+                    mel_db,
+                    sr=sr,
+                    x_axis="time",
+                    y_axis="mel",
+                    ax=ax,
+                    x_coords=None,
+                )
+                ax.set_title("Mel Spectrogram (dB)")
+                fig.colorbar(img, ax=ax, format="%+2.0f dB")
+
+            elif plot_type == "rms_energy":
+                rms = librosa.feature.rms(y=y)[0]
+                times = librosa.frames_to_time(range(len(rms)), sr=sr) + time_offset
+                ax.plot(times, rms, linewidth=1.0)
+                ax.set_ylabel("RMS")
+                ax.set_title("RMS Energy")
+                ax.set_xlim(time_offset, time_offset + duration)
+
+            elif plot_type == "onset_envelope":
+                onset_env = librosa.onset.onset_strength(y=y, sr=sr)
+                times = librosa.frames_to_time(range(len(onset_env)), sr=sr) + time_offset
+                ax.plot(times, onset_env, linewidth=1.0)
+                ax.set_ylabel("Strength")
+                ax.set_title("Onset Envelope")
+                ax.set_xlim(time_offset, time_offset + duration)
+
+            elif plot_type == "spectral_rolloff":
+                rolloff = librosa.feature.spectral_rolloff(y=y, sr=sr)[0]
+                times = librosa.frames_to_time(range(len(rolloff)), sr=sr) + time_offset
+                ax.plot(times, rolloff, linewidth=1.0)
+                ax.set_ylabel("Hz")
+                ax.set_title("Spectral Rolloff")
+                ax.set_xlim(time_offset, time_offset + duration)
+
+            elif plot_type == "cqt_chroma":
+                chroma = librosa.feature.chroma_cqt(y=y, sr=sr)
+                img = librosa.display.specshow(
+                    chroma,
+                    sr=sr,
+                    x_axis="time",
+                    y_axis="chroma",
+                    ax=ax,
+                )
+                ax.set_title("CQT Chroma")
+                fig.colorbar(img, ax=ax)
+
+            elif plot_type == "bpm_curve":
+                onset_env = librosa.onset.onset_strength(y=y, sr=sr)
+                tempogram = librosa.feature.tempogram(onset_envelope=onset_env, sr=sr)
+                bpm_values = librosa.tempo_frequencies(tempogram.shape[0], sr=sr)
+                dominant_bpm = bpm_values[np.argmax(tempogram, axis=0)]
+                times = librosa.frames_to_time(range(tempogram.shape[1]), sr=sr) + time_offset
+                ax.plot(times, dominant_bpm, linewidth=1.0)
+                ax.set_ylabel("BPM")
+                ax.set_title("Dominant Local Tempo Estimate")
+                ax.set_xlim(time_offset, time_offset + duration)
+
+            ax.set_xlabel("Time (s)")
+            ax.grid(alpha=0.2)
+
+        title = f"Audio Plot Inspection: {path.name}"
+        if time_range:
+            title += f" ({start_time:.2f}s-{end_time:.2f}s)"
+        fig.suptitle(title, fontsize=14)
+        fig.tight_layout(rect=[0, 0, 1, 0.98])
+        fig.savefig(str(output_path), dpi=150, bbox_inches="tight")
+        plt.close(fig)
+
+        return str(output_path), selected_plot_types, start_time, end_time
+
+    def _build_audio_plot_inspection_prompt(
+        self,
+        question: str,
+        analysis_focus: str,
+        plot_types: list[str],
+        start_time: float,
+        end_time: float,
+    ) -> str:
+        """Build the fixed bounded prompt for VLM plot inspection."""
+        plot_list = ", ".join(plot_types)
+        return f"""You are inspecting a single combined image of audio-derived plots. You are not listening to the audio.
+
+Your job is to extract visual-acoustic evidence only. Do not directly answer the user question from plots alone.
+Do not infer speech content, accent, speaker identity, relationship, intent, emotion, animal understanding, or object identity from these plots.
+If a claim cannot be determined from the plots, explicitly say it cannot be determined.
+
+User question for context:
+{question}
+
+Planner-requested analysis focus:
+{analysis_focus}
+
+Plot types shown:
+{plot_list}
+
+Audio time span shown:
+{start_time:.3f}s to {end_time:.3f}s
+
+Return only valid JSON with this exact schema:
+{{
+  "visual_acoustic_clues": ["short visual-acoustic observations"],
+  "timeline": [
+    {{"start": 0.0, "end": 1.5, "observation": "visible acoustic pattern"}}
+  ],
+  "focus_relevant_evidence": "what the plots support about the requested focus",
+  "uncertain_or_not_determinable": ["claims that cannot be determined from these plots"],
+  "recommended_next_tools": ["specific next evidence tools if needed"],
+  "reliability": "high | medium | low"
+}}
+"""
+
+    def _call_vlm_with_single_image(self, prompt: str, image_path: str | Path) -> str:
+        """Call the configured VLM with exactly one image input."""
+        client = self._get_client()
+        with open(image_path, "rb") as f:
+            img_base64 = base64.b64encode(f.read()).decode("utf-8")
+
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/png;base64,{img_base64}"},
+                    },
+                ],
+            }
+        ]
+
+        completion = client.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            stream=True,
+            stream_options={"include_usage": True},
+        )
+
+        text_response = ""
+        for chunk in completion:
+            if chunk.choices and chunk.choices[0].delta.content:
+                text_response += chunk.choices[0].delta.content
+        return text_response
+
+    def _parse_plot_inspection_response(
+        self,
+        response: str,
+        plot_path: str,
+    ) -> tuple[dict[str, Any], str | None]:
+        """Parse VLM JSON response, preserving raw output on format failure."""
+        text = response.strip()
+        if text.startswith("```"):
+            lines = text.splitlines()
+            if lines and lines[0].startswith("```"):
+                lines = lines[1:]
+            if lines and lines[-1].strip() == "```":
+                lines = lines[:-1]
+            text = "\n".join(lines).strip()
+
+        try:
+            parsed = json.loads(text)
+        except json.JSONDecodeError as exc:
+            return (
+                {
+                    "visual_acoustic_clues": [],
+                    "timeline": [],
+                    "focus_relevant_evidence": "",
+                    "uncertain_or_not_determinable": [
+                        "The VLM response did not follow the required JSON format."
+                    ],
+                    "recommended_next_tools": [],
+                    "reliability": "low",
+                    "plot_path": plot_path,
+                    "raw_response": response,
+                },
+                f"Failed to parse VLM response as JSON: {exc}",
+            )
+
+        if not isinstance(parsed, dict):
+            return (
+                {
+                    "visual_acoustic_clues": [],
+                    "timeline": [],
+                    "focus_relevant_evidence": "",
+                    "uncertain_or_not_determinable": [
+                        "The VLM response was valid JSON but not an object."
+                    ],
+                    "recommended_next_tools": [],
+                    "reliability": "low",
+                    "plot_path": plot_path,
+                    "raw_response": response,
+                },
+                "VLM response JSON was not an object.",
+            )
+
+        parsed["plot_path"] = plot_path
+        return parsed, None
+
+    def inspect_audio_plots(
+        self,
+        audio_path: str | Path,
+        question: str,
+        analysis_focus: str,
+        plot_types: list[str] | None = None,
+        time_range: dict[str, Any] | None = None,
+    ) -> PlotInspectionResult:
+        """Inspect a single combined audio-plot image with a bounded VLM prompt."""
+        if not question or not question.strip():
+            raise ValueError("question is required")
+        if not analysis_focus or not analysis_focus.strip():
+            raise ValueError("analysis_focus is required")
+
+        plot_path, selected_plot_types, start_time, end_time = self._generate_combined_audio_plots(
+            audio_path=audio_path,
+            plot_types=plot_types,
+            time_range=time_range,
+        )
+        prompt = self._build_audio_plot_inspection_prompt(
+            question=question,
+            analysis_focus=analysis_focus,
+            plot_types=selected_plot_types,
+            start_time=start_time,
+            end_time=end_time,
+        )
+
+        try:
+            raw_response = self._call_vlm_with_single_image(prompt, plot_path)
+            structured_result, parsing_warning = self._parse_plot_inspection_response(
+                raw_response,
+                plot_path,
+            )
+            return PlotInspectionResult(
+                plot_path=plot_path,
+                structured_result=structured_result,
+                raw_response=raw_response,
+                parsing_warning=parsing_warning,
+            )
+        except Exception as e:
+            try:
+                Path(plot_path).unlink(missing_ok=True)
+            except OSError:
+                pass
+            raise RuntimeError(f"Audio plot inspection failed: {e}") from e
 
     def verify_audio_quality(
         self,

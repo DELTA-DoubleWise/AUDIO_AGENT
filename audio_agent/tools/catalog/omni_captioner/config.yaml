@@ -80,3 +80,33 @@ tools:
           type: string
           description: "Specific instructions on what to check (e.g., 'Check for denoising artifacts', 'Compare with reference for content loss')"
       required: ["audio_path", "verification_prompt"]
+
+  - name: "inspect_audio_plots"
+    description: "Generate one combined audio-plot image and ask a VLM for bounded visual-acoustic evidence. Useful for loudness changes, silence/gaps, transients, rough event boundaries, spectral brightness/muffling, and coarse rhythm; not semantic answering."
+    input_schema:
+      type: object
+      properties:
+        audio_path:
+          type: string
+          description: "Path to the audio file to inspect"
+        question:
+          type: string
+          description: "Original user question for context only"
+        analysis_focus:
+          type: string
+          description: "Specific visual-acoustic uncertainty to inspect"
+        plot_types:
+          type: array
+          items:
+            type: string
+            enum: ["waveform", "mel_spectrogram", "rms_energy", "onset_envelope", "spectral_rolloff", "cqt_chroma", "bpm_curve"]
+          description: "Optional selected plot rows. Defaults to waveform, mel_spectrogram, rms_energy, onset_envelope, spectral_rolloff."
+        time_range:
+          type: object
+          properties:
+            start:
+              type: number
+            end:
+              type: number
+          description: "Optional time range in seconds to crop before plotting"
+      required: ["audio_path", "question", "analysis_focus"]

@@ -57,6 +57,19 @@ Generate caption + audio response:
 }
 ```
 
+### Tool: inspect_audio_plots
+
+Generate one combined audio-plot image and ask a VLM for bounded visual-acoustic evidence. This tool inspects visible plot structure only; it should not be used for speech content, accent, speaker identity, relationship, intent, emotion, or final answering.
+
+```json
+{
+  "audio_path": "/path/to/audio.wav",
+  "question": "How many knocks are in the audio?",
+  "analysis_focus": "Look for repeated short transient bursts that could support counting knocks.",
+  "plot_types": ["waveform", "mel_spectrogram", "rms_energy", "onset_envelope"]
+}
+```
+
 ## Configuration
 
 Environment variables (set in `config.yaml` or export before use):

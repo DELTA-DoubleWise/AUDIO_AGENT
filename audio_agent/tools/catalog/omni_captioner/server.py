@@ -104,6 +104,52 @@ class OmniCaptionerServer:
                     },
                     "required": ["audio_path", "verification_prompt"]
                 }
+            },
+            {
+                "name": "inspect_audio_plots",
+                "description": "Generate one combined audio-plot image and ask a VLM for bounded visual-acoustic evidence. Useful for inspecting visible structure such as loudness changes, silence/gaps, transients, rough event boundaries, spectral brightness/muffling, and coarse rhythm. It does not listen to audio and must not be treated as semantic understanding or final answering.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "audio_path": {
+                            "type": "string",
+                            "description": "Path to the audio file to inspect (REQUIRED)"
+                        },
+                        "question": {
+                            "type": "string",
+                            "description": "Original user question for context only; the tool will not answer it directly"
+                        },
+                        "analysis_focus": {
+                            "type": "string",
+                            "description": "Specific visual-acoustic uncertainty to inspect, e.g. repeated transients, silent gaps, loudness change, or brightness change"
+                        },
+                        "plot_types": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "enum": [
+                                    "waveform",
+                                    "mel_spectrogram",
+                                    "rms_energy",
+                                    "onset_envelope",
+                                    "spectral_rolloff",
+                                    "cqt_chroma",
+                                    "bpm_curve"
+                                ]
+                            },
+                            "description": "Optional selected plot rows. Defaults to waveform, mel_spectrogram, rms_energy, onset_envelope, spectral_rolloff."
+                        },
+                        "time_range": {
+                            "type": "object",
+                            "properties": {
+                                "start": {"type": "number"},
+                                "end": {"type": "number"}
+                            },
+                            "description": "Optional time range in seconds to crop before plotting"
+                        }
+                    },
+                    "required": ["audio_path", "question", "analysis_focus"]
+                }
             }
         ]
     
@@ -222,6 +268,8 @@ class OmniCaptionerServer:
             return self._omni_caption(arguments, generate_audio=True)
         elif tool_name == "verify_audio_quality":
             return self._verify_audio_quality(arguments)
+        elif tool_name == "inspect_audio_plots":
+            return self._inspect_audio_plots(arguments)
         else:
             raise ValueError(f"Unknown tool: {tool_name}")
     
@@ -347,6 +395,66 @@ class OmniCaptionerServer:
             import traceback
             traceback.print_exc(file=sys.stderr)
             raise RuntimeError(f"Verification failed: {e}") from e
+
+    def _inspect_audio_plots(self, arguments: dict) -> dict[str, Any]:
+        """Inspect combined audio plots using a bounded VLM prompt."""
+        from model import OmniCaptionerModel
+
+        audio_path = arguments.get("audio_path", "")
+        question = arguments.get("question", "")
+        analysis_focus = arguments.get("analysis_focus", "")
+        plot_types = arguments.get("plot_types")
+        time_range = arguments.get("time_range")
+
+        if not audio_path:
+            raise ValueError("audio_path is required")
+        if not question:
+            raise ValueError("question is required")
+        if not analysis_focus:
+            raise ValueError("analysis_focus is required")
+        if not Path(audio_path).exists():
+            raise FileNotFoundError(f"Audio file not found: {audio_path}")
+        if plot_types is not None and not isinstance(plot_types, list):
+            raise ValueError("plot_types must be an array when provided")
+        if time_range is not None and not isinstance(time_range, dict):
+            raise ValueError("time_range must be an object when provided")
+
+        print(f"Inspecting audio plots: {audio_path}", file=sys.stderr)
+
+        try:
+            model = OmniCaptionerModel(
+                api_key=self._api_key,
+                base_url=self._base_url,
+                model=self._default_model,
+            )
+            result = model.inspect_audio_plots(
+                audio_path=audio_path,
+                question=question,
+                analysis_focus=analysis_focus,
+                plot_types=plot_types,
+                time_range=time_range,
+            )
+
+            output = dict(result.structured_result)
+            output["plot_path"] = result.plot_path
+            if result.parsing_warning:
+                output["parsing_warning"] = result.parsing_warning
+                output["raw_response"] = result.raw_response
+
+            return {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": json.dumps(output, ensure_ascii=False, indent=2),
+                    }
+                ],
+                "isError": False,
+            }
+        except Exception as e:
+            print(f"Audio plot inspection failed: {e}", file=sys.stderr)
+            import traceback
+            traceback.print_exc(file=sys.stderr)
+            raise RuntimeError(f"Audio plot inspection failed: {e}") from e
 
     def _handle_shutdown(self, request_id: Any) -> dict[str, Any]:
         """Handle shutdown request."""

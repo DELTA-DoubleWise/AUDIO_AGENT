@@ -52,4 +52,5 @@ class TestToolVisibility:
 
     def test_core_allowlist_size(self):
         """The default planner core inventory is intentionally fixed."""
-        assert len(CORE_PLANNER_TOOL_NAMES) == 39
+        assert len(CORE_PLANNER_TOOL_NAMES) == 40
+        assert "inspect_audio_plots" in CORE_PLANNER_TOOL_NAMES

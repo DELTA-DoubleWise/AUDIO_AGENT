@@ -29,6 +29,7 @@ CORE_PLANNER_TOOL_NAMES: frozenset[str] = frozenset(
         "fireredvad_predict",
         "get_audio_info",
         "highpass_filter",
+        "inspect_audio_plots",
         "lowpass_filter",
         "lyric_asr",
         "omni_caption",
