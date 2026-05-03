@@ -54,7 +54,7 @@ class SileroVADMCPServer:
                 "tools": [
                     {
                         "name": "vad_predict",
-                        "description": "Lightweight voice activity detection for quick speech/non-speech segmentation. Useful as a faster, lighter fallback to stronger VAD tools when speed matters more than precision.",
+                        "description": "Lightweight voice activity detection for quick speech/non-speech segmentation. Useful as a faster, lighter fallback to stronger VAD tools when speed matters more than precision. Empty or boundary-shifted results are not decisive; if speech presence or boundaries matter, cross-check with stronger VAD, ASR, or a focused clip.",
                         "inputSchema": {
                             "type": "object",
                             "properties": {

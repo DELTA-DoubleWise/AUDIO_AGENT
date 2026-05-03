@@ -83,7 +83,7 @@ class LibrosaMCPServer:
             },
             {
                 "name": "analyze_onsets",
-                "description": "Detect likely onset times and onset strength in audio. Useful for timing, attack structure, and approximate event boundaries. It does not identify notes, chords, instruments, or semantic event types by itself.",
+                "description": "Detect likely onset times and onset strength in audio. Useful for timing, attack structure, and approximate event boundaries. It does not identify notes, chords, instruments, or semantic event types by itself. Weak, sustained, or noisy events may be missed; do not treat an empty or sparse onset result as proof that no events occurred.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -223,7 +223,7 @@ class LibrosaMCPServer:
             # =========================================================================
             {
                 "name": "segment_audio",
-                "description": "Segment audio into non-silent regions using amplitude-based silence detection. Useful for rough structure finding and trimming, not for semantic segmentation by speaker, event, or scene.",
+                "description": "Segment audio into non-silent regions using amplitude-based silence detection. Useful for rough structure finding and trimming, not for semantic segmentation by speaker, event, or scene. Results depend strongly on top_db; if missing or extra segments affect the answer, rerun with a smaller top_db for stricter detection or larger top_db to preserve quieter material.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -234,7 +234,7 @@ class LibrosaMCPServer:
                         "top_db": {
                             "type": "integer",
                             "default": 40,
-                            "description": "Threshold (in dB) for considering a region as silent."
+                            "description": "Amplitude threshold relative to peak level. Smaller values are stricter and may drop quieter material; larger values are more inclusive."
                         }
                     },
                     "required": ["audio_path"]
@@ -310,7 +310,7 @@ class LibrosaMCPServer:
             },
             {
                 "name": "remove_silence",
-                "description": "Remove leading and trailing silence based on an energy threshold. Useful for cleanup before downstream tools or re-perception, not for semantic content detection.",
+                "description": "Remove leading and trailing silence based on an energy threshold. Useful for cleanup before downstream tools or re-perception, not for semantic content detection. The trim boundary depends strongly on top_db; verify or rerun with a different threshold if boundary placement affects the answer.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -321,7 +321,7 @@ class LibrosaMCPServer:
                         "top_db": {
                             "type": "integer",
                             "default": 60,
-                            "description": "Threshold (in dB) for considering audio as silence."
+                            "description": "Amplitude threshold relative to peak level. Smaller values trim more aggressively; larger values preserve quieter leading/trailing material."
                         },
                         "output_path": {
                             "type": "string",

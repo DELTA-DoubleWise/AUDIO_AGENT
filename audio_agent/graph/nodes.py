@@ -44,6 +44,7 @@ from audio_agent.frontend.base import BaseFrontend
 from audio_agent.planner.base import BasePlanner
 from audio_agent.tools.executor import ToolExecutor
 from audio_agent.tools.registry import ToolRegistry
+from audio_agent.tools.visibility import PlannerToolScope, filter_tool_specs
 from audio_agent.fusion.base import BaseEvidenceFuser
 
 
@@ -508,13 +509,18 @@ def create_initial_plan_node(planner: BasePlanner):
     return initial_plan_node
 
 
-def create_planner_decision_node(planner: BasePlanner, registry: ToolRegistry):
+def create_planner_decision_node(
+    planner: BasePlanner,
+    registry: ToolRegistry,
+    planner_tool_scope: PlannerToolScope = "core",
+):
     """
     Factory to create an action decision planner node.
 
     Args:
         planner: Planner instance for action decision
         registry: Tool registry for available tools
+        planner_tool_scope: Tool scope exposed to the planner ("core" or "all")
 
     Returns:
         Node function compatible with LangGraph
@@ -578,7 +584,10 @@ def create_planner_decision_node(planner: BasePlanner, registry: ToolRegistry):
             context="planner_decision_node",
         )
 
-        available_tools = registry.list_specs()
+        available_tools = filter_tool_specs(
+            registry.list_specs(),
+            scope=planner_tool_scope,
+        )
 
         try:
             decision = planner.decide(state, available_tools)

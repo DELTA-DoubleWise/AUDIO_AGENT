@@ -4,6 +4,8 @@ Configuration settings for the audio agent.
 Uses Pydantic for validation and environment variable support.
 """
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -25,6 +27,7 @@ class AgentConfig(BaseModel):
         enable_run_logging: Enable run logging to markdown files
         enable_format_check: Enable mandatory format checking before final answer
         max_format_checks: Maximum number of format checks allowed per run
+        planner_tool_scope: Planner-visible tool inventory scope ("core" or "all")
     """
     max_steps: int = Field(default=10, ge=1, le=100)
     debug: bool = Field(default=False)
@@ -56,6 +59,10 @@ class AgentConfig(BaseModel):
     use_dual_frontend: bool = Field(
         default=True,
         description="Enable dual frontend calls (verifier caption + observer direct answer)"
+    )
+    planner_tool_scope: Literal["core", "all"] = Field(
+        default="core",
+        description="Planner-visible tool scope: 'core' for benchmark-oriented tools, 'all' for every registered tool",
     )
     
     model_config = {

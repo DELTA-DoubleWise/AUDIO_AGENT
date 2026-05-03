@@ -9,10 +9,18 @@ from audio_agent.main import create_dummy_agent, AudioAgent
 from audio_agent.config.settings import AgentConfig
 from audio_agent.core.state import create_initial_state
 from audio_agent.core.constants import AgentStatus
-from audio_agent.core.schemas import AudioItem, PlannerDecision, PlannerActionType
+from audio_agent.core.schemas import (
+    AudioItem,
+    PlannerDecision,
+    PlannerActionType,
+    ToolCallRequest,
+    ToolResult,
+    ToolSpec,
+)
 from audio_agent.graph.builder import build_graph
 from audio_agent.frontend.dummy_frontend import DummyFrontend
 from audio_agent.planner.dummy_planner import DummyPlanner
+from audio_agent.tools.base import BaseTool
 from audio_agent.tools.registry import ToolRegistry
 from audio_agent.tools.dummy_tools import DummyASRTool, DummyAudioEventDetectorTool
 from audio_agent.fusion.default_fuser import DefaultEvidenceFuser
@@ -24,6 +32,20 @@ def create_test_audio_file():
     fd, path = tempfile.mkstemp(suffix=".wav")
     os.close(fd)
     return path
+
+
+class NamedNoopTool(BaseTool):
+    """Simple named tool for planner-visibility tests."""
+
+    def __init__(self, name: str) -> None:
+        self._spec = ToolSpec(name=name, description=f"{name} test tool")
+
+    @property
+    def spec(self) -> ToolSpec:
+        return self._spec
+
+    def invoke(self, request: ToolCallRequest) -> ToolResult:
+        return ToolResult(tool_name=self.spec.name, success=True, output={})
 
 
 class TestGraphSmoke:
@@ -129,6 +151,82 @@ class TestGraphSmoke:
         graph = build_graph(frontend, planner, registry, fuser)
         
         assert graph is not None
+
+    def test_default_config_passes_core_tools_to_planner(self):
+        """Default planner scope should hide non-core registered tools."""
+        audio_path = create_test_audio_file()
+        try:
+            class RecordingPlanner(DummyPlanner):
+                def __init__(self):
+                    self.seen_tool_names = None
+
+                def decide(self, state, available_tools):
+                    self.seen_tool_names = [tool.name for tool in available_tools]
+                    return PlannerDecision(
+                        action=PlannerActionType.ANSWER,
+                        rationale="Recorded available tools",
+                        confidence=0.8,
+                    )
+
+            frontend = DummyFrontend()
+            planner = RecordingPlanner()
+            registry = ToolRegistry()
+            registry.register(NamedNoopTool("trim_audio"))
+            registry.register(NamedNoopTool("dummy_asr"))
+            fuser = DefaultEvidenceFuser()
+
+            agent = AudioAgent(
+                frontend=frontend,
+                planner=planner,
+                registry=registry,
+                fuser=fuser,
+                config=AgentConfig(),
+            )
+
+            agent.run(question="Test", audio_paths=[audio_path])
+
+            assert planner.seen_tool_names == ["trim_audio"]
+        finally:
+            if os.path.exists(audio_path):
+                os.unlink(audio_path)
+
+    def test_all_scope_passes_all_tools_to_planner(self):
+        """All planner scope should expose every registered tool."""
+        audio_path = create_test_audio_file()
+        try:
+            class RecordingPlanner(DummyPlanner):
+                def __init__(self):
+                    self.seen_tool_names = None
+
+                def decide(self, state, available_tools):
+                    self.seen_tool_names = [tool.name for tool in available_tools]
+                    return PlannerDecision(
+                        action=PlannerActionType.ANSWER,
+                        rationale="Recorded available tools",
+                        confidence=0.8,
+                    )
+
+            frontend = DummyFrontend()
+            planner = RecordingPlanner()
+            registry = ToolRegistry()
+            registry.register(NamedNoopTool("trim_audio"))
+            registry.register(NamedNoopTool("dummy_asr"))
+            fuser = DefaultEvidenceFuser()
+
+            agent = AudioAgent(
+                frontend=frontend,
+                planner=planner,
+                registry=registry,
+                fuser=fuser,
+                config=AgentConfig(planner_tool_scope="all"),
+            )
+
+            agent.run(question="Test", audio_paths=[audio_path])
+
+            assert planner.seen_tool_names == ["trim_audio", "dummy_asr"]
+        finally:
+            if os.path.exists(audio_path):
+                os.unlink(audio_path)
     
     def test_graph_raises_on_none_components(self):
         """Test that graph builder raises on None components."""

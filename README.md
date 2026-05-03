@@ -39,6 +39,7 @@ START
 - **Evidence Summarization**: Before final answer, a text-LLM compresses all evidence, planner trace, and tool history into a single neutral narrative. This prevents the frontend model from being overwhelmed by verbose raw tool outputs.
 - **Frontend Final Answer**: The frontend (audio-capable) model generates the final answer directly from the original audio(s) and summarized context, rather than the text planner producing the answer.
 - **Format Checking**: Mandatory format validation occurs before finalizing. If the format is wrong, a critique is added as evidence and planning continues.
+- **Planner Tool Scope**: `AgentConfig.planner_tool_scope` defaults to `core`, exposing a compact benchmark-oriented tool inventory to the planner. Use `all` to expose every registered tool for broader audio editing/effects workflows.
 - **Tool Contracts**: Low-level signal/metadata tools cannot override the frontend's semantic judgments.
 
 ## Project Structure
@@ -69,6 +70,7 @@ audio_agent/
 │   ├── base.py            # BaseTool ABC
 │   ├── registry.py        # ToolRegistry (internal + MCP tools)
 │   ├── executor.py        # ToolExecutor
+│   ├── visibility.py      # Planner-visible tool scope filtering
 │   ├── dummy_tools.py     # Dummy tools
 │   ├── mcp/               # MCP (Model Context Protocol) infrastructure
 │   │   ├── client.py      # MCP client

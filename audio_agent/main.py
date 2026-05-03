@@ -311,6 +311,9 @@ def create_dummy_agent(config: AgentConfig | None = None) -> AudioAgent:
     from audio_agent.tools.dummy_tools import DummyASRTool, DummyAudioEventDetectorTool
     from audio_agent.fusion.default_fuser import DefaultEvidenceFuser
     
+    if config is None:
+        config = AgentConfig(planner_tool_scope="all")
+
     frontend = DummyFrontend()
     planner = DummyPlanner()
     registry = ToolRegistry()

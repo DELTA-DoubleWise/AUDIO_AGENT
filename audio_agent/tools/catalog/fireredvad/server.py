@@ -47,7 +47,7 @@ class MCPServer:
                 "tools": [
                     {
                         "name": "fireredvad_predict",
-                        "description": "Voice activity detection tool for speech/non-speech segmentation. Returns timestamps of likely speech regions. Useful for routing speech-focused downstream tools, but it does not transcribe, identify speakers, or determine semantic content.",
+                        "description": "Voice activity detection tool for speech/non-speech segmentation. Returns timestamps of likely speech regions. Useful for routing speech-focused downstream tools, but it does not transcribe, identify speakers, or determine semantic content. Empty or boundary-shifted results can reflect model sensitivity, noise, or preprocessing; if speech presence/boundaries are central, cross-check with ASR, another VAD, or a more focused clip.",
                         "inputSchema": {
                             "type": "object",
                             "properties": {
@@ -61,7 +61,7 @@ class MCPServer:
                     },
                     {
                         "name": "fireredvad_aed",
-                        "description": "Coarse audio event detector for speech, singing, and music regions. Returns timestamps and aggregate ratios for those broad classes only; it is not a general sound-event classifier or source-identity tool.",
+                        "description": "Coarse audio event detector for speech, singing, and music regions. Returns timestamps and aggregate ratios for those broad classes only; it is not a general sound-event classifier or source-identity tool. Absence of a class is model-dependent evidence, not proof; cross-check when speech/music/singing presence is decisive.",
                         "inputSchema": {
                             "type": "object",
                             "properties": {

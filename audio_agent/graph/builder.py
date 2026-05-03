@@ -99,7 +99,12 @@ def build_graph(
     initial_prompt_node_fn = create_initial_prompt_node(planner)
     frontend_node = create_frontend_evidence_node(frontend)
     initial_plan_node_fn = create_initial_plan_node(planner)
-    planner_decision_node_fn = create_planner_decision_node(planner, registry)
+    planner_tool_scope = config.planner_tool_scope if config else "core"
+    planner_decision_node_fn = create_planner_decision_node(
+        planner,
+        registry,
+        planner_tool_scope=planner_tool_scope,
+    )
     tool_executor_node_fn = create_tool_executor_node(executor)
     evidence_fusion_node_fn = create_evidence_fusion_node(fuser)
     evidence_summarization_node_fn = create_evidence_summarization_node(planner)
@@ -229,7 +234,12 @@ def build_graph_with_config(
     initial_prompt_node_fn = create_initial_prompt_node(planner)
     frontend_node = create_frontend_evidence_node(frontend)
     initial_plan_node_fn = create_initial_plan_node(planner)
-    planner_decision_node_fn = create_planner_decision_node(planner, registry)
+    planner_tool_scope = config.planner_tool_scope if config else "core"
+    planner_decision_node_fn = create_planner_decision_node(
+        planner,
+        registry,
+        planner_tool_scope=planner_tool_scope,
+    )
     tool_executor_node_fn = create_tool_executor_node(executor)
     evidence_fusion_node_fn = create_evidence_fusion_node(fuser)
     evidence_summarization_node_fn = create_evidence_summarization_node(planner)
