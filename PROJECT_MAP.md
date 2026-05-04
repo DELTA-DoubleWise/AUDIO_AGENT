@@ -11,13 +11,13 @@
 - `audio_agent/`: all source code; runtime code root; classification `core`.
 - `audio_agent/core/`: shared contracts and primitives (`state.py`, `schemas.py`, `errors.py`, `constants.py`, `logging.py`); classification `core`.
 - `audio_agent/graph/`: LangGraph assembly + node logic + routing (`builder.py`, `nodes.py`, `routing.py`); classification `core`.
-- `audio_agent/frontend/`: frontend interface/template (`base.py`, `model_frontend.py`), dummy frontend (`dummy_frontend.py`), Qwen2-Audio adapter (`qwen2_audio_frontend.py`), Qwen3-Omni adapter (`qwen3_omni_frontend.py`); classification `core`.
-- `audio_agent/planner/`: planner interface (`base.py`), model planner template (`model_planner.py`), dummy planner (`dummy_planner.py`), Qwen2.5 adapter (`qwen25_planner.py`); classification `core`.
+- `audio_agent/frontend/`: frontend interface/template (`base.py`, `model_frontend.py`), dummy frontend (`dummy_frontend.py`), Qwen2-Audio adapter (`qwen2_audio_frontend.py`), Qwen3-Omni adapter (`qwen3_omni_frontend.py`), OpenAI-compatible API frontend (`openai_compatible_frontend.py`), MiMo API frontend (`mimo_frontend.py`); classification `core`.
+- `audio_agent/planner/`: planner interface (`base.py`), model planner template (`model_planner.py`), dummy planner (`dummy_planner.py`), Qwen2.5 adapter (`qwen25_planner.py`), OpenAI-compatible API planner (`openai_compatible_planner.py`), MiMo API planner (`mimo_planner.py`); classification `core`.
 - `audio_agent/tools/`: tool interface (`base.py`), registry (`registry.py`), executor (`executor.py`), dummy tools (`dummy_tools.py`), plus MCP infrastructure (`mcp/`) and tool catalog (`catalog/` with tools: asr_qwen3, diarizen, ffmpeg, librosa, omni_captioner, snakers4_silero-vad); classification `core`.
 - `audio_agent/fusion/`: evidence fusion interface + default fuser; classification `core`.
 - `audio_agent/config/`: `AgentConfig` schema; classification `config`.
 - `audio_agent/utils/`: validation helpers used by graph nodes; classification `support`.
-- `audio_agent/examples/`: demo scripts (`demo_run.py`, `demo_run_auto_tools.py`, `demo_run_real_asr.py`, `demo_run_api_planner.py`, `demo_run_api_full.py`); classification `support/example`.
+- `audio_agent/examples/`: demo scripts (`demo_run.py`, `demo_run_auto_tools.py`, `demo_run_real_asr.py`, `demo_run_api_planner.py`, `demo_run_api_full.py`, `demo_run_mimo.py`); classification `support/example`.
 - `audio_agent/tests/`: unit + smoke tests, including state, registry, graph, frontend-base, model I/O, planner-base, and Qwen adapter tests; classification `support`.
 - `tool_preparation/`: Harness-First Agent Workflow for automated tool onboarding; contains policies, playbooks, contracts, specs, and templates; classification `support/docs`.
 - `README.md`: architecture and quick start reference; classification `support/docs`.
@@ -82,6 +82,7 @@
 - `audio_agent/tests/test_model_planner_base.py`: Model planner template tests.
 - `audio_agent/tests/test_planner_stages.py`: Planner stage tests (plan/decide/answer).
 - `audio_agent/tests/test_qwen25_planner.py`: Qwen2.5 planner adapter tests.
+- `audio_agent/tests/test_mimo_components.py`: MiMo frontend and planner adapter tests.
 - `audio_agent/tests/test_frontend_model_base.py`: frontend template/dispatch/normalization tests.
 - `audio_agent/tests/test_qwen2_audio_frontend.py`, `test_qwen3_omni_frontend.py`: Qwen adapter tests + optional cluster integration smoke tests.
 

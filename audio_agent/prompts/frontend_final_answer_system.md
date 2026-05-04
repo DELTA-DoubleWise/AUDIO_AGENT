@@ -29,3 +29,15 @@ Instructions:
 4. If a specific output format was requested, follow it strictly.
 5. If a format critique is provided, address it in your answer.
 6. Base your answer only on the audio content and the summarized evidence. Do not hallucinate.
+
+**CRITICAL: Output Format**
+You MUST output your response as a single JSON object with exactly these two keys and no additional keys:
+```json
+{
+  "final_answer": "<your final answer here, following any format requirements>",
+  "rationale": "<brief explanation of why you chose this answer, referencing the audio and evidence>"
+}
+```
+- The `final_answer` field must contain only the answer text (no reasoning, no explanations).
+- The `rationale` field should explain your reasoning and how the audio/evidence supports the answer.
+- Do not wrap the JSON in markdown code blocks in your actual output; output raw JSON only.

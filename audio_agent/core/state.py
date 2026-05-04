@@ -98,6 +98,9 @@ class AgentState(TypedDict, total=False):
     format_check_result: FormatCheckResult | None
     format_check_count: int  # Track number of format checks to prevent loops
     
+    # Frontend-generated rationale for the final answer
+    final_answer_rationale: str | None
+    
     # Evidence summary (consolidated narrative before final answer)
     evidence_summary: str | None
     
@@ -173,6 +176,7 @@ def create_initial_state(
         question_oriented_prompt=None,
         format_check_result=None,
         format_check_count=0,
+        final_answer_rationale=None,
         evidence_summary=None,
         question_clarification=None,
         frontend_direct_output=None,

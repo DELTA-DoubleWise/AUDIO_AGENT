@@ -432,3 +432,110 @@ def create_gemini_planner(
         timeout=timeout,
         **kwargs,
     )
+
+
+def create_mimo_frontend(
+    api_key: str | None = None,
+    base_url: str = "https://token-plan-cn.xiaomimimo.com/v1",
+    model: str = "mimo-v2.5",
+    temperature: float = 0.05,
+    max_tokens: int = 4096,
+    timeout: float = 120.0,
+    **kwargs,
+) -> "MimoFrontend":
+    """
+    Create a MiMo API frontend.
+
+    Uses Xiaomi MiMo's OpenAI-compatible API for audio understanding.
+    Supports mimo-v2.5 and other MiMo audio-capable models.
+
+    Args:
+        api_key: API key. If None, reads from MIMO_API_KEY env var.
+        base_url: API base URL. Defaults to MiMo's endpoint.
+        model: Model name (default: "mimo-v2.5").
+        temperature: Sampling temperature (0.0 to 2.0).
+        max_tokens: Maximum output tokens.
+        timeout: Request timeout in seconds.
+        **kwargs: Additional arguments passed to MimoFrontend.
+
+    Returns:
+        Configured MimoFrontend instance.
+
+    Example:
+        # Using environment variable
+        import os
+        os.environ["MIMO_API_KEY"] = "sk-xxx"
+        frontend = create_mimo_frontend()
+
+        # With explicit API key
+        frontend = create_mimo_frontend(api_key="sk-xxx")
+
+        # Custom model
+        frontend = create_mimo_frontend(model="mimo-v2.5")
+    """
+    from audio_agent.frontend.mimo_frontend import MimoFrontend
+
+    return MimoFrontend(
+        api_key=api_key,
+        base_url=base_url,
+        model=model,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        timeout=timeout,
+        **kwargs,
+    )
+
+
+def create_mimo_planner(
+    api_key: str | None = None,
+    base_url: str = "https://token-plan-cn.xiaomimimo.com/v1",
+    model: str = "mimo-v2.5-pro",
+    temperature: float = 0.05,
+    max_tokens: int = 4096,
+    enable_thinking: bool = False,
+    timeout: float = 120.0,
+    **kwargs,
+) -> "MimoPlanner":
+    """
+    Create a MiMo API planner.
+
+    Uses Xiaomi MiMo's OpenAI-compatible API for planning and decision making.
+    Supports mimo-v2.5-pro and other MiMo text models.
+
+    Args:
+        api_key: API key. If None, reads from MIMO_API_KEY env var.
+        base_url: API base URL. Defaults to MiMo's endpoint.
+        model: Model name (default: "mimo-v2.5-pro").
+        temperature: Sampling temperature (0.0 to 2.0).
+        max_tokens: Maximum output tokens.
+        enable_thinking: Enable thinking/reasoning mode.
+        timeout: Request timeout in seconds.
+        **kwargs: Additional arguments passed to MimoPlanner.
+
+    Returns:
+        Configured MimoPlanner instance.
+
+    Example:
+        # Using environment variable
+        import os
+        os.environ["MIMO_API_KEY"] = "sk-xxx"
+        planner = create_mimo_planner()
+
+        # With explicit API key
+        planner = create_mimo_planner(api_key="sk-xxx")
+
+        # With thinking mode
+        planner = create_mimo_planner(enable_thinking=True)
+    """
+    from audio_agent.planner.mimo_planner import MimoPlanner
+
+    return MimoPlanner(
+        api_key=api_key,
+        base_url=base_url,
+        model=model,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        enable_thinking=enable_thinking,
+        timeout=timeout,
+        **kwargs,
+    )

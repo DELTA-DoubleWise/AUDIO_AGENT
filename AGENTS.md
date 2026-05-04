@@ -116,7 +116,8 @@ audio_agent/
 │   ├── model_planner.py      # BaseModelPlanner template class
 │   ├── dummy_planner.py      # Mock implementation for testing
 │   ├── qwen25_planner.py     # Qwen2.5 planner adapter
-│   └── openai_compatible_planner.py  # OpenAI-compatible API planner
+│   ├── openai_compatible_planner.py  # OpenAI-compatible API planner
+  └── mimo_planner.py           # Xiaomi MiMo API planner
 ├── tools/                     # Tool system
 │   ├── base.py               # BaseTool ABC
 │   ├── registry.py           # ToolRegistry for tool management (internal + MCP)
@@ -281,6 +282,33 @@ python -m audio_agent.examples.demo_run_api_full \
 The `demo_run_api_full.py` script uses:
 - `OpenAICompatibleFrontend` with qwen3-omni-flash for audio understanding
 - `OpenAICompatiblePlanner` with qwen3.5-plus for decision making
+- No local model downloads or GPU required
+
+### MiMo API Demo (No Local GPU)
+
+For users with Xiaomi MiMo API access:
+
+```bash
+# Set API key
+export MIMO_API_KEY="sk-xxx"
+
+# Demo with MiMo frontend + MiMo planner (fully API-based)
+python -m audio_agent.examples.demo_run_mimo \
+  --audio /path/to/audio.wav \
+  --question "What is being said?"
+
+# Using custom models
+python -m audio_agent.examples.demo_run_mimo \
+  --audio /path/to/audio.wav \
+  --question "What is being said?" \
+  --frontend-model "mimo-v2.5" \
+  --planner-model "mimo-v2.5-pro"
+```
+
+The `demo_run_mimo.py` script uses:
+- `MimoFrontend` with mimo-v2.5 for audio understanding
+- `MimoPlanner` with mimo-v2.5-pro for decision making
+- MiMo's OpenAI-compatible API endpoint: `https://token-plan-cn.xiaomimimo.com/v1`
 - No local model downloads or GPU required
 
 ### Setting up MCP Tools
@@ -499,6 +527,7 @@ When you modify code in these locations, update the corresponding documentation:
 |---------------|---------------------|
 | `audio_agent/frontend/*.py` | AGENTS.md, PROJECT_MAP.md |
 | New frontend adapter | README.md, AGENTS.md, PROJECT_MAP.md |
+| `audio_agent/frontend/mimo_frontend.py` | AGENTS.md, PROJECT_MAP.md |
 
 #### Planner Changes
 | Code Location | Documents to Update |
@@ -508,6 +537,7 @@ When you modify code in these locations, update the corresponding documentation:
 | `audio_agent/graph/routing.py` | AGENTS.md |
 | `audio_agent/graph/builder.py` | AGENTS.md |
 | New planner adapter | README.md, AGENTS.md, PROJECT_MAP.md |
+| `audio_agent/planner/mimo_planner.py` | AGENTS.md, PROJECT_MAP.md |
 
 #### Tool Changes
 | Code Location | Documents to Update |
@@ -565,9 +595,9 @@ When you modify code in these locations, update the corresponding documentation:
 ### Adding a New Component
 
 1. **Frontend (Local Model)**: Subclass `BaseModelFrontend`, implement `initialize_model()`, `call_model()`, and `generate_final_answer()`. Prompts are loaded from markdown files via `load_prompt()`.
-2. **Frontend (API)**: Use `OpenAICompatibleFrontend` or subclass it. Override `build_api_model_input()` to customize how audio is sent to the API, and `generate_final_answer()` for final answer generation.
+2. **Frontend (API)**: Use `OpenAICompatibleFrontend` or subclass it. Override `build_api_model_input()` to customize how audio is sent to the API, and `generate_final_answer()` for final answer generation. For MiMo, use `MimoFrontend`.
 3. **Planner (Local Model)**: Subclass `BaseModelPlanner`, implement `plan()` and `decide()`. Prompts are loaded from markdown files.
-4. **Planner (API)**: Use `OpenAICompatiblePlanner` with any OpenAI-compatible API.
+4. **Planner (API)**: Use `OpenAICompatiblePlanner` with any OpenAI-compatible API. For MiMo, use `MimoPlanner`.
 5. **Tool**: Subclass `BaseTool`, implement `spec` property and `invoke()`
 6. **Fuser**: Subclass `BaseEvidenceFuser`, implement `fuse()`
 
@@ -812,6 +842,8 @@ validate_state_has_fields(
 8. **API Frontend**: The framework now includes `OpenAICompatibleFrontend` for API-based audio understanding (e.g., qwen3-omni-flash via DashScope). This enables fully API-based deployments without local GPU requirements.
 
 9. **API Planner**: The framework includes `OpenAICompatiblePlanner` for API-based planning (e.g., qwen3.5-plus, kimi-k2.5 via DashScope or OpenAI). Use `create_openai_planner()` helper function.
+
+9a. **MiMo API Support**: The framework includes dedicated `MimoFrontend` and `MimoPlanner` classes for Xiaomi MiMo's OpenAI-compatible API. Factory functions `create_mimo_frontend()` and `create_mimo_planner()` are available in `main.py`. See `demo_run_mimo.py` for usage.
 
 10. **Frontend Final Answer Generation**: When the planner decides to ANSWER (or is forced on the final step), the `final_answer_node` invokes the frontend model with all original audio files and accumulated context. The frontend generates the final answer directly, ensuring it is grounded in the actual audio content. The context includes:
     - `evidence_log` - all accumulated evidence items

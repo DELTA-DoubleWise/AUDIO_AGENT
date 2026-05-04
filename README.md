@@ -60,12 +60,15 @@ audio_agent/
 │   ├── dummy_frontend.py  # Dummy implementation
 │   ├── qwen2_audio_frontend.py      # Qwen2-Audio adapter (local)
 │   ├── qwen3_omni_frontend.py       # Qwen3-Omni adapter (local)
-│   └── openai_compatible_frontend.py # OpenAI-compatible API frontend
+│   ├── openai_compatible_frontend.py # OpenAI-compatible API frontend
+│   └── mimo_frontend.py             # Xiaomi MiMo API frontend
 ├── planner/               # Planner implementations
 │   ├── base.py            # BasePlanner ABC
 │   ├── model_planner.py   # BaseModelPlanner template
 │   ├── dummy_planner.py   # Dummy implementation
-│   └── qwen25_planner.py  # Qwen2.5 planner adapter
+│   ├── qwen25_planner.py  # Qwen2.5 planner adapter
+│   ├── openai_compatible_planner.py # OpenAI-compatible API planner
+│   └── mimo_planner.py    # Xiaomi MiMo API planner
 ├── tools/                 # Tool system
 │   ├── base.py            # BaseTool ABC
 │   ├── registry.py        # ToolRegistry (internal + MCP tools)
@@ -130,7 +133,8 @@ audio_agent/
 │   ├── demo_run_auto_tools.py     # Demo with auto MCP tool discovery
 │   ├── demo_run_real_asr.py       # Demo with real ASR tool
 │   ├── demo_run_api_planner.py    # Demo with API planner + local frontend
-│   └── demo_run_api_full.py       # Demo with API frontend + API planner (no GPU)
+│   ├── demo_run_api_full.py       # Demo with API frontend + API planner (no GPU)
+│   └── demo_run_mimo.py           # Demo with MiMo API frontend + planner (no GPU)
 └── tests/                 # Tests
     ├── test_state.py
     ├── test_registry.py
@@ -227,7 +231,26 @@ python -m audio_agent.examples.demo_run_api_full \
   --planner-model "qwen3.5-plus"
 ```
 
-The `demo_run_api_full.py` script is ideal for:
+### MiMo API Demo (No Local GPU Required)
+
+If you have access to Xiaomi MiMo's API:
+
+```bash
+# Set MiMo API key
+export MIMO_API_KEY="sk-xxx"
+
+# Demo with MiMo frontend + MiMo planner (fully API-based)
+python -m audio_agent.examples.demo_run_mimo \
+  --audio /path/to/audio.wav \
+  --question "What is being said?"
+```
+
+The `demo_run_mimo.py` script uses:
+- `MimoFrontend` with `mimo-v2.5` for audio understanding
+- `MimoPlanner` with `mimo-v2.5-pro` for decision making
+- MiMo's OpenAI-compatible endpoint
+
+The API-based demos are ideal for:
 - Users without local GPU resources
 - Quick prototyping and testing
 - Deployments where model inference is handled externally
@@ -416,6 +439,17 @@ frontend = OpenAICompatibleFrontend(
     model="qwen3-omni-flash",  # Or any API model that supports audio
     api_key="sk-xxx",  # Or set DASHSCOPE_API_KEY env var
     base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+)
+```
+
+Or use the dedicated `MimoFrontend` for Xiaomi MiMo:
+
+```python
+from audio_agent.frontend.mimo_frontend import MimoFrontend
+
+frontend = MimoFrontend(
+    model="mimo-v2.5",
+    api_key="sk-xxx",  # Or set MIMO_API_KEY env var
 )
 ```
 

@@ -9,6 +9,7 @@ from audio_agent.planner.model_planner import (
 )
 from audio_agent.planner.qwen25_planner import Qwen25Planner
 from audio_agent.planner.openai_compatible_planner import OpenAICompatiblePlanner
+from audio_agent.planner.mimo_planner import MimoPlanner
 from audio_agent.planner.gemini_planner import GeminiPlanner
 
 __all__ = [
@@ -18,6 +19,7 @@ __all__ = [
     "UnifiedPlannerInput",
     "Qwen25Planner",
     "OpenAICompatiblePlanner",
+    "MimoPlanner",
     "GeminiPlanner",
     "DummyPlanner",
 ]

@@ -310,6 +310,7 @@ def format_final_answer(final_answer: Any) -> str:
     confidence = getattr(final_answer, 'confidence', 0.0)
     evidence_summary = getattr(final_answer, 'evidence_summary', '')
     reasoning_trace = getattr(final_answer, 'reasoning_trace', '')
+    rationale = getattr(final_answer, 'rationale', None)
     output_audio = getattr(final_answer, 'output_audio', None)
     timestamp = getattr(final_answer, 'timestamp', None)
     
@@ -322,6 +323,16 @@ def format_final_answer(final_answer: Any) -> str:
     lines.append("```")
     lines.append(answer)
     lines.append("```")
+    
+    if rationale:
+        lines.append("")
+        lines.append("**Rationale**:")
+        lines.append("```")
+        rationale_str = str(rationale)
+        if len(rationale_str) > 2000:
+            rationale_str = rationale_str[:2000] + "\n... (truncated)"
+        lines.append(rationale_str)
+        lines.append("```")
     
     if output_audio:
         lines.append("")
@@ -472,6 +483,7 @@ def format_frontend_final_answer(final_answer: Any) -> str:
 
     answer = getattr(final_answer, 'answer', '')
     confidence = getattr(final_answer, 'confidence', 0.0)
+    rationale = getattr(final_answer, 'rationale', None)
 
     lines.append(f"- **Confidence**: {confidence:.2f}")
     lines.append("")
@@ -482,6 +494,16 @@ def format_frontend_final_answer(final_answer: Any) -> str:
         answer_str = answer_str[:2000] + "\n... (truncated)"
     lines.append(answer_str)
     lines.append("```")
+
+    if rationale:
+        lines.append("")
+        lines.append("**Rationale**:")
+        lines.append("```")
+        rationale_str = str(rationale)
+        if len(rationale_str) > 2000:
+            rationale_str = rationale_str[:2000] + "\n... (truncated)"
+        lines.append(rationale_str)
+        lines.append("```")
 
     lines.append("")
     return "\n".join(lines)

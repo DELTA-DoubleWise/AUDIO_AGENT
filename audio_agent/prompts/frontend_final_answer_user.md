@@ -16,4 +16,4 @@
 
 {format_critique_section}
 ---
-Please provide the final answer based on the audio and all evidence above.
+Please provide the final answer as a JSON object with `final_answer` and `rationale` keys, based on the audio and all evidence above.

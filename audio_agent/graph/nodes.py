@@ -22,6 +22,7 @@ from audio_agent.core.schemas import (
     AudioOutput,
     FormatCheckResult,
 )
+from audio_agent.utils.model_io import parse_json_object_text
 from audio_agent.core.constants import AgentStatus
 from audio_agent.core.errors import (
     StateValidationError,
@@ -1125,18 +1126,43 @@ def create_final_answer_node(frontend: BaseFrontend):
                 "Frontend returned empty final answer", details={"frontend": frontend.name}
             )
 
-        # Update the decision with the generated draft answer
-        updated_decision = decision.model_copy(update={"draft_answer": answer_text})
+        # Parse JSON output from frontend to extract final_answer and rationale
+        final_answer_text = answer_text
+        rationale_text = None
+        try:
+            parsed = parse_json_object_text(
+                answer_text,
+                error_cls=FrontendError,
+                subject="frontend final answer",
+            )
+            if "final_answer" in parsed and isinstance(parsed["final_answer"], str):
+                final_answer_text = parsed["final_answer"].strip()
+            if "rationale" in parsed and isinstance(parsed["rationale"], str):
+                rationale_text = parsed["rationale"].strip()
+        except FrontendError:
+            # Fallback: treat entire response as final_answer, no rationale
+            pass
+
+        if not final_answer_text:
+            raise FrontendError(
+                "Frontend returned empty final answer after JSON parsing",
+                details={"frontend": frontend.name},
+            )
+
+        # Update the decision with the extracted final answer
+        updated_decision = decision.model_copy(update={"draft_answer": final_answer_text})
 
         log_node_end(
             "final_answer_node",
             {
-                "answer_length": len(answer_text),
+                "answer_length": len(final_answer_text),
+                "has_rationale": rationale_text is not None,
             },
         )
 
         return {
             "current_decision": updated_decision,
+            "final_answer_rationale": rationale_text,
         }
 
     return final_answer_node
@@ -1202,12 +1228,14 @@ def answer_node(state: AgentState) -> dict:
                 metadata=last_audio.metadata,
             )
 
-    # Build final answer with output_audio
+    # Build final answer with output_audio and rationale
+    final_answer_rationale = state.get("final_answer_rationale")
     final_answer = FinalAnswer(
         answer=decision.draft_answer,
         confidence=decision.confidence,
         evidence_summary=evidence_summary,
         reasoning_trace=reasoning_trace,
+        rationale=final_answer_rationale,
         output_audio=output_audio,
     )
 

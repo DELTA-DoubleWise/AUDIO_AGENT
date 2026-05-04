@@ -408,6 +408,10 @@ class FinalAnswer(BaseModel):
     confidence: float = Field(default=0.0, ge=0.0, le=1.0)
     evidence_summary: str = Field(default="")
     reasoning_trace: str = Field(default="")
+    rationale: str | None = Field(
+        default=None,
+        description="Reasoning behind the final answer (from frontend model)",
+    )
     output_audio: AudioOutput | None = Field(
         default=None,
         description="Output audio file if the task produces one",
