@@ -30,7 +30,7 @@ class ASRQwen3Server:
         self._tools = [
             {
                 "name": "transcribe_qwenasr",
-                "description": "Transcribe spoken content in an audio file to text. Useful for recovering lexical content and supporting speech-based reasoning. The output should be treated as recognized text rather than guaranteed ground truth when exact wording is high-stakes.",
+                "description": "Transcribe spoken content in an audio file to text. Most useful for clean spoken dialogue, narration, interviews, meetings, and phone-like speech. Treat the output as recognized text rather than guaranteed ground truth, especially for singing, rap, overlapping speech, loud music/noise, child/cartoon/processed voices, strong accents or dialects, emotional shouting, reverberant audio, or very short clips. Do not use it to override strong frontend perception outside its domain.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -49,7 +49,7 @@ class ASRQwen3Server:
             },
             {
                 "name": "transcribe_qwenasr_with_timestamps",
-                "description": "Transcribe spoken content to text with word-level timestamps using ASR plus forced alignment. Useful when both lexical content and temporal grounding are needed. Timestamp quality depends on the transcript and alignment and should not be over-read as perfect segmentation.",
+                "description": "Transcribe spoken content to text with word-level timestamps using ASR plus forced alignment. Most useful for clean spoken dialogue when both lexical content and temporal grounding are needed. Timestamp quality depends on the transcript and alignment; boundary times can be wrong, missing, or shifted, especially for singing, overlapping speech, noisy/music-backed audio, child/cartoon/processed voices, strong accents or dialects, emotional shouting, reverberant audio, or very short clips. Do not use it to override strong frontend perception outside its domain.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {

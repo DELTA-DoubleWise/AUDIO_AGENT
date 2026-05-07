@@ -77,7 +77,7 @@ class WhisperXMCPServer:
                 "tools": [
                     {
                         "name": "transcribe_whisperx",
-                        "description": "Transcribe spoken content to text with timestamps using WhisperX. Useful as a fallback or cross-check against the primary ASR path, especially when an alternative alignment behavior is helpful. The output should be treated as recognized text rather than guaranteed ground truth.",
+                        "description": "Transcribe spoken content to text with timestamps using WhisperX. Useful as a fallback or cross-check against the primary ASR path, especially when an alternative alignment behavior is helpful for clean spoken dialogue. Treat output as recognized text rather than guaranteed ground truth; timestamp and word accuracy can degrade in singing, rap, overlapping speech, loud music/noise, child/cartoon/processed voices, strong accents or dialects, emotional shouting, reverberant audio, or very short clips. Do not use it to override strong frontend perception outside its domain.",
                         "inputSchema": {
                             "type": "object",
                             "properties": {
@@ -95,7 +95,7 @@ class WhisperXMCPServer:
                     },
                     {
                         "name": "transcribe_whisperx_with_diarization",
-                        "description": "Produce timestamped transcription with speaker labels in one integrated pass. Useful when you need a quick combined ASR-plus-diarization result, but less decomposed and controllable than running separate ASR and diarization tools.",
+                        "description": "Produce timestamped transcription with speaker labels in one integrated pass. Useful when you need a quick combined ASR-plus-diarization result for clean spoken dialogue, but less decomposed and controllable than running separate ASR and diarization tools. Treat speaker labels and timestamps as bounded evidence, not ground truth; trust less for songs, crowd scenes, overlapping speakers, noisy/music-backed audio, child/cartoon/processed voices, emotional speech, or short clips.",
                         "inputSchema": {
                             "type": "object",
                             "properties": {

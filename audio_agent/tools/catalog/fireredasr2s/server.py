@@ -29,7 +29,7 @@ class FireRedAsr2sMCPServer:
         self._tools = [
             {
                 "name": "transcribe_fireredasr",
-                "description": "Transcribe spoken content in an audio file to text using FireRedASR2S-AED. Useful for Chinese, dialectal Chinese, English, and code-switching speech. The output should be treated as recognized text rather than guaranteed ground truth when exact wording is high-stakes.",
+                "description": "Transcribe spoken content in an audio file to text using FireRedASR2S-AED. Useful for Chinese, dialectal Chinese, English, and code-switching speech in clean spoken-dialogue settings. Treat the output as recognized text rather than guaranteed ground truth, especially for singing, rap, overlapping speech, loud music/noise, child/cartoon/processed voices, emotional shouting, reverberant audio, or very short clips. Do not use it to override strong frontend perception outside its domain.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -43,7 +43,7 @@ class FireRedAsr2sMCPServer:
             },
             {
                 "name": "transcribe_fireredasr_with_timestamps",
-                "description": "Transcribe spoken content to text with word-level timestamps. Useful when both lexical content and temporal grounding are needed. Timestamp quality depends on the recognition and alignment behavior and should not be over-read as perfect segmentation.",
+                "description": "Transcribe spoken content to text with word-level timestamps. Useful when both lexical content and temporal grounding are needed in clean spoken-dialogue settings. Timestamp quality depends on recognition and alignment and should not be over-read as perfect segmentation; boundary times can be wrong, missing, or shifted in singing, overlapping speech, noisy/music-backed audio, child/cartoon/processed voices, emotional shouting, reverberant audio, or very short clips.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -57,7 +57,7 @@ class FireRedAsr2sMCPServer:
             },
             {
                 "name": "lyric_asr",
-                "description": "Transcribe sung lyrics from music audio to text. Useful for lyric-content recovery in singing-heavy audio, especially Chinese and English songs. The output can support lyric reasoning, but should not be over-read as a full music-structure or melody analysis tool.",
+                "description": "Transcribe sung lyrics from music audio to text. Useful for lyric-content recovery in singing-heavy audio, especially Chinese and English songs. The output can support lyric reasoning, but should not be treated as guaranteed ground truth or over-read as a full music-structure, melody, emotion, singer-identity, or timing analysis tool. If lyrics conflict with strong frontend perception, treat the disagreement as uncertainty.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {

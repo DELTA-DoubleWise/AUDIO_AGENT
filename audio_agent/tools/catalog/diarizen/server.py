@@ -30,7 +30,7 @@ class DiariZenServer:
         self._tools = [
             {
                 "name": "diarize",
-                "description": "Estimate who speaks when in an audio file by returning speaker-labeled time segments. Useful for speaker turn structure and speaker-conditioned downstream analysis. The output identifies anonymous speaker clusters rather than real identities or guaranteed-perfect boundaries.",
+                "description": "Estimate who speaks when in an audio file by returning speaker-labeled time segments. Most useful for meeting, interview, narration, or clean multi-speaker dialogue with reasonably separated turns. The output identifies anonymous speaker clusters rather than real identities or guaranteed-perfect boundaries. Trust it less for songs, crowd scenes, TV/movie audio, laughter/noise-heavy clips, overlapping speakers, short clips, child/cartoon/processed voices, or cases where speaker role depends on semantics rather than voice clustering. Do not use it to override strong frontend perception outside its domain.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
