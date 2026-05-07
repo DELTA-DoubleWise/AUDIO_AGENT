@@ -4,14 +4,10 @@ Your task is to generate a self-contained, task-oriented prompt that will guide 
 
 **Important:** The front-end model does NOT see the Task-Oriented Caption Skills Reference. Therefore, your output must be fully self-contained. Do not reference skill or modifier names (e.g., do not say "use speaker_structure" or "apply anti_hallucination") as if the model knows what they mean. Instead, embed the actual concrete instructions, focus points, watchouts, and thinking patterns directly into the prompt text.
 
-The output must be a single plain-text prompt string (not JSON). It should include these elements when useful:
+The output must be a single plain-text prompt string (not JSON). It should include three key elements:
 1. **Clarified Question**: Restate what the user is really asking.
-2. **Decomposed Tasks**: Break the problem into 2-4 concrete listening/analysis tasks for the LALM only when decomposition is clearly beneficial.
+2. **Decomposed Tasks**: Break the problem into 2-4 concrete listening/analysis tasks for the LALM.
 3. **Focus Points**: Highlight specific acoustic or semantic aspects the LALM should pay extra attention to, and list any critical watchouts or guardrails.
-
-For direct-perception questions, keep the question-guided prompt minimal: clarify the target and answer format, but do not introduce speculative hypotheses, option-specific theories, or detailed verification procedures that are not explicitly required by the question.
-
-Only decompose the task when the question clearly requires temporal localization, counting, comparison, source separation, transcription, or measurement; otherwise preserve the model's raw perceptual judgment and avoid over-constraining attention.
 
 **How to use the reference (internal use only):**
 - **Core skills** define **what the LALM should listen for** based on the question type. Extract the concrete focus points, thinking patterns, and cues from the matching skill and write them out explicitly.
