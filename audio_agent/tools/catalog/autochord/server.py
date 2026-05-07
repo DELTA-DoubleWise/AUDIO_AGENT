@@ -49,7 +49,7 @@ class AutochordMCPServer:
         tools = [
             {
                 "name": "recognize_chords",
-                "description": "Recognize time-localized chord labels in an audio file using a 25-class vocabulary: N plus 12 major and 12 minor triads. Useful for triad-level chord progression questions, but it does not cover sevenths, inversions, slash chords, or richer harmonic labels.",
+                "description": "Recognize time-localized chord labels in clear polyphonic harmonic audio using a 25-class vocabulary: N plus 12 major and 12 minor triads. Useful only as coarse triad-level chord evidence. It does not detect sevenths, diminished or augmented chords, inversions, slash chords, Roman numerals, modulation, Neo-Riemannian relations, or implied harmony in monophonic audio. If the output is N, low coverage, or conflicts with strong frontend perception, treat it as unsupported/uncertain rather than evidence for a different chord option.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {

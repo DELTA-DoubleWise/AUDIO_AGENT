@@ -29,6 +29,7 @@ class OmniCaptionerServer:
             "https://dashscope.aliyuncs.com/compatible-mode/v1"
         )
         self._default_model = os.environ.get("DEFAULT_MODEL", "qwen3.5-omni-plus")
+        self._default_vlm_model = os.environ.get("DEFAULT_VLM_MODEL", "qwen3-vl-plus")
         self._default_voice = os.environ.get("DEFAULT_VOICE", "Cherry")
         self._default_audio_format = os.environ.get("DEFAULT_AUDIO_FORMAT", "wav")
         self._default_sample_rate = int(os.environ.get("DEFAULT_SAMPLE_RATE", "24000"))
@@ -107,7 +108,7 @@ class OmniCaptionerServer:
             },
             {
                 "name": "inspect_audio_plots",
-                "description": "Generate one combined audio-plot image and ask a VLM for bounded visual-acoustic evidence. Useful for inspecting visible structure such as loudness changes, silence/gaps, transients, rough event boundaries, spectral brightness/muffling, and coarse rhythm. It does not listen to audio and must not be treated as semantic understanding or final answering.",
+                "description": "Generate one combined audio-plot image and ask a VLM for bounded visual-acoustic evidence. Useful for visible structure only: activity, silence/gaps, rough loudness changes, transients, rough event boundaries, spectral brightness/muffling, and coarse rhythm. It does not listen to audio and is not valid for cowbell detection, exact pitch naming, chord recognition, instrument taxonomy, semantic music-theory labels, source identity, or final answering.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -346,6 +347,7 @@ class OmniCaptionerServer:
                 api_key=self._api_key,
                 base_url=self._base_url,
                 model=self._default_model,
+                vlm_model=self._default_vlm_model,
             )
             
             result = model.verify_audio_quality(
@@ -366,6 +368,7 @@ class OmniCaptionerServer:
 
 **Verification Passed:** {result.verification_passed}
 **Quality Assessment:** {quality_emoji} {result.quality_assessment}
+**VLM Model:** {result.vlm_model}
 
 **Issues Found:**
 """
@@ -426,6 +429,7 @@ class OmniCaptionerServer:
                 api_key=self._api_key,
                 base_url=self._base_url,
                 model=self._default_model,
+                vlm_model=self._default_vlm_model,
             )
             result = model.inspect_audio_plots(
                 audio_path=audio_path,
@@ -437,6 +441,7 @@ class OmniCaptionerServer:
 
             output = dict(result.structured_result)
             output["plot_path"] = result.plot_path
+            output["vlm_model"] = result.vlm_model
             if result.parsing_warning:
                 output["parsing_warning"] = result.parsing_warning
                 output["raw_response"] = result.raw_response

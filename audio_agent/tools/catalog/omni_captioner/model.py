@@ -33,6 +33,7 @@ class VerificationResult:
     recommendations: list[str]
     spectrogram_path: str
     analysis: str
+    vlm_model: str
 
 
 @dataclass
@@ -41,6 +42,7 @@ class PlotInspectionResult:
     plot_path: str
     structured_result: dict[str, Any]
     raw_response: str
+    vlm_model: str
     parsing_warning: str | None = None
 
 
@@ -62,6 +64,7 @@ class OmniCaptionerModel:
         api_key: str | None = None,
         base_url: str | None = None,
         model: str = "qwen3.5-omni-plus",
+        vlm_model: str | None = None,
         voice: str = "Cherry",
         audio_format: str = "wav",
         sample_rate: int = 24000,
@@ -72,7 +75,8 @@ class OmniCaptionerModel:
         Args:
             api_key: DashScope API key (or set DASHSCOPE_API_KEY env var)
             base_url: API base URL
-            model: Model ID
+            model: Audio-capable model ID for omni captioning
+            vlm_model: Vision-language model ID for image-based analysis tools
             voice: Voice for audio generation
             audio_format: Audio format (wav, mp3, etc.)
             sample_rate: Audio sample rate
@@ -83,11 +87,30 @@ class OmniCaptionerModel:
             "https://dashscope.aliyuncs.com/compatible-mode/v1"
         )
         self.model = model
+        self.vlm_model = vlm_model or os.environ.get("DEFAULT_VLM_MODEL") or model
         self.voice = voice
         self.audio_format = audio_format
         self.sample_rate = sample_rate
+        self.vlm_enable_thinking = self._env_bool("DEFAULT_VLM_ENABLE_THINKING", False)
+        self.vlm_thinking_budget = self._env_int("DEFAULT_VLM_THINKING_BUDGET")
         
         self._client = None
+
+    @staticmethod
+    def _env_bool(name: str, default: bool) -> bool:
+        """Read a boolean environment variable using common truthy values."""
+        value = os.environ.get(name)
+        if value is None:
+            return default
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+
+    @staticmethod
+    def _env_int(name: str) -> int | None:
+        """Read an integer environment variable when set."""
+        value = os.environ.get(name)
+        if value is None or not value.strip():
+            return None
+        return int(value)
     
     def _get_client(self):
         """Lazy initialize OpenAI client."""
@@ -527,7 +550,6 @@ Return only valid JSON with this exact schema:
 
     def _call_vlm_with_single_image(self, prompt: str, image_path: str | Path) -> str:
         """Call the configured VLM with exactly one image input."""
-        client = self._get_client()
         with open(image_path, "rb") as f:
             img_base64 = base64.b64encode(f.read()).decode("utf-8")
 
@@ -544,17 +566,32 @@ Return only valid JSON with this exact schema:
             }
         ]
 
-        completion = client.chat.completions.create(
-            model=self.model,
-            messages=messages,
-            stream=True,
-            stream_options={"include_usage": True},
-        )
+        return self._call_vlm_messages(messages)
 
+    def _call_vlm_messages(self, messages: list[dict[str, Any]]) -> str:
+        """Call the configured image-capable VLM and return streamed text content."""
+        client = self._get_client()
+        request_params: dict[str, Any] = {
+            "model": self.vlm_model,
+            "messages": messages,
+            "stream": True,
+            "stream_options": {"include_usage": True},
+        }
+        if self.vlm_enable_thinking:
+            extra_body: dict[str, Any] = {"enable_thinking": True}
+            if self.vlm_thinking_budget is not None:
+                extra_body["thinking_budget"] = self.vlm_thinking_budget
+            request_params["extra_body"] = extra_body
+
+        completion = client.chat.completions.create(**request_params)
         text_response = ""
         for chunk in completion:
-            if chunk.choices and chunk.choices[0].delta.content:
-                text_response += chunk.choices[0].delta.content
+            if not getattr(chunk, "choices", None):
+                continue
+            delta = chunk.choices[0].delta
+            content = getattr(delta, "content", None)
+            if content:
+                text_response += content
         return text_response
 
     def _parse_plot_inspection_response(
@@ -648,6 +685,7 @@ Return only valid JSON with this exact schema:
                 plot_path=plot_path,
                 structured_result=structured_result,
                 raw_response=raw_response,
+                vlm_model=self.vlm_model,
                 parsing_warning=parsing_warning,
             )
         except Exception as e:
@@ -739,22 +777,8 @@ ANALYSIS: [Your detailed analysis of what you see in the spectrogram]
                         "image_url": {"url": f"data:image/png;base64,{ref_img_base64}"}
                     })
             
-            # Call VLM API
-            client = self._get_client()
             messages = [{"role": "user", "content": content}]
-            
-            completion = client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                stream=True,
-                stream_options={"include_usage": True},
-            )
-            
-            # Collect response
-            text_response = ""
-            for chunk in completion:
-                if chunk.choices and chunk.choices[0].delta.content:
-                    text_response += chunk.choices[0].delta.content
+            text_response = self._call_vlm_messages(messages)
             
             # Parse response
             return self._parse_verification_response(
@@ -844,4 +868,5 @@ ANALYSIS: [Your detailed analysis of what you see in the spectrogram]
             recommendations=recommendations,
             spectrogram_path=spectrogram_path,
             analysis=analysis,
+            vlm_model=self.vlm_model,
         )

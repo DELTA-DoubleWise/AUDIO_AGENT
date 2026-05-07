@@ -46,7 +46,7 @@ class LibrosaMCPServer:
             # Original tool (kept for compatibility)
             {
                 "name": "analyze_rhythm",
-                "description": "Estimate tempo, beat positions, and onset-related rhythm cues from audio in one summary call. Useful for approximate BPM, faster/slower comparison, and beat-aligned timing evidence. Do not use it alone to infer musical style, expressive meaning, or precise event counts.",
+                "description": "Estimate tempo, beat positions, and onset-related rhythm cues from audio in one summary call. Outputs numeric/acoustic features only. Useful for approximate BPM, faster/slower comparison, and beat-aligned timing evidence. Do not use it alone to infer musical style, expressive meaning, precise event counts, or semantic music labels without a model/tool that supports that exact abstraction.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -63,7 +63,7 @@ class LibrosaMCPServer:
             # =========================================================================
             {
                 "name": "analyze_beats",
-                "description": "Estimate tempo (BPM) and beat positions in audio. Useful for approximate BPM, faster/slower comparison, and beat-aligned timing evidence. Do not use it alone to infer musical style, meter with high confidence, or precise event counts.",
+                "description": "Estimate tempo (BPM) and beat positions in audio. Outputs numeric/acoustic features only. Useful for approximate BPM, faster/slower comparison, and beat-aligned timing evidence. Do not use it alone to infer musical style, meter with high confidence, precise event counts, beat feel, articulation, or semantic music labels without a model/tool that supports that exact abstraction.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -83,7 +83,7 @@ class LibrosaMCPServer:
             },
             {
                 "name": "analyze_onsets",
-                "description": "Detect likely onset times and onset strength in audio. Useful for timing, attack structure, and approximate event boundaries. It does not identify notes, chords, instruments, or semantic event types by itself. Weak, sustained, or noisy events may be missed; do not treat an empty or sparse onset result as proof that no events occurred.",
+                "description": "Detect likely onset times and onset strength in audio. Outputs numeric/acoustic features only. Useful for timing, attack structure, and approximate event boundaries. It does not identify notes, chords, instruments, articulation labels, precise event counts, or semantic event types by itself. Weak, sustained, or noisy events may be missed; do not treat an empty, sparse, or dense onset result as direct evidence for a semantic label.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -164,7 +164,7 @@ class LibrosaMCPServer:
             # =========================================================================
             {
                 "name": "extract_chroma",
-                "description": "Extract 12-dimensional chroma features (pitch-class energy profile). Useful for rough harmonic inspection and key-related diagnostics, but not sufficient alone to assert chord identity.",
+                "description": "Extract 12-dimensional chroma features (pitch-class energy profile). Outputs numeric/acoustic features only. Useful for rough harmonic inspection and key-related diagnostics. It collapses octaves and is not sufficient alone to assert chord identity, exact pitch name, lowest pitch, Roman numeral, modulation, or semantic music-theory labels without a model/tool that supports that exact abstraction.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
