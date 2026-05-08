@@ -21,7 +21,7 @@ server:
     DEVICE: "auto"
     LANGUAGE: "auto"  # auto, zh, en, ja, ko, etc.
     ALIGNER_PATH: "/lihaoyu/workspace/AUDIO_AGENT/models/Qwen3-ForcedAligner-0.6B"
-    USE_ALIGNER: "false"
+    USE_ALIGNER: "true"
     HF_HOME: "/lihaoyu/workspace/AUDIO_AGENT/models"
   
   resources:

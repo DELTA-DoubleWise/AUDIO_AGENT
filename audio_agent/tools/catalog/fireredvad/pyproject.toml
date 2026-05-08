@@ -21,10 +21,10 @@ dependencies = [
 py-modules = ["server", "model"]
 
 [[tool.uv.index]]
-name = "pytorch-cpu"
-url = "https://download.pytorch.org/whl/cpu"
+name = "pytorch-gpu"
+url = "https://download.pytorch.org/whl/cu124"
 explicit = true
 
 [tool.uv.sources]
-torch = { index = "pytorch-cpu" }
-torchaudio = { index = "pytorch-cpu" }
+torch = { index = "pytorch-gpu" }
+torchaudio = { index = "pytorch-gpu" }

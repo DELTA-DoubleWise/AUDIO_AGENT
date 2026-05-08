@@ -18,6 +18,7 @@ from audio_agent.frontend.model_frontend import (
     FrontendInputFormat,
     UnifiedFrontendInput,
 )
+from audio_agent.utils.audio_processing import preprocess_audio_for_api
 from audio_agent.utils.prompt_io import load_prompt
 
 
@@ -115,6 +116,10 @@ class OpenAICompatibleFrontend(BaseModelFrontend):
         """
         Read and encode audio file to base64.
 
+        Automatically preprocesses oversized audio (e.g. multi-channel high-
+        sample-rate WAV) by downsampling to 16 kHz mono so it stays within API
+        base-64 data-URI limits.
+
         Args:
             audio_path: Path to the audio file
 
@@ -138,8 +143,7 @@ class OpenAICompatibleFrontend(BaseModelFrontend):
             audio_format = "wav"  # Default fallback
 
         try:
-            with open(path, "rb") as f:
-                audio_bytes = f.read()
+            audio_bytes = preprocess_audio_for_api(str(path))
             audio_base64 = base64.b64encode(audio_bytes).decode("utf-8")
             return f"data:;base64,{audio_base64}", audio_format
         except Exception as e:

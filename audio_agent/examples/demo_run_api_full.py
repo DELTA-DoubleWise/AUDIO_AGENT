@@ -181,7 +181,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--use-dual-frontend",
         action="store_true",
-        default=True,
+        default=False,
         help="Enable dual-frontend mode with verifier + observer calls (default: True).",
     )
     parser.add_argument(
