@@ -7,6 +7,7 @@ import pytest
 from audio_agent.core.errors import PlannerError
 from audio_agent.core.schemas import FrontendOutput, InitialPlan, PlannerActionType, PlannerDecision, ToolSpec
 from audio_agent.core.state import create_initial_state
+from audio_agent.config.settings import AgentConfig
 from audio_agent.planner.model_planner import (
     BaseModelPlanner,
     PlannerInputFormat,
@@ -98,6 +99,42 @@ class TestBaseModelPlanner:
         assert model_input.task_type == "decision"
         assert model_input.metadata["input_format"] == PlannerInputFormat.LOCAL_MODEL.value
         assert len(model_input.messages) == 2
+
+    def test_build_decision_model_input_includes_tool_category_definitions(self):
+        planner = EchoModelPlanner()
+        state = create_initial_state(
+            "Question",
+            "/tmp/audio.wav",
+            config=AgentConfig().model_dump(),
+        )
+        state["initial_frontend_output"] = FrontendOutput(question_guided_caption="caption")
+        state["initial_plan"] = planner.plan("Question")
+        tools = [
+            ToolSpec(
+                name="trim_audio",
+                description=(
+                    "Function: Cut a selected time range into a derived audio clip.\n"
+                    "Category: audio_derivation"
+                ),
+            )
+        ]
+
+        model_input = planner.build_decision_model_input(state, tools)
+        payload = json.loads(model_input.messages[1]["content"])
+
+        assert payload["tool_category_definitions"] == [
+            {
+                "category": "audio_derivation",
+                "definition": (
+                    "Tools that create a derived audio artifact by trimming, filtering, denoising, "
+                    "resampling, channel conversion, or separation."
+                ),
+                "guideline": (
+                    "Use when a derived audio source may help another tool or frontend follow-up. "
+                    "The derived file is not evidence by itself."
+                ),
+            }
+        ]
 
     def test_generate_question_oriented_prompt_returns_string(self):
         planner = EchoModelPlanner()

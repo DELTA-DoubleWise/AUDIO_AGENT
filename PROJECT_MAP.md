@@ -15,7 +15,7 @@
 - `audio_agent/planner/`: planner interface (`base.py`), model planner template (`model_planner.py`), dummy planner (`dummy_planner.py`), Qwen2.5 adapter (`qwen25_planner.py`), OpenAI-compatible API planner (`openai_compatible_planner.py`), MiMo API planner (`mimo_planner.py`); classification `core`.
 - `audio_agent/tools/`: tool interface (`base.py`), registry (`registry.py`), executor (`executor.py`), dummy tools (`dummy_tools.py`), plus MCP infrastructure (`mcp/`) and tool catalog (`catalog/` with tools: asr_qwen3, diarizen, ffmpeg, librosa, omni_captioner, snakers4_silero-vad); classification `core`.
 - `audio_agent/fusion/`: evidence fusion interface + default fuser; classification `core`.
-- `audio_agent/config/`: `AgentConfig` schema; classification `config`.
+- `audio_agent/config/`: `AgentConfig` schema and planner-facing tool inventory override; classification `config`.
 - `audio_agent/utils/`: validation helpers used by graph nodes; classification `support`.
 - `audio_agent/examples/`: demo scripts (`demo_run.py`, `demo_run_auto_tools.py`, `demo_run_real_asr.py`, `demo_run_api_planner.py`, `demo_run_api_full.py`, `demo_run_mimo.py`); classification `support/example`.
 - `audio_agent/tests/`: unit + smoke tests, including state, registry, graph, frontend-base, model I/O, planner-base, and Qwen adapter tests; classification `support`.
@@ -76,6 +76,7 @@
 ### Wrapper/config/validation/example/test layers
 - `audio_agent/main.py`: public API wrapper + `create_dummy_agent(...)` composition helper.
 - `audio_agent/config/settings.py`: `AgentConfig` schema.
+- `audio_agent/config/planner_tool_inventory.yaml`: standalone planner-facing tool descriptions, recommended-use boundaries, and not-recommended boundaries.
 - `audio_agent/utils/validation.py`: shared state/string validation helpers.
 - `audio_agent/tests/test_state.py`, `test_registry.py`, `test_graph_smoke.py`: core state/registry/graph tests.
 - `audio_agent/tests/test_model_io.py`: Model I/O helper tests (JSON parsing).

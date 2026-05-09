@@ -4,9 +4,15 @@ Configuration settings for the audio agent.
 Uses Pydantic for validation and environment variable support.
 """
 
+from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, Field
+
+
+def default_planner_tool_inventory_path() -> str:
+    """Return the default planner-facing tool inventory path."""
+    return str(Path(__file__).with_name("planner_tool_inventory.yaml"))
 
 
 class AgentConfig(BaseModel):
@@ -28,6 +34,7 @@ class AgentConfig(BaseModel):
         enable_format_check: Enable mandatory format checking before final answer
         max_format_checks: Maximum number of format checks allowed per run
         planner_tool_scope: Planner-visible tool inventory scope ("core" or "all")
+        planner_tool_inventory_path: Optional standalone planner-facing tool inventory path
     """
     max_steps: int = Field(default=10, ge=1, le=100)
     debug: bool = Field(default=False)
@@ -63,6 +70,10 @@ class AgentConfig(BaseModel):
     planner_tool_scope: Literal["core", "all"] = Field(
         default="core",
         description="Planner-visible tool scope: 'core' for benchmark-oriented tools, 'all' for every registered tool",
+    )
+    planner_tool_inventory_path: str | None = Field(
+        default_factory=default_planner_tool_inventory_path,
+        description="Optional YAML file used as the authoritative planner-facing tool inventory",
     )
     
     model_config = {

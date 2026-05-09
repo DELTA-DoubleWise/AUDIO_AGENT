@@ -31,8 +31,6 @@ CORE_PLANNER_TOOL_NAMES: frozenset[str] = frozenset(
         "highpass_filter",
         "inspect_audio_plots",
         "lowpass_filter",
-        "lyric_asr",
-        "omni_caption",
         "recognize_chords",
         "resample_audio",
         "segment_audio",

@@ -37,7 +37,7 @@ START
 - **Initial Prompt Generation**: A dedicated `initial_prompt_node` uses the planner (text LLM) to craft a customized `question_oriented_prompt` from the user question, referencing `task_oriented_caption_skill.md`. This prompt guides the frontend model.
 - **Frontend Evidence**: The `frontend_evidence_node` feeds the `question_oriented_prompt` to the LALM, which produces a richer, structured `question_guided_caption` containing: (1) general caption, (2) focus point, (3) proposed answer + confidence, and (4) uncertainties / verification needs.
 - **Initial Planning**: Planner's `plan()` method generates a high-level approach using both the question and the frontend's structured caption, enabling audio-aware planning
-- **Planner Tool Scope**: `AgentConfig.planner_tool_scope` controls the planner-visible inventory. The default `core` scope shows benchmark-oriented analysis tools; `all` exposes every registered tool for broader task-oriented audio editing/effects workflows. This does not unregister tools or restrict execution.
+- **Planner Tool Scope**: `AgentConfig.planner_tool_scope` controls the planner-visible inventory. The default `core` scope shows benchmark-oriented analysis tools; `all` exposes every registered tool for broader task-oriented audio editing/effects workflows. `AgentConfig.planner_tool_inventory_path` defaults to `audio_agent/config/planner_tool_inventory.yaml`, which is the authoritative planner-facing inventory for category definitions, descriptions, schemas, and tags without changing MCP registration or execution.
 - **Tool Execution**: Tool executor automatically resolves `audio_id` references to actual paths and injects audio paths for tools that need them
 - **Frontend Final Answer**: When the planner returns ANSWER (or is forced on the final step), the `final_answer_node` invokes the frontend (audio-capable) model with all original audio files and accumulated context to generate the final answer.
 - **Format Checking**: Mandatory format validation occurs before final answer. The planner (text LLM) checks if the proposed answer follows the expected output format. If format violations are found, the critique is added as evidence and planning continues.
@@ -172,7 +172,8 @@ audio_agent/
 │   ├── logger.py             # RunLogger class for markdown logs
 │   └── formatter.py          # Markdown formatting utilities
 ├── config/                    # Configuration
-│   └── settings.py           # AgentConfig Pydantic model
+│   ├── settings.py           # AgentConfig Pydantic model
+│   └── planner_tool_inventory.yaml  # Planner-facing tool descriptions and boundaries
 ├── utils/                     # Utilities
 │   ├── validation.py         # State validation helpers
 │   ├── model_io.py           # Shared model I/O helpers (JSON parsing)

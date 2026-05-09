@@ -159,9 +159,13 @@ class TestGraphSmoke:
             class RecordingPlanner(DummyPlanner):
                 def __init__(self):
                     self.seen_tool_names = None
+                    self.seen_tool_descriptions = None
 
                 def decide(self, state, available_tools):
                     self.seen_tool_names = [tool.name for tool in available_tools]
+                    self.seen_tool_descriptions = {
+                        tool.name: tool.description for tool in available_tools
+                    }
                     return PlannerDecision(
                         action=PlannerActionType.ANSWER,
                         rationale="Recorded available tools",
@@ -186,6 +190,10 @@ class TestGraphSmoke:
             agent.run(question="Test", audio_paths=[audio_path])
 
             assert planner.seen_tool_names == ["trim_audio"]
+            assert planner.seen_tool_descriptions is not None
+            assert planner.seen_tool_descriptions["trim_audio"].startswith(
+                "Function: Cut a selected time range into a derived audio clip."
+            )
         finally:
             if os.path.exists(audio_path):
                 os.unlink(audio_path)

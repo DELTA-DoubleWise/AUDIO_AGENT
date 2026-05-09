@@ -22,6 +22,10 @@ from audio_agent.core.logging import get_logger
 from audio_agent.core.schemas import InitialPlan, PlannerDecision, ToolSpec, FormatCheckResult, QuestionClarification
 from audio_agent.core.state import AgentState
 from audio_agent.planner.base import BasePlanner
+from audio_agent.tools.inventory import (
+    PLANNER_TOOL_CATEGORY_ORDER,
+    load_planner_tool_category_definitions,
+)
 from audio_agent.utils.model_io import parse_json_object_text, validate_message_sequence
 from audio_agent.utils.prompt_io import load_prompt
 from audio_agent.utils.skill_io import render_skills_reference
@@ -199,6 +203,7 @@ class BaseModelPlanner(BasePlanner):
             }
             for tool in available_tools
         ]
+        tool_category_definitions = self._build_tool_category_definitions(state, available_tools)
         
         # Build audio list summary with descriptions
         audio_summary = [
@@ -242,12 +247,50 @@ class BaseModelPlanner(BasePlanner):
             "evidence_log": evidence_summary,
             "tool_call_history": tool_history_summary,
             "audio_list": "\n".join(audio_summary) if audio_summary else "- audio_0: original input audio (source: original)",
+            "tool_category_definitions": tool_category_definitions,
             "available_tools": tool_summary,
             "step_count": state.get("step_count", 0),
             "max_steps": state.get("max_steps", 10),
         }
         
         return json.dumps(payload, ensure_ascii=True)
+
+    def _build_tool_category_definitions(
+        self,
+        state: AgentState,
+        available_tools: list[ToolSpec],
+    ) -> list[dict[str, str]]:
+        """Build category definitions for categories present in available tools."""
+        categories_in_tools = {
+            category
+            for tool in available_tools
+            for category in self._extract_tool_categories(tool.description)
+        }
+        config = state.get("config") or {}
+        inventory_path = config.get("planner_tool_inventory_path")
+        if not inventory_path or not categories_in_tools:
+            return []
+
+        definitions = load_planner_tool_category_definitions(inventory_path)
+        return [
+            {
+                "category": category,
+                "definition": definitions[category]["definition"],
+                "guideline": definitions[category]["guideline"],
+            }
+            for category in PLANNER_TOOL_CATEGORY_ORDER
+            if category in categories_in_tools
+        ]
+
+    def _extract_tool_categories(self, description: str) -> list[str]:
+        """Extract planner inventory category labels from a formatted tool description."""
+        categories: list[str] = []
+        for line in description.splitlines():
+            if line.startswith("Category:"):
+                category = line.removeprefix("Category:").strip()
+                if category:
+                    categories.append(category)
+        return categories
 
     def build_api_model_input_for_plan(self, question: str, frontend_output: FrontendOutput | None = None) -> UnifiedPlannerInput:
         """Build API-style planner input for initial planning."""
