@@ -18,12 +18,12 @@ class TestToolVisibility:
         specs = [
             _spec("trim_audio"),
             _spec("dummy_asr"),
-            _spec("recognize_chords"),
+            _spec("recognize_chords_large_vocab"),
         ]
 
         filtered = filter_tool_specs(specs, scope="core")
 
-        assert [spec.name for spec in filtered] == ["trim_audio", "recognize_chords"]
+        assert [spec.name for spec in filtered] == ["trim_audio", "recognize_chords_large_vocab"]
 
     def test_all_scope_returns_every_spec(self):
         """All scope should preserve the full registered tool list."""

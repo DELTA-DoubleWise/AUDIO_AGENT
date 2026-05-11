@@ -134,11 +134,14 @@ audio_agent/
 │       ├── loader.py         # Auto-discovers and registers MCP tools
 │       ├── _template/        # Template for new MCP tools
 │       ├── asr_qwen3/        # Qwen3-ASR-1.7B speech recognition
-│       ├── diarizen/         # Speaker diarization tool
+│       ├── diarizen/         # Speaker diarization tool (DiariZen)
+│       ├── sortformer_diarization/  # Speaker diarization tool (SortFormer)
 │       ├── ffmpeg/           # Audio processing with FFmpeg
+│       ├── lv_chordia/       # Large-vocabulary chord recognition (ISMIR 2019)
 │       ├── librosa/          # Audio analysis with librosa
 │       ├── omni_captioner/   # Qwen3-Omni captioner (API)
 │       ├── snakers4_silero-vad/  # Voice activity detection
+│       ├── tempo_cnn/        # Tempo-CNN musical tempo estimation
 │       └── evaluation_tool/  # Evaluation utilities
 ├── prompts/                   # Markdown-based prompt files
 │   ├── frontend_system.md           # Frontend system prompt
@@ -323,7 +326,10 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 # 2. Setup individual tools
 cd audio_agent/tools/catalog/asr_qwen3 && ./setup.sh && cd -
 cd audio_agent/tools/catalog/diarizen && ./setup.sh && cd -
+cd audio_agent/tools/catalog/sortformer_diarization && ./setup.sh && cd -
+cd audio_agent/tools/catalog/lv_chordia && ./setup.sh && cd -
 cd audio_agent/tools/catalog/omni_captioner && ./setup.sh && cd -
+cd audio_agent/tools/catalog/tempo_cnn && ./setup.sh && cd -
 
 # 3. Verify a specific tool
 cd audio_agent/tools/catalog/asr_qwen3 && ./test_env.sh
@@ -385,6 +391,7 @@ audio-agent-download-models --list
 - `qwen3-asr` - Qwen/Qwen3-ASR-1.7B (ASR tool, ~4GB)
 - `qwen3-aligner` - Qwen/Qwen3-ForcedAligner-0.6B (aligner tool, ~1.5GB)
 - `diarizen` - BUT-FIT/diarizen-wavlm-large-s80-md (diarization tool, ~1GB)
+- `sortformer-diar` - nv-community/diar_streaming_sortformer_4spk-v2 (diarization tool, ~450MB, ModelScope)
 - `omni-captioner` - Qwen/Qwen3-Omni-30B-A3B-Captioner (captioner, ~60GB)
 
 **Using HuggingFace Hub paths (fallback):**
@@ -836,7 +843,7 @@ validate_state_has_fields(
 
 5. **Async Support**: When using MCP tools, use `agent.arun()` instead of `agent.run()` for asynchronous execution.
 
-6. **Planner/Tools Status**: Core architecture is complete with real Qwen2.5 planner. Tools include both dummy implementations and real MCP-based tools (asr_qwen3, diarizen, omni_captioner, ffmpeg, librosa, snakers4_silero-vad).
+6. **Planner/Tools Status**: Core architecture is complete with real Qwen2.5 planner. Tools include both dummy implementations and real MCP-based tools (asr_qwen3, diarizen, sortformer_diarization, lv_chordia, omni_captioner, ffmpeg, librosa, snakers4_silero-vad).
 
 7. **Prompt System**: All prompts are externalized in `audio_agent/prompts/` as markdown files. The system uses `load_prompt()` from `audio_agent/utils/prompt_io.py` to load prompts at runtime. This enables easy customization without code changes.
 

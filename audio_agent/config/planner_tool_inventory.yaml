@@ -416,6 +416,35 @@ tools:
   tags:
   - mcp
   - diarizen
+- name: diarize_sortformer
+  server: sortformer_diarization
+  category: speech_and_speaker_processing
+  description:
+    function: Estimate anonymous speaker-labeled time segments using NVIDIA SortFormer.
+      Supports up to 4 speakers with arrival-order speaker tracking.
+    recommended_use:
+    - clean conversational speech
+    - clearly separated speaker turns
+    - meeting/interview/narration audio
+    - recordings with up to 4 speakers
+    not_recommended_use:
+    - songs
+    - crowds
+    - overlapping speakers
+    - processed/cartoon voices
+    - speaker identity
+    - recordings with more than 4 speakers
+  input_schema:
+    type: object
+    properties:
+      audio_path:
+        type: string
+        description: Path to the audio file to diarize (16kHz mono WAV recommended)
+    required:
+    - audio_path
+  tags:
+  - mcp
+  - sortformer_diarization
 - name: speaker_verify
   server: wespeaker
   category: speech_and_speaker_processing
@@ -627,34 +656,35 @@ tools:
   tags:
   - mcp
   - whisperx
-- name: analyze_beats
-  server: librosa
-  category: acoustic_music_feature_analysis
-  description:
-    function: Estimate beat timestamps and an approximate global tempo.
-    recommended_use:
-    - beat tracking
-    - approximate global tempo
-    not_recommended_use:
-    - exact BPM guarantee
-  input_schema:
-    type: object
-    properties:
-      audio_path:
-        type: string
-        description: Path to the audio file to analyze.
-      units:
-        type: string
-        enum:
-        - time
-        - frames
-        default: time
-        description: 'Units for beat timestamps: ''time'' (seconds) or ''frames''.'
-    required:
-    - audio_path
-  tags:
-  - mcp
-  - librosa
+# [TEMPORARILY DISABLED] Superseded by estimate_tempo_cnn_mirex
+# - name: analyze_beats
+#   server: librosa
+#   category: acoustic_music_feature_analysis
+#   description:
+#     function: Estimate beat timestamps and an approximate global tempo.
+#     recommended_use:
+#     - beat tracking
+#     - approximate global tempo
+#     not_recommended_use:
+#     - exact BPM guarantee
+#   input_schema:
+#     type: object
+#     properties:
+#       audio_path:
+#         type: string
+#         description: Path to the audio file to analyze.
+#       units:
+#         type: string
+#         enum:
+#         - time
+#         - frames
+#         default: time
+#         description: 'Units for beat timestamps: ''time'' (seconds) or ''frames''.'
+#     required:
+#     - audio_path
+#   tags:
+#   - mcp
+#   - librosa
 - name: analyze_onsets
   server: librosa
   category: acoustic_music_feature_analysis
@@ -698,27 +728,84 @@ tools:
   tags:
   - mcp
   - librosa
-- name: analyze_rhythm
-  server: librosa
+# [TEMPORARILY DISABLED] Superseded by estimate_tempo_cnn_mirex
+# - name: analyze_rhythm
+#   server: librosa
+#   category: acoustic_music_feature_analysis
+#   description:
+#     function: Return a compact summary of tempo, beats, and onset activity.
+#     recommended_use:
+#     - compact beat/onset/tempo summary
+#     not_recommended_use:
+#     - exact BPM guarantee
+#     - exact event counts
+#   input_schema:
+#     type: object
+#     properties:
+#       audio_path:
+#         type: string
+#         description: Path to the audio file to analyze.
+#     required:
+#     - audio_path
+#   tags:
+#   - mcp
+#   - librosa
+# [TEMPORARILY DISABLED] Superseded by estimate_tempo_cnn_mirex
+# - name: estimate_tempo_cnn
+#   server: tempo_cnn
+#   category: acoustic_music_feature_analysis
+#   description:
+#     function: Estimate global musical tempo (BPM) using a CNN-based model (Tempo-CNN with fcn architecture). More reliable than librosa beat-tracking for pure tempo estimation.
+#     recommended_use:
+#     - tempo / BPM estimation
+#     - fast vs. slow classification
+#     not_recommended_use:
+#     - local tempo variation / tempogram
+#     - beat-level timing
+#     - exact BPM guarantee
+#   input_schema:
+#     type: object
+#     properties:
+#       audio_path:
+#         type: string
+#         description: Path to the audio file to analyze.
+#       interpolate:
+#         type: boolean
+#         default: false
+#         description: Enable quadratic interpolation for sub-integer BPM precision.
+#     required:
+#     - audio_path
+#   tags:
+#   - mcp
+#   - tempo_cnn
+- name: estimate_tempo_cnn_mirex
+  server: tempo_cnn
   category: acoustic_music_feature_analysis
   description:
-    function: Return a compact summary of tempo, beats, and onset activity.
+    function: Estimate the two most likely tempi and their relative salience using Tempo-CNN (MIREX-style). RECOMMENDED for tempo verification because it exposes tempo octave ambiguity (e.g., 52 vs 104 BPM). Outputs tempo1, tempo2, and salience (0-1). If salience < 0.6, both tempi are plausible.
     recommended_use:
-    - compact beat/onset/tempo summary
+    - tempo verification when single-tempo results seem suspicious
+    - detecting tempo octave ambiguity
+    - cross-checking against other tempo tools
     not_recommended_use:
-    - exact BPM guarantee
-    - exact event counts
+    - when a single simple BPM answer is sufficient
+    - local tempo variation / tempogram
+    - beat-level timing
   input_schema:
     type: object
     properties:
       audio_path:
         type: string
         description: Path to the audio file to analyze.
+      interpolate:
+        type: boolean
+        default: false
+        description: Enable quadratic interpolation for sub-integer BPM precision.
     required:
     - audio_path
   tags:
   - mcp
-  - librosa
+  - tempo_cnn
 - name: analyze_spectral_features
   server: librosa
   category: acoustic_music_feature_analysis
@@ -850,33 +937,66 @@ tools:
   tags:
   - mcp
   - librosa
-- name: recognize_chords
-  server: autochord
+# [TEMPORARILY DISABLED] Superseded by recognize_chords_large_vocab
+# - name: recognize_chords
+#   server: autochord
+#   category: acoustic_music_feature_analysis
+#   description:
+#     function: Recognize a coarse chord timeline with classes limited to N, 12 major triads, and 12 minor triads.
+#     recommended_use:
+#     - coarse major/minor triads in clear polyphonic harmony
+#     not_recommended_use:
+#     - sevenths
+#     - diminished/augmented chords
+#     - inversions
+#     - slash chords
+#     - Roman numerals
+#     - modulation
+#     - Neo-Riemannian relations
+#     - monophonic implied harmony
+#   input_schema:
+#     type: object
+#     properties:
+#       audio_path:
+#         type: string
+#         description: Path to the audio file to analyze.
+#     required:
+#     - audio_path
+#   tags:
+#   - mcp
+#   - autochord
+- name: recognize_chords_large_vocab
+  server: lv_chordia
   category: acoustic_music_feature_analysis
   description:
-    function: Recognize a coarse chord timeline with classes limited to N, 12 major triads, and 12 minor triads.
+    function: Recognize a chord timeline with large vocabulary support including 7ths, diminished, augmented, and complex jazz chords.
     recommended_use:
-    - coarse major/minor triads in clear polyphonic harmony
+    - complex chord progressions requiring rich vocabulary
+    - jazz harmony analysis
+    - seventh chords and extended chords
+    - chord recognition when autochord's 25-class vocabulary is insufficient
     not_recommended_use:
-    - sevenths
-    - diminished/augmented chords
-    - inversions
-    - slash chords
-    - Roman numerals
-    - modulation
-    - Neo-Riemannian relations
+    - simple major/minor triads (autochord is sufficient and faster)
     - monophonic implied harmony
+    - Roman numerals
+    - modulation analysis
+    - exact bass note / slash chord precision
   input_schema:
     type: object
     properties:
       audio_path:
         type: string
         description: Path to the audio file to analyze.
+      chord_dict_name:
+        type: string
+        enum: [submission, ismir2017, full]
+        default: submission
+        description: Chord dictionary to use. 'submission' (~170 chords, recommended), 'ismir2017' (~25 chords, MIREX standard), 'full' (~600+ chords, experimental).
     required:
     - audio_path
   tags:
   - mcp
-  - autochord
+  - lv_chordia
 - name: spectral_stats
   server: ffmpeg
   category: acoustic_music_feature_analysis

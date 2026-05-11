@@ -85,7 +85,9 @@ audio_agent/
 │       ├── _template/     # Template for new tools
 │       ├── asr_qwen3/     # Qwen3-ASR-1.7B speech recognition
 │       ├── diarizen/      # Speaker diarization
-│       └── omni_captioner/ # Qwen3-Omni captioner
+│       ├── lv_chordia/    # Large-vocabulary chord recognition (ISMIR 2019)
+│       ├── omni_captioner/ # Qwen3-Omni captioner
+│       └── tempo_cnn/      # Tempo-CNN musical tempo estimation
 ├── fusion/                # Evidence fusion
 │   ├── base.py           # BaseEvidenceFuser ABC
 │   └── default_fuser.py  # Default implementation
@@ -170,7 +172,9 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 # Setup individual tools
 cd audio_agent/tools/catalog/asr_qwen3 && ./setup.sh && cd -
 cd audio_agent/tools/catalog/diarizen && ./setup.sh && cd -
+cd audio_agent/tools/catalog/lv_chordia && ./setup.sh && cd -
 cd audio_agent/tools/catalog/omni_captioner && ./setup.sh && cd -
+cd audio_agent/tools/catalog/tempo_cnn && ./setup.sh && cd -
 
 # Or use the helper script to setup all tools
 ./verify_all_tools.sh --setup

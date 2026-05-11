@@ -63,6 +63,11 @@ MODELS: dict[str, dict[str, Any]] = {
         "description": "Qwen3-Omni captioner for detailed audio description",
         "subdir": "Qwen3-Omni-30B-A3B-Captioner",
     },
+    "sortformer-diar": {
+        "repo_id": "nvidia/diar_streaming_sortformer_4spk-v2",
+        "description": "NVIDIA SortFormer streaming diarization model (4 speakers max)",
+        "subdir": "sortformer-diar-streaming-4spk-v2",
+    },
 }
 
 # Convenience constants for local model paths
@@ -73,6 +78,7 @@ DEFAULT_QWEN3_ASR_PATH = str(DEFAULT_MODELS_DIR / MODELS["qwen3-asr"]["subdir"])
 DEFAULT_QWEN3_ALIGNER_PATH = str(DEFAULT_MODELS_DIR / MODELS["qwen3-aligner"]["subdir"])
 DEFAULT_DIARIZEN_PATH = str(DEFAULT_MODELS_DIR / MODELS["diarizen"]["subdir"])
 DEFAULT_OMNI_CAPTIONER_PATH = str(DEFAULT_MODELS_DIR / MODELS["omni-captioner"]["subdir"])
+DEFAULT_SORTFORMER_DIAR_PATH = str(DEFAULT_MODELS_DIR / MODELS["sortformer-diar"]["subdir"])
 
 
 def get_local_model_path(model_name: str) -> str:
