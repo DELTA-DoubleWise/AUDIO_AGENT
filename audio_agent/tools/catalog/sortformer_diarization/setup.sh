@@ -54,6 +54,14 @@ $UV pip install --python .venv/bin/python "nemo_toolkit[asr]>=2.0.0"
 echo "Installing remaining dependencies..."
 $UV pip install --python .venv/bin/python -e .
 
+# NeMo's transitive deps tend to upgrade torch/torchaudio to whatever the
+# newest wheel is (currently cu128). Re-pin to cu121 so the resulting wheels
+# match the libcudart on the GPU node (libcudart.so.12 on this cluster).
+echo "Re-pinning torch + torchaudio to cu121 (overriding any NeMo-driven upgrade)..."
+$UV pip install --python .venv/bin/python --reinstall \
+    torch==2.5.1+cu121 torchaudio==2.5.1+cu121 \
+    --index-url https://download.pytorch.org/whl/cu121
+
 echo ""
 echo "Setup complete!"
 echo "Python version: $(.venv/bin/python --version)"
