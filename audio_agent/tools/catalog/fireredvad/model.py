@@ -15,8 +15,14 @@ class VADResult:
     wav_path: str | None = None
 
     def __post_init__(self) -> None:
-        if not self.timestamps:
-            raise ValueError("timestamps must be non-empty")
+        # An empty timestamps list is a legitimate "no speech detected" result
+        # (silence, music-only audio, etc.). Reject only structurally invalid
+        # entries (e.g., non-list rows).
+        for span in self.timestamps:
+            if not isinstance(span, (list, tuple)) or len(span) != 2:
+                raise ValueError(
+                    f"VAD timestamps must be a list of [start, end] pairs; got {span!r}"
+                )
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
