@@ -143,6 +143,9 @@ audio_agent/
 
 ## Installation
 
+For a verified, copy-paste-ready setup sequence, see
+[ENVIRONMENT_SETUP.md](./ENVIRONMENT_SETUP.md). The summary below mirrors it.
+
 ### Prerequisites
 
 - **Python 3.11** (the main framework env). Python 3.10 is only required by the

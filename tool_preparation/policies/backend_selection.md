@@ -66,7 +66,7 @@ Backend 选择必须服从：
   "reason": "Docker daemon unreachable; uv satisfies phase-1 requirements",
   "evidence": [
     "docker info failed: Cannot connect to daemon",
-    "uv available at /lihaoyu/workspace/AUDIO_AGENT/.uv/bin/uv",
+    "uv available at uv",
     "phase-1 only requires import/load/infer, no complex system deps"
   ],
   "evidence_conflicts": [

@@ -18,9 +18,9 @@ ImportError: cannot import name 'ASRModel'
 **推荐修复方向**:
 ```bash
 # 重新安装依赖
-/lihaoyu/workspace/AUDIO_AGENT/.uv/bin/uv pip install --python .venv/bin/python -r requirements.txt
+uv pip install --python .venv/bin/python -r requirements.txt
 # 或
-/lihaoyu/workspace/AUDIO_AGENT/.uv/bin/uv pip install --python .venv/bin/python nemo-toolkit[asr]
+uv pip install --python .venv/bin/python nemo-toolkit[asr]
 ```
 
 ## 2. system_dependency_missing
@@ -59,10 +59,10 @@ UserWarning: CUDA initialization: The NVIDIA driver is too old
 **推荐修复方向**:
 ```bash
 # 降级 PyTorch 到匹配驱动的版本
-/lihaoyu/workspace/AUDIO_AGENT/.uv/bin/uv pip install --python .venv/bin/python torch==2.0.0 --index-url https://download.pytorch.org/whl/cu118
+uv pip install --python .venv/bin/python torch==2.0.0 --index-url https://download.pytorch.org/whl/cu118
 
 # 或使用 CPU 版本
-/lihaoyu/workspace/AUDIO_AGENT/.uv/bin/uv pip install --python .venv/bin/python torch==2.4.0 --index-url https://download.pytorch.org/whl/cpu
+uv pip install --python .venv/bin/python torch==2.4.0 --index-url https://download.pytorch.org/whl/cpu
 ```
 
 ## 4. wrong_python_version
@@ -80,7 +80,7 @@ TypeError: unsupported operand type (类型注解问题)
 **推荐修复方向**:
 ```bash
 # 重新创建指定版本环境
-/lihaoyu/workspace/AUDIO_AGENT/.uv/bin/uv venv --python=python3.11
+uv venv --python=python3.11
 conda create -n env python=3.10
 ```
 
@@ -161,8 +161,8 @@ RuntimeError: mentioning torchcodec during audio loading
 **推荐修复方向**:
 ```bash
 # 降级到兼容版本
-/lihaoyu/workspace/AUDIO_AGENT/.uv/bin/uv pip install --python .venv/bin/python numpy==1.26.4
-/lihaoyu/workspace/AUDIO_AGENT/.uv/bin/uv pip install --python .venv/bin/python torchvision==0.19.0 --index-url https://download.pytorch.org/whl/cpu
+uv pip install --python .venv/bin/python numpy==1.26.4
+uv pip install --python .venv/bin/python torchvision==0.19.0 --index-url https://download.pytorch.org/whl/cpu
 ```
 
 ### Repair Hint: CPU-friendly torch audio models (e.g. Silero VAD)

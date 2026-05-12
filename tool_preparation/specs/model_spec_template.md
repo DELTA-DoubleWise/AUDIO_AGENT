@@ -94,7 +94,7 @@ repo:
 ```yaml
 weights:
   source: "huggingface"  # huggingface | modelscope | pip | local
-  local_path: null       # e.g., "/lihaoyu/workspace/AUDIO_AGENT/models/Qwen3-ASR-1.7B"
+  local_path: null       # e.g., "${AUDIO_AGENT_MODELS_DIR}/Qwen3-ASR-1.7B"
   required: true
 ```
 
@@ -209,7 +209,7 @@ repo:
 
 weights:
   source: huggingface
-  local_path: /lihaoyu/workspace/AUDIO_AGENT/models/Qwen3-ASR-1.7B
+  local_path: ${AUDIO_AGENT_MODELS_DIR}/Qwen3-ASR-1.7B
   required: true
 
 environment:

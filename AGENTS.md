@@ -65,6 +65,11 @@ export `CONDA_SH=/path/to/conda/etc/profile.d/conda.sh` to point at it.
 
 ### Environment Options
 
+The canonical, verified end-to-end setup sequence is in
+[ENVIRONMENT_SETUP.md](./ENVIRONMENT_SETUP.md). It covers prerequisites, the
+main API env, every MCP tool, model downloads, verification, and the optional
+local-model frontend.
+
 1. **Default Environment**: For core framework and API-based usage (no GPU required)
    - See: `DEFAULT_ENVIRONMENT.md`
 

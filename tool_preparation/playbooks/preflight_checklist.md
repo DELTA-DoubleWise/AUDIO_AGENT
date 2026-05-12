@@ -47,9 +47,9 @@ which python
 
 **Check**:
 ```bash
-/lihaoyu/workspace/AUDIO_AGENT/.uv/bin/uv --version
+uv --version
 which pip
-source /lihaoyu/.conda.path.sh && conda --version
+source /path/to/conda/etc/profile.d/conda.sh && conda --version
 which docker
 ```
 
@@ -61,7 +61,7 @@ which docker
 ```json
 {
   "package_managers": {
-    "uv": {"available": true, "version": "0.4.0", "path": "/lihaoyu/workspace/AUDIO_AGENT/.uv/bin/uv"},
+    "uv": {"available": true, "version": "0.4.0", "path": "uv"},
     "pip": {"available": true, "version": "23.0"},
     "conda": {"available": false},
     "docker": {"available": true, "version": "24.0"}

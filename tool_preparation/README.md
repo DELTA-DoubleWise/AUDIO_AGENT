@@ -22,7 +22,7 @@ The Audio Agent Framework provides a complete agent workflow that automates the 
 Use this as the system prompt for your AI agent:
 
 ```text
-cd /lihaoyu/workspace/AUDIO_AGENT
+cd ${REPO_ROOT}
 你现在扮演 Audio Agent Framework 的工具接入执行代理。你的任务不是做开放式探索，而是严格按照仓库中定义的 harness-first 工作流，完成一个工具的第一阶段 onboarding。
 
 你必须遵守以下文档：
@@ -144,7 +144,7 @@ Tools successfully onboarded in the Audio Agent Framework:
 
 ### Reusable Setup Scripts from SURE-EVAL
 
-The SURE-EVAL repository (colleague's repo at `/lihaoyu/workspace/AUDIO_AGENT/sure/`) has already onboarded several additional tools with compatible MCP server implementations. The following tools have high-reusability setup scripts that can be adapted for the Audio Agent Framework:
+The SURE-EVAL repository (colleague's repo at `${REPO_ROOT}/sure/`) has already onboarded several additional tools with compatible MCP server implementations. The following tools have high-reusability setup scripts that can be adapted for the Audio Agent Framework:
 
 | Tool | Task | Backend | SURE Path | Reusability |
 |------|------|---------|-----------|-------------|
@@ -195,7 +195,7 @@ The Audio Agent Framework has a few conventions that differ from SURE-EVAL:
 
 2. **`model.py` is optional**: Many existing tools in the Audio Agent Framework (e.g., `asr_qwen3`) implement model logic directly in `server.py`. The `model.py` wrapper pattern is **recommended for complex models** but not mandatory for simple tools.
 
-3. **Persistent UV**: The framework uses a persistent uv installation at `/lihaoyu/workspace/AUDIO_AGENT/.uv/bin/uv`. Setup scripts should prefer this path.
+3. **Persistent UV**: The framework uses a persistent uv installation at `uv`. Setup scripts should prefer this path.
 
 4. **Model Downloader**: HuggingFace models should be registered in `audio_agent/utils/model_downloader.py` and downloaded via `audio-agent-download-models --models <model-key>`.
 
