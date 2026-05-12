@@ -47,20 +47,28 @@ print(f'Wrote synthetic WAV: $TEST_WAV')
 fi
 export TEST_WAV
 
-# Test VAD
-echo "Testing VAD..."
-$PYTHON_EXE -c "
+# Skip the inference tests if model weights aren't downloaded yet.
+# MODEL_PATH should contain VAD/ and AED/ subdirectories with checkpoints.
+MODEL_DIR="${MODEL_PATH:-${AUDIO_AGENT_MODELS_DIR:-$SCRIPT_DIR/../../../../models}/FireRedVAD}"
+if [ ! -d "$MODEL_DIR/VAD" ] || [ ! -d "$MODEL_DIR/AED" ]; then
+    echo "⚠ Model weights not found at $MODEL_DIR. Skipping VAD/AED inference tests."
+    echo "  Download with: audio-agent-download-models --models fireredvad"
+    echo ""
+else
+    # Test VAD
+    echo "Testing VAD..."
+    $PYTHON_EXE -c "
 import os
 from model import ModelWrapper
 wrapper = ModelWrapper()
 result = wrapper.predict(os.environ['TEST_WAV'])
 print(f'✓ VAD prediction successful: {len(result.timestamps)} speech segments')
 " || exit 1
-echo ""
+    echo ""
 
-# Test AED
-echo "Testing AED..."
-$PYTHON_EXE -c "
+    # Test AED
+    echo "Testing AED..."
+    $PYTHON_EXE -c "
 import os
 from model import ModelWrapper
 wrapper = ModelWrapper()
@@ -68,7 +76,8 @@ result = wrapper.predict_aed(os.environ['TEST_WAV'])
 events = [k for k, v in result.event2timestamps.items() if v]
 print(f'✓ AED prediction successful: detected events - {events}')
 " || exit 1
-echo ""
+    echo ""
+fi
 
 # Test MCP server initialization
 echo "Testing MCP server..."

@@ -97,11 +97,9 @@ MODELS: dict[str, dict[str, Any]] = {
         "description": "FireRedVAD voice activity detection / coarse AED model",
         "subdir": "FireRedVAD",
     },
-    "wespeaker": {
-        "repo_id": "Wespeaker/wespeaker-voxceleb-resnet34-LM",
-        "description": "WeSpeaker ResNet34-LM speaker embedding model for verification",
-        "subdir": "wespeaker-voxceleb-resnet34-LM",
-    },
+    # Note: WeSpeaker auto-downloads its 'english' model into $WESPEAKER_HOME on
+    # first use. The HF-side mirror has a different file layout than what the
+    # library expects, so we skip pre-staging here and let wespeaker fetch.
     "pyannote-diarization": {
         "repo_id": "pyannote/speaker-diarization-3.1",
         "description": "Pyannote speaker-diarization-3.1 pipeline (used by whisperx). Requires HuggingFace token with accepted user agreement.",
@@ -128,7 +126,6 @@ DEFAULT_OMNI_CAPTIONER_PATH = str(DEFAULT_MODELS_DIR / MODELS["omni-captioner"][
 DEFAULT_SORTFORMER_DIAR_PATH = str(DEFAULT_MODELS_DIR / MODELS["sortformer-diar"]["subdir"])
 DEFAULT_FIREREDASR_PATH = str(DEFAULT_MODELS_DIR / MODELS["fireredasr"]["subdir"])
 DEFAULT_FIREREDVAD_PATH = str(DEFAULT_MODELS_DIR / MODELS["fireredvad"]["subdir"])
-DEFAULT_WESPEAKER_PATH = str(DEFAULT_MODELS_DIR / MODELS["wespeaker"]["subdir"])
 DEFAULT_PYANNOTE_DIAR_PATH = str(DEFAULT_MODELS_DIR / MODELS["pyannote-diarization"]["subdir"])
 DEFAULT_PYANNOTE_SEG_PATH = str(DEFAULT_MODELS_DIR / MODELS["pyannote-segmentation"]["subdir"])
 
