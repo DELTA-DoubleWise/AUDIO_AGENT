@@ -22,9 +22,23 @@ import sys
 from pathlib import Path
 from typing import Any
 
-# Base directory for storing downloaded models
-# This is set to a persistent location in the workspace
-DEFAULT_MODELS_DIR = Path("/lihaoyu/workspace/AUDIO_AGENT/models")
+
+def repo_root() -> Path:
+    """Resolve the AUDIO_AGENT repo root from this file's location."""
+    return Path(__file__).resolve().parents[2]
+
+
+def resolve_models_dir() -> Path:
+    """Resolve models directory: $AUDIO_AGENT_MODELS_DIR, else <repo>/models."""
+    env = os.environ.get("AUDIO_AGENT_MODELS_DIR")
+    if env:
+        return Path(env).expanduser().resolve()
+    return repo_root() / "models"
+
+
+# Base directory for storing downloaded models.
+# Override by setting AUDIO_AGENT_MODELS_DIR; default is <repo>/models.
+DEFAULT_MODELS_DIR = resolve_models_dir()
 
 # Model registry - maps friendly names to HuggingFace model IDs
 MODELS: dict[str, dict[str, Any]] = {
@@ -32,6 +46,11 @@ MODELS: dict[str, dict[str, Any]] = {
         "repo_id": "Qwen/Qwen2-Audio-7B-Instruct",
         "description": "Qwen2-Audio 7B Instruct model for audio understanding frontend",
         "subdir": "Qwen2-Audio-7B-Instruct",
+    },
+    "qwen2.5-omni": {
+        "repo_id": "Qwen/Qwen2.5-Omni-7B",
+        "description": "Qwen2.5-Omni 7B unified multimodal model for audio understanding frontend",
+        "subdir": "Qwen2.5-Omni-7B",
     },
     "qwen3-omni": {
         "repo_id": "Qwen/Qwen3-Omni-30B-A3B-Instruct",
@@ -68,10 +87,38 @@ MODELS: dict[str, dict[str, Any]] = {
         "description": "NVIDIA SortFormer streaming diarization model (4 speakers max)",
         "subdir": "sortformer-diar-streaming-4spk-v2",
     },
+    "fireredasr": {
+        "repo_id": "FireRedTeam/FireRedASR-AED-L",
+        "description": "FireRedASR AED-Large ASR model (Mandarin/English/code-switching)",
+        "subdir": "FireRedASR-AED-L",
+    },
+    "fireredvad": {
+        "repo_id": "FireRedTeam/FireRedVAD",
+        "description": "FireRedVAD voice activity detection / coarse AED model",
+        "subdir": "FireRedVAD",
+    },
+    "wespeaker": {
+        "repo_id": "Wespeaker/wespeaker-voxceleb-resnet34-LM",
+        "description": "WeSpeaker ResNet34-LM speaker embedding model for verification",
+        "subdir": "wespeaker-voxceleb-resnet34-LM",
+    },
+    "pyannote-diarization": {
+        "repo_id": "pyannote/speaker-diarization-3.1",
+        "description": "Pyannote speaker-diarization-3.1 pipeline (used by whisperx). Requires HuggingFace token with accepted user agreement.",
+        "subdir": "pyannote-speaker-diarization-3.1",
+        "requires_hf_token": True,
+    },
+    "pyannote-segmentation": {
+        "repo_id": "pyannote/segmentation-3.0",
+        "description": "Pyannote segmentation-3.0 model used by the diarization pipeline. Requires HuggingFace token.",
+        "subdir": "pyannote-segmentation-3.0",
+        "requires_hf_token": True,
+    },
 }
 
 # Convenience constants for local model paths
 DEFAULT_QWEN2_AUDIO_PATH = str(DEFAULT_MODELS_DIR / MODELS["qwen2-audio"]["subdir"])
+DEFAULT_QWEN25_OMNI_PATH = str(DEFAULT_MODELS_DIR / MODELS["qwen2.5-omni"]["subdir"])
 DEFAULT_QWEN3_OMNI_PATH = str(DEFAULT_MODELS_DIR / MODELS["qwen3-omni"]["subdir"])
 DEFAULT_QWEN25_PATH = str(DEFAULT_MODELS_DIR / MODELS["qwen2.5"]["subdir"])
 DEFAULT_QWEN3_ASR_PATH = str(DEFAULT_MODELS_DIR / MODELS["qwen3-asr"]["subdir"])
@@ -79,6 +126,11 @@ DEFAULT_QWEN3_ALIGNER_PATH = str(DEFAULT_MODELS_DIR / MODELS["qwen3-aligner"]["s
 DEFAULT_DIARIZEN_PATH = str(DEFAULT_MODELS_DIR / MODELS["diarizen"]["subdir"])
 DEFAULT_OMNI_CAPTIONER_PATH = str(DEFAULT_MODELS_DIR / MODELS["omni-captioner"]["subdir"])
 DEFAULT_SORTFORMER_DIAR_PATH = str(DEFAULT_MODELS_DIR / MODELS["sortformer-diar"]["subdir"])
+DEFAULT_FIREREDASR_PATH = str(DEFAULT_MODELS_DIR / MODELS["fireredasr"]["subdir"])
+DEFAULT_FIREREDVAD_PATH = str(DEFAULT_MODELS_DIR / MODELS["fireredvad"]["subdir"])
+DEFAULT_WESPEAKER_PATH = str(DEFAULT_MODELS_DIR / MODELS["wespeaker"]["subdir"])
+DEFAULT_PYANNOTE_DIAR_PATH = str(DEFAULT_MODELS_DIR / MODELS["pyannote-diarization"]["subdir"])
+DEFAULT_PYANNOTE_SEG_PATH = str(DEFAULT_MODELS_DIR / MODELS["pyannote-segmentation"]["subdir"])
 
 
 def get_local_model_path(model_name: str) -> str:

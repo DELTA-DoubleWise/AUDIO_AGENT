@@ -4,7 +4,8 @@ Minimal FireRedVAD inference test script.
 Usage: python test_vad.py <audio_path>
 """
 import sys
-sys.path.insert(0, '/lihaoyu/workspace/AUDIO_AGENT/AUDIO_AGENT/audio_agent/tools/catalog/fireredvad')
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from model import ModelWrapper
 
 if __name__ == "__main__":

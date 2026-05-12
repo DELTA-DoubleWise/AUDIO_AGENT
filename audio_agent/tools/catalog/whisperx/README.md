@@ -170,14 +170,14 @@ Check if WhisperX is properly configured.
 | `MODEL_ARCH` | No | Whisper model size (tiny, base, small, medium, large) | `small` |
 | `DEVICE` | No | Compute device (`cpu`, `cuda`) | `cuda` |
 | `VAD_METHOD` | No | VAD method (`pyannote`, `silero`, `None`) | `pyannote` |
-| `DIARIZATION_MODEL_PATH` | No | Path to pyannote diarization model | `/lihaoyu/workspace/AUDIO_AGENT/AUDIO_AGENT/models/pyannote-speaker-diarization-community-1` |
-| `HF_HOME` | No | Where Whisper models are downloaded on first use | `/lihaoyu/workspace/AUDIO_AGENT/AUDIO_AGENT/models` |
+| `DIARIZATION_MODEL_PATH` | No | Path to pyannote diarization model | `${AUDIO_AGENT_MODELS_DIR}/pyannote-speaker-diarization-community-1` |
+| `HF_HOME` | No | Where Whisper models are downloaded on first use | `${AUDIO_AGENT_MODELS_DIR}` |
 
 ### Pre-downloaded Models
 
 Pyannote speaker diarization models are pre-downloaded to:
 ```
-/lihaoyu/workspace/AUDIO_AGENT/AUDIO_AGENT/models/pyannote-speaker-diarization-community-1/
+${AUDIO_AGENT_MODELS_DIR}/pyannote-speaker-diarization-community-1/
 ├── config.yaml
 ├── embedding/
 ├── plda/

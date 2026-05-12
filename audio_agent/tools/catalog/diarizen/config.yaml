@@ -17,9 +17,9 @@ server:
   working_dir: "."
   
   env:
-    MODEL_PATH: "/lihaoyu/workspace/AUDIO_AGENT/models/diarizen-wavlm-large-s80-md"
+    MODEL_PATH: "${AUDIO_AGENT_MODELS_DIR}/diarizen-wavlm-large-s80-md"
     DEVICE: "auto"
-    HF_HOME: "/lihaoyu/workspace/AUDIO_AGENT/models"
+    HF_HOME: "${AUDIO_AGENT_MODELS_DIR}"
   
   resources:
     memory_gb: 8

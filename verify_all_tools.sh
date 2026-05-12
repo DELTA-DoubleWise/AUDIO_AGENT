@@ -8,6 +8,9 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CATALOG_DIR="$SCRIPT_DIR/audio_agent/tools/catalog"
 
+# Models directory defaults to <repo>/models; override via AUDIO_AGENT_MODELS_DIR.
+export AUDIO_AGENT_MODELS_DIR="${AUDIO_AGENT_MODELS_DIR:-$SCRIPT_DIR/models}"
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -23,10 +26,12 @@ fi
 echo "========================================"
 echo "MCP Tools Verification"
 echo "========================================"
+echo "  Repo root:              $SCRIPT_DIR"
+echo "  AUDIO_AGENT_MODELS_DIR: $AUDIO_AGENT_MODELS_DIR"
 echo ""
 
-# Find all tools with test_env.sh
-TOOLS=$(find "$CATALOG_DIR" -maxdepth 2 -name "test_env.sh" -type f 2>/dev/null | sort)
+# Find all tools with test_env.sh (skip _template)
+TOOLS=$(find "$CATALOG_DIR" -mindepth 2 -maxdepth 2 -name "test_env.sh" -type f ! -path "*/_template/*" 2>/dev/null | sort)
 
 if [ -z "$TOOLS" ]; then
     echo -e "${YELLOW}No tools found with test_env.sh${NC}"

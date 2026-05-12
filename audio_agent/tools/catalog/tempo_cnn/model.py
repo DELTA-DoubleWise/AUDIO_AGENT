@@ -30,8 +30,21 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-# Shared models directory for checkpoint storage
-SHARED_MODELS_DIR = Path("/lihaoyu/workspace/AUDIO_AGENT/models/tempocnn")
+# Shared models directory for tempocnn checkpoint caching.
+# Resolved from $AUDIO_AGENT_MODELS_DIR (or repo-root/models) plus a `tempocnn`
+# subdirectory. Override the whole path with $TEMPOCNN_MODELS_DIR.
+def _resolve_shared_models_dir() -> Path:
+    explicit = os.environ.get("TEMPOCNN_MODELS_DIR")
+    if explicit:
+        return Path(explicit).expanduser()
+    base = os.environ.get("AUDIO_AGENT_MODELS_DIR")
+    if not base:
+        # repo root = five parents up: model.py -> tempo_cnn/ -> catalog/ -> tools/ -> audio_agent/ -> <repo>
+        base = str(Path(__file__).resolve().parents[4] / "models")
+    return Path(base) / "tempocnn"
+
+
+SHARED_MODELS_DIR = _resolve_shared_models_dir()
 
 
 def _patch_tempocnn_cache() -> None:

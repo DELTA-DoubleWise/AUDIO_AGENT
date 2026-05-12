@@ -6,9 +6,9 @@ server:
   command: [".venv/bin/python", "server.py"]
   working_dir: "."
   env:
-    MODEL_PATH: "/lihaoyu/workspace/AUDIO_AGENT/AUDIO_AGENT/models/fireredasr2s"
+    MODEL_PATH: "${AUDIO_AGENT_MODELS_DIR}/FireRedASR-AED-L"
     DEVICE: "auto"
-    HF_HOME: "/lihaoyu/workspace/AUDIO_AGENT/AUDIO_AGENT/models"
+    HF_HOME: "${AUDIO_AGENT_MODELS_DIR}"
   startup_timeout_sec: 300
 
 resources:

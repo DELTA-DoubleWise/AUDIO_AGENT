@@ -13,12 +13,10 @@ mkdir -p "$UV_CACHE_DIR"
 # ⭐ CRITICAL: Check persistent location FIRST, then PATH
 if [ -f "$REPO_ROOT/.uv/bin/uv" ]; then
     UV="$REPO_ROOT/.uv/bin/uv"
-elif [ -f "/lihaoyu/workspace/AUDIO_AGENT/.uv/bin/uv" ]; then
-    UV="/lihaoyu/workspace/AUDIO_AGENT/.uv/bin/uv"
 elif command -v uv &> /dev/null; then
     UV="uv"
 else
-    echo "Error: uv not found. Please ensure uv is installed at /lihaoyu/workspace/AUDIO_AGENT/.uv/"
+    echo "Error: uv not found. Install via "curl -LsSf https://astral.sh/uv/install.sh | sh" or place a uv binary at $REPO_ROOT/.uv/bin/uv."
     exit 1
 fi
 

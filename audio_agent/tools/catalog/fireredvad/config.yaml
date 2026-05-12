@@ -10,6 +10,8 @@ server:
   env:
     MODEL_DEVICE: "auto"
     TORCH_NUM_THREADS: "1"
+    # Directory that contains the VAD/ and AED/ subfolders.
+    MODEL_PATH: "${AUDIO_AGENT_MODELS_DIR}/FireRedVAD"
   resources:
     memory_gb: 2
     gpu: true

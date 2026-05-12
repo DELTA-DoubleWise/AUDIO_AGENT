@@ -59,33 +59,32 @@ START
 
 ### Conda Initialization
 
-> **Important**: On this system, conda requires initialization before use. Always run:
-> ```bash
-> source /lihaoyu/.conda.path.sh
-> ```
-> before using any `conda` commands.
+Conda is **only required** for the diarizen MCP tool. Everything else uses uv.
+If conda is on `$PATH`, the framework picks it up automatically. Otherwise
+export `CONDA_SH=/path/to/conda/etc/profile.d/conda.sh` to point at it.
 
 ### Environment Options
 
-1. **Default Environment**: For core framework and dummy components (no GPU required)
+1. **Default Environment**: For core framework and API-based usage (no GPU required)
    - See: `DEFAULT_ENVIRONMENT.md`
 
-2. **Demo Environment**: For running with real Qwen models (GPU required)
+2. **Demo Environment**: For running with local Qwen models (GPU required)
    - See: `DEMO_ENVIRONMENT.md`
 
 ### Quick Start
 
 ```bash
-# Initialize conda
-source /lihaoyu/.conda.path.sh
-
-# Create and activate environment (choose one)
-conda create -n audio_agent python=3.11
-conda activate audio_agent
+# Create and activate a Python 3.11 environment for the framework (uv or conda).
+uv venv --python 3.11 .venv && source .venv/bin/activate
+# (or)  conda create -n audio_agent python=3.11 && conda activate audio_agent
 
 # Install package
 pip install -e .
-# Or with dev dependencies: pip install -e ".[dev]"
+# Or with dev/api/download extras:
+pip install -e ".[api,dev,download]"
+
+# Set the models directory (defaults to <repo>/models if unset).
+export AUDIO_AGENT_MODELS_DIR="$PWD/models"
 ```
 
 ## Project Structure
@@ -214,7 +213,6 @@ tool_preparation/              # Harness-First Agent Workflow for tool onboardin
 
 ```bash
 # Using conda (recommended for GPU environments)
-source /lihaoyu/.conda.path.sh
 conda env create -f environment.yml
 conda activate audio_agent_demo
 
@@ -356,7 +354,9 @@ python -m audio_agent.examples.demo_run_auto_tools \
 
 ### Pre-downloading Models
 
-By default, the framework uses local model paths to avoid re-downloading models on every login. Models are stored in `/lihaoyu/workspace/AUDIO_AGENT/models/`.
+Model weights live under `${AUDIO_AGENT_MODELS_DIR}` (defaults to `<repo>/models/`
+when unset). All tool `config.yaml` files reference the directory via this env
+var, so a single export covers every tool.
 
 **Download all models (one-time setup):**
 
@@ -862,7 +862,7 @@ validate_state_has_fields(
 
 14. **Checkpointer Support**: `build_graph_with_config()` exists but is not used by default `AudioAgent` constructor.
 
-15. **Conda Initialization**: Remember to run `source /lihaoyu/.conda.path.sh` before using conda commands on this system.
+15. **Conda Initialization**: Only the diarizen tool needs conda (Python 3.10). On systems where `conda` is not on `$PATH`, set `CONDA_SH=/path/to/conda/etc/profile.d/conda.sh` before running `diarizen/setup.sh` or `setup_all_tools.sh`. Every other tool uses `uv`.
 
 16. **Model Output Retry**: `BaseModelPlanner` and `BaseModelFrontend` automatically retry model calls when the output fails schema validation or JSON parsing. This handles transient API instability without failing the entire agent run. Configure via `max_retries` (default 3, can be set to 0 to disable). The retry uses exponential backoff (0.5s, 1s, 2s). `AgentConfig` exposes `max_model_output_retries` for documentation purposes; wire it into your planner/frontend constructor as needed.
 

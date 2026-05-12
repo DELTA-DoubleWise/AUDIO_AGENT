@@ -8,7 +8,7 @@ server:
   command: [".venv/bin/python", "server.py"]
   working_dir: "."
   env:
-    MODEL_CACHE_DIR: "/lihaoyu/workspace/AUDIO_AGENT/models/lv_chordia"
+    MODEL_CACHE_DIR: "${AUDIO_AGENT_MODELS_DIR}/lv_chordia"
   resources:
     memory_gb: 4
     gpu: false

@@ -69,7 +69,7 @@ Detected speakers: speaker_0, speaker_3
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `MODEL_PATH` | Path to DiariZen model | `/lihaoyu/workspace/AUDIO_AGENT/models/diarizen-wavlm-large-s80-md` |
+| `MODEL_PATH` | Path to DiariZen model | `${AUDIO_AGENT_MODELS_DIR}/diarizen-wavlm-large-s80-md` |
 | `DEVICE` | Device to use (auto/cpu/cuda) | `auto` |
 
 ## Model Information

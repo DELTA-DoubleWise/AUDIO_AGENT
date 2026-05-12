@@ -18,8 +18,6 @@ echo ""
 # Find uv - check persistent location first, then PATH
 if [ -f "$REPO_ROOT/.uv/bin/uv" ]; then
     UV="$REPO_ROOT/.uv/bin/uv"
-elif [ -f "/lihaoyu/workspace/AUDIO_AGENT/.uv/bin/uv" ]; then
-    UV="/lihaoyu/workspace/AUDIO_AGENT/.uv/bin/uv"
 elif command -v uv &> /dev/null; then
     UV="uv"
 else

@@ -96,9 +96,12 @@ class ModelWrapper:
                 - device: Device to use (default from env or 'auto')
         """
         self.config = config or {}
+        from pathlib import Path as _P
+        _repo_root = _P(__file__).resolve().parents[4]
+        _models_dir = os.environ.get("AUDIO_AGENT_MODELS_DIR") or str(_repo_root / "models")
         self.model_path = self.config.get("model_path") or os.environ.get(
             "MODEL_PATH",
-            "/cpfs/user/jingpeng/workspace/AUDIO_AGENT/models/fireredasr2s"
+            os.path.join(_models_dir, "FireRedASR-AED-L"),
         )
         self.device = self.config.get("device") or os.environ.get("DEVICE", "cpu")
         self._model = None

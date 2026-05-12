@@ -47,17 +47,18 @@ class ModelWrapper:
     def __init__(self, config: dict[str, Any] | None = None) -> None:
         self.config = config or {}
         self.model_root = Path(__file__).resolve().parent
+        # Default model paths resolve under $AUDIO_AGENT_MODELS_DIR (or
+        # <repo>/models when unset). Override per-call via config or by setting
+        # MODEL_PATH for the wrapper directory containing VAD/ and AED/.
+        _models_root = os.environ.get("AUDIO_AGENT_MODELS_DIR")
+        if not _models_root:
+            _models_root = str(Path(__file__).resolve().parents[4] / "models")
+        _fireredvad_root = os.environ.get("MODEL_PATH") or str(Path(_models_root) / "FireRedVAD")
         self.vad_model_dir = Path(
-            self.config.get(
-                "vad_model_dir",
-                "/lihaoyu/workspace/AUDIO_AGENT/AUDIO_AGENT/models/fireredvad/VAD",
-            )
+            self.config.get("vad_model_dir", str(Path(_fireredvad_root) / "VAD"))
         )
         self.aed_model_dir = Path(
-            self.config.get(
-                "aed_model_dir",
-                "/lihaoyu/workspace/AUDIO_AGENT/AUDIO_AGENT/models/fireredvad/AED",
-            )
+            self.config.get("aed_model_dir", str(Path(_fireredvad_root) / "AED"))
         )
         _env_device = os.environ.get("MODEL_DEVICE", "cpu").lower()
         self.use_gpu = bool(self.config.get("use_gpu", _env_device in ["cuda", "gpu", "auto"]))

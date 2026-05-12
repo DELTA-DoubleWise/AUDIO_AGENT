@@ -28,10 +28,14 @@ class WeSpeakerServer:
         self._initialized = False
         self._wrapper: ModelWrapper | None = None
         
-        # Default configuration
+        # Default configuration. WESPEAKER_HOME is set by config.yaml from
+        # ${AUDIO_AGENT_MODELS_DIR}/wespeaker; fall back to the same default.
+        from pathlib import Path as _P
+        _repo_root = _P(__file__).resolve().parents[4]
+        _models_dir = os.environ.get("AUDIO_AGENT_MODELS_DIR") or str(_repo_root / "models")
         self._cache_dir = os.environ.get(
-            "WESPEAKER_HOME", 
-            "/cpfs/user/jingpeng/workspace/AUDIO_AGENT/models/wespeaker"
+            "WESPEAKER_HOME",
+            os.path.join(_models_dir, "wespeaker"),
         )
         self._model_name = os.environ.get("WESPEAKER_MODEL", "english")
         self._device = os.environ.get("WESPEAKER_DEVICE", "cpu")

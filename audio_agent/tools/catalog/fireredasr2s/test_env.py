@@ -25,9 +25,13 @@ def test_model_load() -> bool:
     try:
         from fireredasr2s.fireredasr2 import FireRedAsr2, FireRedAsr2Config
         
+        # Default resolves under $AUDIO_AGENT_MODELS_DIR (or <repo>/models when unset).
+        from pathlib import Path as _P
+        _repo_root = _P(__file__).resolve().parents[4]
+        _models_dir = os.environ.get("AUDIO_AGENT_MODELS_DIR") or str(_repo_root / "models")
         model_path = os.environ.get(
             "MODEL_PATH",
-            "/lihaoyu/workspace/AUDIO_AGENT/AUDIO_AGENT/models/fireredasr2s"
+            os.path.join(_models_dir, "FireRedASR-AED-L"),
         )
         
         if not os.path.exists(model_path):

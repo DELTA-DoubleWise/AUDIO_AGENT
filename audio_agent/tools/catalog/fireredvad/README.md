@@ -12,24 +12,24 @@ This tool provides both VAD and AED capabilities using the FireRedVAD model from
 ## Models
 
 - **Model ID**: FireRedTeam/FireRedVAD
-- **VAD Weights**: `/lihaoyu/workspace/AUDIO_AGENT/AUDIO_AGENT/models/fireredvad/VAD/`
-- **AED Weights**: `/lihaoyu/workspace/AUDIO_AGENT/AUDIO_AGENT/models/fireredvad/AED/`
+- **VAD Weights**: `${AUDIO_AGENT_MODELS_DIR}/fireredvad/VAD/`
+- **AED Weights**: `${AUDIO_AGENT_MODELS_DIR}/fireredvad/AED/`
 
 ## Setup
 
 ### Prerequisites
 
 - Python 3.11+
-- uv (persistent installation at `/lihaoyu/workspace/AUDIO_AGENT/.uv/`)
+- uv (system install on PATH, or repo-local at `<repo>/.uv/`)
 
 ### Installation
 
 ```bash
 # Source the persistent uv activation
-source /lihaoyu/workspace/AUDIO_AGENT/.uv/activate.sh
+# Optional: source <repo>/.uv/activate.sh for repo-local uv
 
 # Run setup
-cd /lihaoyu/workspace/AUDIO_AGENT/AUDIO_AGENT/audio_agent/tools/catalog/fireredvad
+cd $REPO_ROOT/audio_agent/tools/catalog/fireredvad
 ./setup.sh
 ```
 
@@ -42,7 +42,7 @@ The model weights are automatically downloaded during setup. If you need to manu
 from huggingface_hub import snapshot_download
 snapshot_download(
     repo_id='FireRedTeam/FireRedVAD',
-    local_dir='/lihaoyu/workspace/AUDIO_AGENT/AUDIO_AGENT/models/fireredvad',
+    local_dir='${AUDIO_AGENT_MODELS_DIR}/fireredvad',
     local_dir_use_symlinks=False
 )
 "

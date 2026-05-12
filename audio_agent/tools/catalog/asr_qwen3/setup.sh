@@ -9,15 +9,13 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
 export UV_CACHE_DIR="${UV_CACHE_DIR:-$REPO_ROOT/.cache/uv}"
 mkdir -p "$UV_CACHE_DIR"
 
-# Find uv - check persistent location first, then PATH
+# Find uv: prefer a repo-local persistent install, else system uv on PATH.
 if [ -f "$REPO_ROOT/.uv/bin/uv" ]; then
     UV="$REPO_ROOT/.uv/bin/uv"
-elif [ -f "/lihaoyu/workspace/AUDIO_AGENT/.uv/bin/uv" ]; then
-    UV="/lihaoyu/workspace/AUDIO_AGENT/.uv/bin/uv"
 elif command -v uv &> /dev/null; then
     UV="uv"
 else
-    echo "Error: uv not found. Please install uv first."
+    echo "Error: uv not found. Install via 'curl -LsSf https://astral.sh/uv/install.sh | sh' or place a uv binary at $REPO_ROOT/.uv/bin/uv." >&2
     exit 1
 fi
 

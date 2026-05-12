@@ -7,7 +7,7 @@ without an HF token.
 
 Usage:
     export HF_TOKEN=hf_xxx
-    export MODEL_DIR=/cpfs/user/jingpeng/workspace/AUDIO_AGENT/models
+    # MODEL_DIR defaults to $AUDIO_AGENT_MODELS_DIR (or <repo>/models when unset).
     python download_diarization_models.py
 """
 
@@ -15,8 +15,14 @@ import os
 import sys
 from pathlib import Path
 
-# Set model directory
-MODEL_DIR = os.environ.get("MODEL_DIR", "/cpfs/user/jingpeng/workspace/AUDIO_AGENT/models")
+# Set model directory. Prefer explicit MODEL_DIR; else AUDIO_AGENT_MODELS_DIR;
+# else fall back to <repo>/models.
+_REPO_ROOT = Path(__file__).resolve().parents[4]
+MODEL_DIR = (
+    os.environ.get("MODEL_DIR")
+    or os.environ.get("AUDIO_AGENT_MODELS_DIR")
+    or str(_REPO_ROOT / "models")
+)
 os.environ["HF_HOME"] = MODEL_DIR
 
 
@@ -57,7 +63,7 @@ def download_models():
         print()
         
         # Verify model directory contents
-        model_path = Path(MODEL_DIR) / "pyannote-speaker-diarization-community-1"
+        model_path = Path(MODEL_DIR) / "pyannote-speaker-diarization-3.1"
         if model_path.exists():
             print("Model files:")
             for item in model_path.rglob("*"):

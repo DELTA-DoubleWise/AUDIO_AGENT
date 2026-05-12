@@ -19,9 +19,14 @@ class FireRedAsr2sMCPServer:
     def __init__(self):
         self._initialized = False
         self._model = None
+        # MODEL_PATH is set by config.yaml from ${AUDIO_AGENT_MODELS_DIR}/FireRedASR-AED-L;
+        # fall back to the same default when called outside the MCP harness.
+        from pathlib import Path as _P
+        _repo_root = _P(__file__).resolve().parents[4]
+        _models_dir = os.environ.get("AUDIO_AGENT_MODELS_DIR") or str(_repo_root / "models")
         self._model_path = os.environ.get(
             "MODEL_PATH",
-            "/cpfs/user/jingpeng/workspace/AUDIO_AGENT/models/fireredasr2s"
+            os.path.join(_models_dir, "FireRedASR-AED-L"),
         )
         self._device = os.environ.get("DEVICE", "cpu")
         

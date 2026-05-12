@@ -385,10 +385,14 @@ class ModelWrapper:
                 
                 # Perform speaker diarization
                 try:
-                    # Load diarization model from local path (set via DIARIZATION_MODEL_PATH env var)
+                    # Load diarization model from local path (set via DIARIZATION_MODEL_PATH env var).
+                    # Default resolves under $AUDIO_AGENT_MODELS_DIR/pyannote-speaker-diarization-3.1.
+                    from pathlib import Path as _P
+                    _repo_root = _P(__file__).resolve().parents[4]
+                    _models_dir = os.environ.get("AUDIO_AGENT_MODELS_DIR") or str(_repo_root / "models")
                     diarize_model_path = os.environ.get(
                         "DIARIZATION_MODEL_PATH",
-                        "/cpfs/user/jingpeng/workspace/AUDIO_AGENT/models/pyannote-speaker-diarization-community-1"
+                        os.path.join(_models_dir, "pyannote-speaker-diarization-3.1"),
                     )
                     diarize_model = DiarizationPipeline(
                         model_name=diarize_model_path,

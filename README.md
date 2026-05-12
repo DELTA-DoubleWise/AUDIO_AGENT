@@ -143,61 +143,76 @@ audio_agent/
 
 ## Installation
 
+### Prerequisites
+
+- **Python 3.11** (the main framework env). Python 3.10 is only required by the
+  diarizen tool, which runs in its own isolated conda env.
+- **uv** — used to provision every tool except diarizen. Install via:
+  ```bash
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+  ```
+  (If your machine already has a system `uv` on `$PATH`, that is enough.)
+- **conda** — only required if you plan to set up the `diarizen` tool. Any
+  miniconda/anaconda install on `$PATH` works; export `CONDA_SH=/path/to/conda/etc/profile.d/conda.sh`
+  to point at a non-standard install.
+- **A HuggingFace token** is needed if you want the `whisperx` diarization path
+  (uses gated pyannote models). Run `huggingface-cli login` after accepting the
+  `pyannote/speaker-diarization-3.1` and `pyannote/segmentation-3.0` user agreements.
+- **API key for the API-based demo**: `DASHSCOPE_API_KEY` (Alibaba DashScope)
+  for `demo_run_api_full.py`. `OPENAI_API_KEY` for OpenAI-style backends.
+
+### Bootstrap
+
 ```bash
-# Create a uv-managed Python 3.11 environment in the repo root
-UV_CACHE_DIR=.cache/uv uv venv --python 3.11 .venv
+git clone <repo-url> AUDIO_AGENT && cd AUDIO_AGENT
 
-# Activate it
+# 1. Main framework env (uv-managed, in repo root)
+uv venv --python 3.11 .venv
 source .venv/bin/activate
+uv pip install -e '.[api,dev,download]'
 
-# Install the package
-UV_CACHE_DIR=.cache/uv uv pip install --python .venv/bin/python -e .
+# 2. Models directory (defaults to <repo>/models; override if you want elsewhere)
+export AUDIO_AGENT_MODELS_DIR="$PWD/models"
 
-# Or install development extras
-UV_CACHE_DIR=.cache/uv uv pip install --python .venv/bin/python -e '.[api,dev,download]'
+# 3. Build every MCP tool's isolated environment
+./setup_all_tools.sh
+
+# 4. Download every model the catalog needs
+audio-agent-download-models --all
+
+# 5. Verify every tool builds and imports
+./verify_all_tools.sh
 ```
+
+`setup_all_tools.sh` auto-discovers every tool with a `setup.sh` and runs them.
+Pass tool names to set up just a subset (e.g. `./setup_all_tools.sh ffmpeg librosa`).
 
 ## Running the Demo
 
-The demo uses real models (Qwen2-Audio frontend, Qwen2.5 planner) with automatic MCP tool discovery:
+The API-based demo needs no local GPU for the frontend/planner — only the MCP
+tools that themselves call local models need a GPU.
 
 ```bash
-# Setup MCP tools first (requires uv)
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Setup individual tools
-cd audio_agent/tools/catalog/asr_qwen3 && ./setup.sh && cd -
-cd audio_agent/tools/catalog/diarizen && ./setup.sh && cd -
-cd audio_agent/tools/catalog/lv_chordia && ./setup.sh && cd -
-cd audio_agent/tools/catalog/omni_captioner && ./setup.sh && cd -
-cd audio_agent/tools/catalog/tempo_cnn && ./setup.sh && cd -
-
-# Or use the helper script to setup all tools
-./verify_all_tools.sh --setup
-
-# Download models
-audio-agent-download-models --models qwen2-audio qwen2.5 qwen3-asr
-
-# Run the demo with auto tool discovery (single audio)
-python -m audio_agent.examples.demo_run_auto_tools \
+# API-based, fully cloud-hosted frontend + planner (uses DashScope by default)
+export DASHSCOPE_API_KEY="sk-xxx"
+export AUDIO_AGENT_MODELS_DIR="$PWD/models"
+python -m audio_agent.examples.demo_run_api_full \
   --audio /path/to/audio.wav \
   --question "What is being said in this audio?"
-
-# Run with multiple audios for comparison tasks (e.g., speaker verification)
-python -m audio_agent.examples.demo_run_auto_tools \
-  --audio /path/to/audio1.wav --audio /path/to/audio2.wav \
-  --question "Is the speaker in the second audio any of the speakers in the first audio?"
 ```
+
+For local-model frontends (Qwen2-Audio, Qwen2.5-Omni, Qwen3-Omni), see
+[DEMO_ENVIRONMENT.md](./DEMO_ENVIRONMENT.md).
 
 ### Verifying Tool Environments
 
 To verify all MCP tools are properly configured:
 
 ```bash
-# Test all tools
+# Test all tools (assumes ./setup_all_tools.sh already ran)
 ./verify_all_tools.sh
 
-# Setup and test all tools
+# Or combined: setup then verify
 ./verify_all_tools.sh --setup
 ```
 
@@ -258,7 +273,15 @@ The API-based demos are ideal for:
 
 ## Pre-downloading Models
 
-By default, the framework uses local model paths to avoid re-downloading models on every login. Models are stored in `/cpfs/user/jingpeng/workspace/AUDIO_AGENT/models/`.
+Model weights live under the directory pointed to by `AUDIO_AGENT_MODELS_DIR`. If
+that env var is unset, the framework defaults to `<repo>/models/` (which is in
+`.gitignore`). All tool `config.yaml` files reference the directory via
+`${AUDIO_AGENT_MODELS_DIR}`, so a single export covers every tool.
+
+```bash
+# Optional: store weights somewhere other than <repo>/models.
+export AUDIO_AGENT_MODELS_DIR=/path/to/your/models
+```
 
 **Download all models (one-time setup):**
 
@@ -266,7 +289,7 @@ By default, the framework uses local model paths to avoid re-downloading models 
 # Install with download support
 pip install -e ".[download]"
 
-# Download all models
+# Download all registered models
 audio-agent-download-models --all
 ```
 
@@ -284,12 +307,20 @@ audio-agent-download-models --list
 
 **Available models:**
 - `qwen2-audio` - Qwen/Qwen2-Audio-7B-Instruct (frontend, ~15GB)
+- `qwen2.5-omni` - Qwen/Qwen2.5-Omni-7B (single-GPU unified frontend, ~16GB)
 - `qwen3-omni` - Qwen/Qwen3-Omni-30B-A3B-Instruct (frontend, ~60GB)
 - `qwen2.5` - Qwen/Qwen2.5-7B-Instruct (planner, ~15GB)
 - `qwen3-asr` - Qwen/Qwen3-ASR-1.7B (ASR tool, ~4GB)
 - `qwen3-aligner` - Qwen/Qwen3-ForcedAligner-0.6B (aligner tool, ~1.5GB)
 - `diarizen` - BUT-FIT/diarizen-wavlm-large-s80-md (diarization, ~1GB)
+- `sortformer-diar` - nvidia/diar_streaming_sortformer_4spk-v2 (diarization, ~450MB)
 - `omni-captioner` - Qwen/Qwen3-Omni-30B-A3B-Captioner (captioner, ~60GB)
+- `fireredasr` - FireRedTeam/FireRedASR-AED-L (Mandarin/English ASR, ~3GB)
+- `fireredvad` - FireRedTeam/FireRedVAD (VAD + AED, ~200MB)
+- `wespeaker` - Wespeaker/wespeaker-voxceleb-resnet34-LM (speaker embedding, ~30MB)
+- `pyannote-diarization`, `pyannote-segmentation` - used by whisperx diarization
+  pipeline. **Requires a HuggingFace token with accepted user agreements** for
+  the pyannote models (run `huggingface-cli login`).
 
 **Using HuggingFace Hub paths (fallback):**
 

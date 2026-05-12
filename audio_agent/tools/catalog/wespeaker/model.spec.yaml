@@ -9,7 +9,7 @@ repo:
 
 weights:
   source: "built_in_auto_download"
-  local_path: "/lihaoyu/workspace/AUDIO_AGENT/AUDIO_AGENT/models/wespeaker"
+  local_path: "${AUDIO_AGENT_MODELS_DIR}/wespeaker"
   required: true
   note: "Weights are automatically downloaded on first model load to the WESPEAKER_HOME directory."
 
@@ -24,7 +24,7 @@ entrypoints:
     import wespeaker
   load_test: |
     import os
-    os.environ["WESPEAKER_HOME"] = "/lihaoyu/workspace/AUDIO_AGENT/AUDIO_AGENT/models/wespeaker"
+    os.environ["WESPEAKER_HOME"] = "${AUDIO_AGENT_MODELS_DIR}/wespeaker"
     
     import wespeaker
     model = wespeaker.load_model("english")

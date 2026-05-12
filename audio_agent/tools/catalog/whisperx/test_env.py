@@ -70,11 +70,14 @@ def test_inference():
     """Test minimal inference on fixture if available."""
     print("\nTesting inference...")
     
-    # Look for test fixtures
-    fixture_paths = [
-        Path(__file__).resolve().parents[4] / "tests" / "fixtures" / "shared" / "asr" / "en_16k.wav",
-        Path("/lihaoyu/workspace/AUDIO_AGENT/AUDIO_AGENT/tests/fixtures/shared/asr/en_16k.wav"),
-    ]
+    # Look for test fixtures (override with AUDIO_AGENT_TEST_WAV).
+    import os
+    fixture_paths = []
+    if os.environ.get("AUDIO_AGENT_TEST_WAV"):
+        fixture_paths.append(Path(os.environ["AUDIO_AGENT_TEST_WAV"]))
+    fixture_paths.append(
+        Path(__file__).resolve().parents[4] / "tests" / "fixtures" / "shared" / "asr" / "en_16k.wav"
+    )
     
     fixture_path = None
     for fp in fixture_paths:
