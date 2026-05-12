@@ -19,7 +19,7 @@ This tool wraps [lv-chordia](https://pypi.org/project/lv-chordia/), an implement
 ## Setup
 
 ```bash
-source /lihaoyu/workspace/AUDIO_AGENT/.uv/activate.sh
+# Optional: source <repo>/.uv/activate.sh for repo-local uv
 ./setup.sh
 ```
 

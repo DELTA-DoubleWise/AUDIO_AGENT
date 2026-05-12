@@ -61,10 +61,11 @@ class ModelWrapper:
         """
         self.config = config or {}
         self.model_root = Path(__file__).resolve().parent
+        # Default resolves under $AUDIO_AGENT_MODELS_DIR (or <repo>/models when unset).
+        _repo_root = Path(__file__).resolve().parents[4]
+        _models_dir = os.environ.get("AUDIO_AGENT_MODELS_DIR") or str(_repo_root / "models")
         self.cache_dir = Path(
-            self.config.get(
-                "cache_dir", "/cpfs/user/jingpeng/workspace/AUDIO_AGENT/models/wespeaker"
-            )
+            self.config.get("cache_dir", os.path.join(_models_dir, "wespeaker"))
         )
         self.model_name = str(self.config.get("model_name", "english"))
         self.device = str(self.config.get("device", "cpu"))

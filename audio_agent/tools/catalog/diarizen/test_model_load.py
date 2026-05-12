@@ -71,12 +71,17 @@ def test_model_loading():
 
 def test_diarization():
     """Test diarization with a sample audio file."""
-    # Find a sample audio file
-    sample_audio = "/cpfs/user/jingpeng/workspace/sure-eval/src/sure_eval/models/diarizen/diarizen_src/example/EN2002a_30s.wav"
-    
+    # Find a sample audio file. The default location is the DiariZen submodule's
+    # example clip cloned by setup.sh; override with AUDIO_AGENT_TEST_WAV.
+    from pathlib import Path as _P
+    _tool_dir = _P(__file__).resolve().parent
+    sample_audio = os.environ.get("AUDIO_AGENT_TEST_WAV") or str(
+        _tool_dir / "diarizen_src" / "example" / "EN2002a_30s.wav"
+    )
+
     if not os.path.exists(sample_audio):
         print(f"⚠ Sample audio not found: {sample_audio}")
-        print("  Skipping diarization test")
+        print("  Skipping diarization test (set AUDIO_AGENT_TEST_WAV to override)")
         return True
     
     print()

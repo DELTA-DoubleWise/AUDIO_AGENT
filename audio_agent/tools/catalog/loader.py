@@ -8,6 +8,7 @@ from catalog directories with proper path resolution.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +19,50 @@ except ImportError:
     HAS_YAML = False
 
 from audio_agent.tools.mcp.schemas import MCPServerConfig
+
+
+def _default_audio_agent_env() -> dict[str, str]:
+    """Defaults injected into config-time env expansion when the variable is unset.
+
+    Keeps configs portable: tools can reference ${AUDIO_AGENT_MODELS_DIR} without
+    every consumer having to export it first.
+    """
+    defaults: dict[str, str] = {}
+    if "AUDIO_AGENT_MODELS_DIR" not in os.environ:
+        # repo root = three parents up from this file: catalog/ -> tools/ -> audio_agent/ -> <repo>
+        repo_root = Path(__file__).resolve().parents[3]
+        defaults["AUDIO_AGENT_MODELS_DIR"] = str(repo_root / "models")
+    return defaults
+
+
+def _expand_env_vars(value: Any, fallback_env: dict[str, str]) -> Any:
+    """Recursively expand ${VAR} / $VAR references in all string values.
+
+    Uses the process environment first; falls back to fallback_env for any
+    variable not present in os.environ. Non-string values pass through.
+    """
+    if isinstance(value, str):
+        # os.path.expandvars only consults os.environ; layer fallbacks manually.
+        expanded = os.path.expandvars(value)
+        if "$" in expanded:
+            for k, v in fallback_env.items():
+                expanded = expanded.replace(f"${{{k}}}", v).replace(f"${k}", v)
+        return expanded
+    if isinstance(value, dict):
+        return {k: _expand_env_vars(v, fallback_env) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_expand_env_vars(v, fallback_env) for v in value]
+    return value
+
+
+def expand_config_env_vars(config: dict[str, Any]) -> dict[str, Any]:
+    """Expand ${VAR}/$VAR in every string in the config tree.
+
+    Process env wins; falls back to internal defaults (currently
+    AUDIO_AGENT_MODELS_DIR) so configs work out of the box on a fresh clone.
+    """
+    fallback = _default_audio_agent_env()
+    return _expand_env_vars(config, fallback)
 
 # Type hints for optional imports
 if False:
@@ -95,10 +140,14 @@ def load_tool_config(
     
     with open(config_path, "r", encoding="utf-8") as f:
         config = yaml.safe_load(f)
-    
+
+    # Expand ${VAR}/$VAR references before path resolution so env-var-based
+    # paths (e.g. ${AUDIO_AGENT_MODELS_DIR}/...) resolve correctly.
+    config = expand_config_env_vars(config)
+
     if resolve_relative_paths:
         config = resolve_config_paths(config, tool_dir)
-    
+
     return config
 
 

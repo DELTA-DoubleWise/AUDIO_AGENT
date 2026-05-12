@@ -118,10 +118,10 @@ Transcribe with word-level timestamps (uses forced alignment).
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `MODEL_PATH` | Model path (local or HuggingFace) | `/lihaoyu/workspace/AUDIO_AGENT/models/Qwen3-ASR-1.7B` |
+| `MODEL_PATH` | Model path (local or HuggingFace) | `${AUDIO_AGENT_MODELS_DIR}/Qwen3-ASR-1.7B` |
 | `DEVICE` | Device (`auto`, `cuda`, `cpu`) | `auto` |
 | `LANGUAGE` | Default language | `auto` |
-| `ALIGNER_PATH` | Forced aligner model path (for timestamps) | `/lihaoyu/workspace/AUDIO_AGENT/models/Qwen3-ForcedAligner-0.6B` |
+| `ALIGNER_PATH` | Forced aligner model path (for timestamps) | `${AUDIO_AGENT_MODELS_DIR}/Qwen3-ForcedAligner-0.6B` |
 | `USE_ALIGNER` | Enable forced aligner for timestamps | `true` |
 
 ### Resource Requirements

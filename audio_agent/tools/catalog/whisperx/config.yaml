@@ -20,10 +20,12 @@ server:
     MODEL_ARCH: "small"
     DEVICE: "cpu"
     VAD_METHOD: "pyannote"
-    # Path to pre-downloaded pyannote diarization model
-    DIARIZATION_MODEL_PATH: "/lihaoyu/workspace/AUDIO_AGENT/AUDIO_AGENT/models/pyannote-speaker-diarization-community-1"
+    # Path to pre-downloaded pyannote diarization model (requires HF token + accepted user agreement).
+    # Default points to ${AUDIO_AGENT_MODELS_DIR}/pyannote-speaker-diarization-3.1; override
+    # this env var to point at a different pyannote diarization checkpoint if you have one.
+    DIARIZATION_MODEL_PATH: "${AUDIO_AGENT_MODELS_DIR}/pyannote-speaker-diarization-3.1"
     # HuggingFace cache for Whisper models (downloaded on first use)
-    HF_HOME: "/lihaoyu/workspace/AUDIO_AGENT/AUDIO_AGENT/models"
+    HF_HOME: "${AUDIO_AGENT_MODELS_DIR}"
   
   resources:
     memory_gb: 8

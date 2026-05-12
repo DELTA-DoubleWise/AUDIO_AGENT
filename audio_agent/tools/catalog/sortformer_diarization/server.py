@@ -12,6 +12,7 @@ import json
 import logging
 import os
 import sys
+from pathlib import Path
 from typing import Any
 
 # Redirect NeMo logs to stderr before any nemo imports.
@@ -30,9 +31,17 @@ class SortformerDiarizationServer:
     def __init__(self):
         self._initialized = False
         self._model = None
+        # Default resolves under $AUDIO_AGENT_MODELS_DIR (set by config.yaml env-var
+        # expansion). Falls back to <repo>/models/... when neither env var is set.
+        _repo_root = Path(__file__).resolve().parents[4]
+        _models_dir = os.environ.get("AUDIO_AGENT_MODELS_DIR") or str(_repo_root / "models")
         self._model_path = os.environ.get(
             "MODEL_PATH",
-            "/lihaoyu/workspace/AUDIO_AGENT/models/sortformer-diar-streaming-4spk-v2/diar_streaming_sortformer_4spk-v2.nemo",
+            os.path.join(
+                _models_dir,
+                "sortformer-diar-streaming-4spk-v2",
+                "diar_streaming_sortformer_4spk-v2.nemo",
+            ),
         )
         self._device = os.environ.get("DEVICE", "auto")
 

@@ -50,15 +50,10 @@ pip install -e ".[api,dev]"
 
 ### Option 2: Using conda
 
-> **Important**: On this system, conda requires initialization before use:
-> ```bash
-> source /lihaoyu/.conda.path.sh
-> ```
+If `conda` is already on `$PATH`, skip the init line. Otherwise source your
+local conda hook first (e.g. `source /path/to/conda/etc/profile.d/conda.sh`).
 
 ```bash
-# Initialize conda (if not already done)
-source /lihaoyu/.conda.path.sh
-
 # Create conda environment with Python 3.11
 conda create -n audio_agent python=3.11
 conda activate audio_agent

@@ -44,9 +44,14 @@ condaenv.*.requirements.txt
 # Local model / dataset caches
 .cache/
 .hf_cache/
+.artifacts/
 
 # Downloaded models (pre-downloaded to avoid re-downloading on every login)
 models/
+
+# Per-tool isolated environments (uv .venv, conda env, etc.)
+audio_agent/tools/catalog/*/.venv/
+audio_agent/tools/catalog/*/.conda_env/
 
 # Demo / runtime artifacts
 output.wav

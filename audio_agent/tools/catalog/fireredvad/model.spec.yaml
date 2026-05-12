@@ -9,7 +9,7 @@ repo:
 
 weights:
   source: "huggingface"
-  local_path: "/lihaoyu/workspace/AUDIO_AGENT/AUDIO_AGENT/models/fireredvad"
+  local_path: "${AUDIO_AGENT_MODELS_DIR}/FireRedVAD"
   required: true
 
 environment:
@@ -25,7 +25,7 @@ entrypoints:
   load_test: |
     from fireredvad import FireRedVad, FireRedVadConfig
 
-    model_dir = "/lihaoyu/workspace/AUDIO_AGENT/AUDIO_AGENT/models/fireredvad/VAD"
+    model_dir = "${AUDIO_AGENT_MODELS_DIR}/FireRedVAD/VAD"
     vad_config = FireRedVadConfig(
         use_gpu=False,
         smooth_window_size=5,
@@ -45,7 +45,7 @@ entrypoints:
   aed_load_test: |
     from fireredvad import FireRedAed, FireRedAedConfig
 
-    model_dir = "/lihaoyu/workspace/AUDIO_AGENT/AUDIO_AGENT/models/fireredvad/AED"
+    model_dir = "${AUDIO_AGENT_MODELS_DIR}/FireRedVAD/AED"
     aed_config = FireRedAedConfig(
         use_gpu=False,
         smooth_window_size=5,

@@ -17,7 +17,7 @@ server:
   working_dir: "."
 
   env:
-    MODEL_PATH: "/lihaoyu/workspace/AUDIO_AGENT/models/sortformer-diar-streaming-4spk-v2/diar_streaming_sortformer_4spk-v2.nemo"
+    MODEL_PATH: "${AUDIO_AGENT_MODELS_DIR}/sortformer-diar-streaming-4spk-v2/diar_streaming_sortformer_4spk-v2.nemo"
     DEVICE: "auto"
     NEMO_REDIRECT_LOGS_TO_STDERR: "1"
     NEMO_LOGGING_LEVEL: "WARNING"

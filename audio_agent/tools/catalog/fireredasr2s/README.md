@@ -14,13 +14,13 @@ FireRedASR2S AED (Attention-based Encoder-Decoder) ASR tool for the Audio Agent 
 - **Model**: FireRedASR2-AED
 - **Source**: [HuggingFace](https://huggingface.co/FireRedTeam/FireRedASR2-AED)
 - **Repo**: [GitHub](https://github.com/FireRedTeam/FireRedASR2S)
-- **Local Path**: `/lihaoyu/workspace/AUDIO_AGENT/AUDIO_AGENT/models/fireredasr2s/`
+- **Local Path**: `${AUDIO_AGENT_MODELS_DIR}/fireredasr2s/`
 
 ## Setup
 
 ```bash
 # Ensure persistent uv is activated
-source /lihaoyu/workspace/AUDIO_AGENT/.uv/activate.sh
+# Optional: source <repo>/.uv/activate.sh for repo-local uv
 
 # Run setup
 ./setup.sh
@@ -56,7 +56,7 @@ The tool exposes three MCP tools:
 ## Configuration
 
 Environment variables:
-- `MODEL_PATH`: Path to model weights (default: `/lihaoyu/workspace/AUDIO_AGENT/AUDIO_AGENT/models/fireredasr2s/`)
+- `MODEL_PATH`: Path to model weights (default: `${AUDIO_AGENT_MODELS_DIR}/fireredasr2s/`)
 - `DEVICE`: Device to use - "auto", "cuda", "cpu" (default: "auto")
 
 ## Audio Format

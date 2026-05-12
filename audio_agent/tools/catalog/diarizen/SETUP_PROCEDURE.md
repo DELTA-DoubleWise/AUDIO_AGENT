@@ -52,7 +52,7 @@ conda create --prefix ./.venv python=3.10
 
 ### 1. Conda Must Be Available
 ```bash
-source /lihaoyu/.conda.path.sh
+source /path/to/conda/etc/profile.d/conda.sh  # adjust to your conda install
 conda --version  # Should show version
 ```
 
@@ -61,7 +61,7 @@ conda --version  # Should show version
 **CRITICAL**: DiariZen includes a modified `pyannote-audio` as a git submodule.
 
 ```bash
-cd /lihaoyu/workspace/AUDIO_AGENT/AUDIO_AGENT/audio_agent/tools/catalog/diarizen
+cd $REPO_ROOT/audio_agent/tools/catalog/diarizen
 
 # Check if submodules are initialized
 ls diarizen_src/pyannote-audio/
@@ -82,13 +82,13 @@ If the submodule directory is empty, you **cannot proceed**.
 ### Step 1: Create Environment with Python 3.10
 
 ```bash
-cd /lihaoyu/workspace/AUDIO_AGENT/AUDIO_AGENT/audio_agent/tools/catalog/diarizen
+cd $REPO_ROOT/audio_agent/tools/catalog/diarizen
 
 # Remove old environment if exists
 rm -rf .venv
 
 # Create new environment with Python 3.10 (NOT 3.11!)
-source /lihaoyu/.conda.path.sh
+source /path/to/conda/etc/profile.d/conda.sh  # adjust to your conda install
 conda create --prefix ./.venv python=3.10 -y
 
 # Activate the environment
@@ -186,7 +186,7 @@ These are runtime dependencies not listed in the main requirements.
 ### Step 7: Install Additional Dependencies from pyproject.toml
 
 ```bash
-cd /lihaoyu/workspace/AUDIO_AGENT/AUDIO_AGENT/audio_agent/tools/catalog/diarizen
+cd $REPO_ROOT/audio_agent/tools/catalog/diarizen
 
 # Install remaining deps (excluding torch which is already installed)
 pip install huggingface-hub>=0.20.0
@@ -202,7 +202,7 @@ pip install -e . --no-deps
 ### Test 1: Import Test
 
 ```bash
-cd /lihaoyu/workspace/AUDIO_AGENT/AUDIO_AGENT/audio_agent/tools/catalog/diarizen
+cd $REPO_ROOT/audio_agent/tools/catalog/diarizen
 .venv/bin/python -c "
 from model import DiariZenModel
 m = DiariZenModel()
@@ -363,10 +363,10 @@ Before considering setup complete, verify:
 After server restart:
 
 ```bash
-cd /lihaoyu/workspace/AUDIO_AGENT/AUDIO_AGENT/audio_agent/tools/catalog/diarizen
+cd $REPO_ROOT/audio_agent/tools/catalog/diarizen
 
 # Reactivate environment
-source /lihaoyu/.conda.path.sh
+source /path/to/conda/etc/profile.d/conda.sh  # adjust to your conda install
 conda activate ./.venv
 
 # Verify Python still works

@@ -58,19 +58,18 @@ KeyError: 'qwen2-audio'
 
 ### Step 1: Initialize Conda (if using conda)
 
-> **Important**: On this system, conda requires initialization before use:
-> ```bash
-> source /lihaoyu/.conda.path.sh
-> ```
+If `conda` is already on `$PATH` (common on shared HPC clusters with a per-user
+install), nothing to do. Otherwise source your conda hook:
+
+```bash
+source /path/to/conda/etc/profile.d/conda.sh
+```
 
 ### Step 2: Create Environment
 
 **Using conda (recommended for GPU environments):**
 
 ```bash
-# Initialize conda
-source /lihaoyu/.conda.path.sh
-
 # Create environment from provided environment.yml
 conda env create -f environment.yml
 conda activate audio_agent_demo
@@ -266,8 +265,8 @@ pip install -e .
 ```
 
 ```bash
-# Using conda
-source /lihaoyu/.conda.path.sh
+# Using conda (initialize conda first if not on $PATH:
+#   source /path/to/conda/etc/profile.d/conda.sh)
 conda env create -f environment.yml
 conda activate audio_agent_demo
 ```
