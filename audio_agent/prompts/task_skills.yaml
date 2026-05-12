@@ -19,13 +19,13 @@ abstract_slots:
     current_catalog_defaults: ["fireredvad.fireredvad_aed"]
   speech_asr:
     contract: Transcribe speech content, optionally with timestamps.
-    current_catalog_defaults: ["asr_qwen3.transcribe_qwenasr", "whisperx.transcribe_audio", "fireredasr2s.transcribe_fireredasr"]
+    current_catalog_defaults: ["asr_qwen3.transcribe_qwenasr", "whisperx.transcribe_whisperx", "fireredasr2s.transcribe_fireredasr"]
   timestamped_asr:
     contract: Transcribe speech with word/segment timestamps.
-    current_catalog_defaults: ["asr_qwen3.transcribe_qwenasr_with_timestamps", "whisperx.transcribe_audio"]
+    current_catalog_defaults: ["asr_qwen3.transcribe_qwenasr_with_timestamps", "fireredasr2s.transcribe_fireredasr_with_timestamps", "whisperx.transcribe_whisperx_with_diarization"]
   diarization:
     contract: Who-spoke-when speaker segments.
-    current_catalog_defaults: ["diarizen.diarize", "whisperx.transcribe_with_diarization"]
+    current_catalog_defaults: ["diarizen.diarize", "sortformer_diarization.diarize_sortformer", "whisperx.transcribe_whisperx_with_diarization"]
   speaker_verification:
     contract: Same/different speaker verification between two clips.
     current_catalog_defaults: ["wespeaker.speaker_verify"]
@@ -34,22 +34,28 @@ abstract_slots:
     current_catalog_defaults: ["omni_captioner.omni_caption"]
   beat_onset:
     contract: Tempo, beat positions, onset positions; not action counts by itself.
-    current_catalog_defaults: ["librosa.analyze_beats", "librosa.analyze_onsets"]
+    current_catalog_defaults: ["tempo_cnn.estimate_tempo_cnn_mirex", "librosa.analyze_onsets"]
   music_pitch_harmony:
     contract: Pitch/chroma/key/tuning features and chord recognition.
-    current_catalog_defaults: ["librosa.analyze_pitch", "librosa.extract_chroma", "librosa.detect_key", "librosa.estimate_tuning"]
+    current_catalog_defaults: ["lv_chordia.recognize_chords_large_vocab", "librosa.analyze_pitch", "librosa.extract_chroma", "librosa.detect_key"]
   timbre_spectral:
     contract: Low-level spectral/timbre/noisiness features.
-    current_catalog_defaults: ["librosa.extract_mfcc", "librosa.analyze_spectral_features", "librosa.extract_zero_crossing_rate"]
+    current_catalog_defaults: ["librosa.extract_mfcc", "librosa.analyze_spectral_features", "ffmpeg.spectral_stats", "ffmpeg.astats"]
   energy_dynamics:
     contract: RMS/volume/loudness dynamics and peaks.
-    current_catalog_defaults: ["librosa.extract_rms_energy", "ffmpeg.volumedetect", "ffmpeg.ebur128"]
+    current_catalog_defaults: ["librosa.extract_rms_energy", "ffmpeg.volumedetect", "ffmpeg.astats"]
   source_separation:
     contract: Produce derived source-like audio stems or harmonic/percussive splits.
     current_catalog_defaults: ["librosa.separate_harmonic_percussive"]
   audio_transform:
     contract: Generate a derived clip or normalized signal for downstream tools.
-    current_catalog_defaults: ["ffmpeg.trim_audio", "ffmpeg.resample_audio", "ffmpeg.convert_channels", "ffmpeg.loudnorm"]
+    current_catalog_defaults: ["ffmpeg.trim_audio", "ffmpeg.resample_audio", "ffmpeg.convert_channels", "ffmpeg.highpass_filter", "ffmpeg.lowpass_filter", "ffmpeg.afftdn_denoise", "ffmpeg.afwtdn_denoise"]
+  visual_acoustic_inspection:
+    contract: Bounded VLM-style inspection of audio plots (waveform, spectrogram, RMS, onset envelope) for visible structure only - activity, silence, transients, loudness/brightness changes, coarse rhythm. Not a substitute for listening or for semantic labels.
+    current_catalog_defaults: ["omni_captioner.inspect_audio_plots"]
+  processing_quality_check:
+    contract: VLM-style post-processing QC on a derived audio artifact - detect denoising artifacts, distortion, or content drift versus an optional reference. Coarse quality check, not semantic correctness.
+    current_catalog_defaults: ["omni_captioner.verify_audio_quality"]
 
 skills:
   - id: speech.asr.clean_english_read
@@ -63,7 +69,7 @@ skills:
         optional: true
     default_bindings_from_ref_flows:
       speech_asr:
-        - tool: "whisperx.transcribe_audio"
+        - tool: "whisperx.transcribe_whisperx"
           reference: "ARC-Agent-NO1 tools/toolkit.py: transcribe_audio; tools.yaml fixes Whisper large-v3 for quality."
         - tool: "asr_qwen3.transcribe_qwenasr"
           reference: "Current catalog fallback for multilingual ASR."
@@ -119,10 +125,17 @@ skills:
     chain:
       - slot: audio_metadata
       - slot: speech_vad
+      - slot: audio_transform
+        optional: true
       - slot: speech_asr
     default_bindings_from_ref_flows:
+      audio_transform:
+        - tool: "ffmpeg.afftdn_denoise"
+          reference: "Optional FFT-domain denoise before ASR when SNR is low."
+        - tool: "ffmpeg.highpass_filter"
+          reference: "Optional rumble/low-frequency suppression before ASR."
       speech_asr:
-        - tool: "whisperx.transcribe_audio"
+        - tool: "whisperx.transcribe_whisperx"
           reference: "ARC default high-quality ASR path."
         - tool: "asr_qwen3.transcribe_qwenasr"
           reference: "Current catalog fallback; report Table 3 competitive on VoxPopuli-en."
@@ -133,12 +146,19 @@ skills:
     intent_patterns: ["reverb", "noisy car", "multi-speaker Mandarin"]
     chain:
       - slot: speech_vad
+      - slot: audio_transform
+        optional: true
       - slot: diarization
       - slot: speech_asr
     default_bindings_from_ref_flows:
+      audio_transform:
+        - tool: "ffmpeg.afftdn_denoise"
+          reference: "Optional FFT-domain denoise to improve diarization/ASR on noisy car or in-vehicle audio."
       diarization:
         - tool: "diarizen.diarize"
           reference: "Current catalog diarization."
+        - tool: "sortformer_diarization.diarize_sortformer"
+          reference: "NVIDIA SortFormer; recommended when speakers <=4 with clearly separated turns."
       speech_asr:
         - tool: "fireredasr2s.transcribe_fireredasr"
           reference: "Closest current Chinese ASR fallback."
@@ -187,7 +207,9 @@ skills:
       diarization:
         - tool: "diarizen.diarize"
           reference: "ARC speaker category uses diarization and speaker count."
-        - tool: "whisperx.transcribe_with_diarization"
+        - tool: "sortformer_diarization.diarize_sortformer"
+          reference: "NVIDIA SortFormer; supports up to 4 speakers with arrival-order tracking. Strong cross-check for diarizen."
+        - tool: "whisperx.transcribe_whisperx_with_diarization"
           reference: "Current catalog fallback with ASR + diarization."
 
   - id: speech.speaker_identity_same_different
@@ -210,10 +232,17 @@ skills:
         optional: true
     default_bindings_from_ref_flows:
       timestamped_asr:
-        - tool: "whisperx.transcribe_with_diarization"
+        - tool: "whisperx.transcribe_whisperx_with_diarization"
           reference: "ARC content category uses dialogue structure + diarization."
         - tool: "asr_qwen3.transcribe_qwenasr_with_timestamps"
           reference: "Current catalog timestamped ASR."
+        - tool: "fireredasr2s.transcribe_fireredasr_with_timestamps"
+          reference: "FireRedASR timestamped variant; good Mandarin/English fallback."
+      diarization:
+        - tool: "diarizen.diarize"
+          reference: "Primary diarization for clean conversational speech."
+        - tool: "sortformer_diarization.diarize_sortformer"
+          reference: "Alternative diarization (<=4 speakers, arrival-order tracking)."
 
   - id: speech.emotion_ser
     task: Speech emotion recognition or affect inference.
@@ -293,11 +322,14 @@ skills:
         optional: true
       - slot: beat_onset
       - slot: energy_dynamics
+      - slot: visual_acoustic_inspection
+        optional: true
       - slot: omni_perception
         optional: true
     guardrails:
       - "Onset count is only a proposal; never final evidence without event-class confirmation."
       - "Use event-specific perception or ASR/omni observation to label what each onset likely is."
+      - "visual_acoustic_inspection can cross-check visually separable transients but cannot label event class."
     default_bindings_from_ref_flows:
       beat_onset:
         - tool: "librosa.analyze_onsets"
@@ -305,6 +337,9 @@ skills:
       audio_event_detection:
         - tool: "fireredvad.fireredvad_aed"
           reference: "Current catalog coarse AED fallback."
+      visual_acoustic_inspection:
+        - tool: "omni_captioner.inspect_audio_plots"
+          reference: "VLM-on-plots cross-check for visually separable transients."
 
   - id: audio.temporal_order_event_sequence
     task: Determine order of events, instruments, speakers, or actions over time.
@@ -314,6 +349,8 @@ skills:
       - slot: silence_structure
       - slot: timestamped_asr
         optional: true
+      - slot: visual_acoustic_inspection
+        optional: true
       - slot: omni_perception
     default_bindings_from_ref_flows:
       silence_structure:
@@ -321,6 +358,9 @@ skills:
           reference: "ARC timing category uses temporal and segment analysis; current catalog low-level substitute."
         - tool: "ffmpeg.silencedetect"
           reference: "Current catalog threshold silence cross-check."
+      visual_acoustic_inspection:
+        - tool: "omni_captioner.inspect_audio_plots"
+          reference: "Visible event-boundary cross-check from waveform/onset plots."
 
   - id: audio.segment_structure_music_or_narrative
     task: Decide whether audio has one uninterrupted segment or multiple meaningful sections.
@@ -329,6 +369,8 @@ skills:
       - slot: audio_metadata
       - slot: silence_structure
       - slot: audio_event_detection
+        optional: true
+      - slot: visual_acoustic_inspection
         optional: true
       - slot: omni_perception
         optional: true
@@ -340,6 +382,9 @@ skills:
           reference: "Cross-check for non-silence intervals."
         - tool: "librosa.segment_audio"
           reference: "Current catalog filtered non-silent intervals."
+      visual_acoustic_inspection:
+        - tool: "omni_captioner.inspect_audio_plots"
+          reference: "Visible energy/spectral breaks corroborate section boundaries."
 
   - id: music.performance_segment_comparison
     task: Compare musical performance quality across candidate segments.
@@ -350,15 +395,24 @@ skills:
       - slot: energy_dynamics
       - slot: beat_onset
       - slot: music_pitch_harmony
+      - slot: visual_acoustic_inspection
+        optional: true
       - slot: omni_perception
         optional: true
     default_bindings_from_ref_flows:
       beat_onset:
-        - tool: "librosa.analyze_beats"
-          reference: "ARC music/timing uses beat/onset and tempo."
+        - tool: "tempo_cnn.estimate_tempo_cnn_mirex"
+          reference: "Dedicated CNN tempo estimator; exposes octave ambiguity for cross-checking."
+        - tool: "librosa.analyze_onsets"
+          reference: "Onset cues for rhythmic regularity across segments."
       music_pitch_harmony:
+        - tool: "lv_chordia.recognize_chords_large_vocab"
+          reference: "Large-vocabulary chord recognition for harmonic accuracy comparison."
         - tool: "librosa.analyze_pitch"
           reference: "Current catalog weak pitch/tuning feature fallback."
+      visual_acoustic_inspection:
+        - tool: "omni_captioner.inspect_audio_plots"
+          reference: "Visible energy/onset/rhythm regularity across candidate segments."
 
   - id: music.instrument_identification
     task: Identify instrument family or active instruments.
@@ -373,6 +427,11 @@ skills:
       omni_perception:
         - tool: "omni_captioner.omni_caption"
           reference: "ARC music theory has identify_instruments; current catalog lacks dedicated model."
+      timbre_spectral:
+        - tool: "librosa.analyze_spectral_features"
+          reference: "Spectral centroid/rolloff/contrast give weak instrument-family hints."
+        - tool: "librosa.extract_mfcc"
+          reference: "MFCC spectral envelope as supporting timbre evidence (not a classifier)."
 
   - id: music.rhythm_tempo_meter
     task: Tempo, beat, rhythm pattern, periodicity, or meter.
@@ -380,10 +439,14 @@ skills:
     chain:
       - slot: beat_onset
       - slot: energy_dynamics
+    guardrails:
+      - "estimate_tempo_cnn_mirex exposes tempo octave ambiguity (e.g. 52 vs 104 BPM); when salience < 0.6, both tempi are plausible."
     default_bindings_from_ref_flows:
       beat_onset:
-        - tool: "librosa.analyze_beats"
-          reference: "ARC beat_tracking/librosa_tool default."
+        - tool: "tempo_cnn.estimate_tempo_cnn_mirex"
+          reference: "Primary global-tempo estimator with octave-ambiguity salience score; supersedes librosa.analyze_beats."
+        - tool: "librosa.analyze_onsets"
+          reference: "Onset cues for rhythmic periodicity when tempo is ambiguous."
 
   - id: music.pitch_key_tuning
     task: Pitch, global key, tuning deviation, melody roughness, chord progression.
@@ -397,10 +460,14 @@ skills:
       - "Treat pitch-only or key-only tools as weak evidence for polyphonic harmony unless they are corroborated by a more direct harmony-analysis tool."
     default_bindings_from_ref_flows:
       music_pitch_harmony:
+        - tool: "lv_chordia.recognize_chords_large_vocab"
+          reference: "Dedicated large-vocabulary chord recognition (7ths, dim/aug, jazz chords). Primary choice for chord/progression/harmony questions."
         - tool: "librosa.analyze_pitch"
-          reference: "Current catalog pYIN pitch estimate fallback."
+          reference: "Current catalog pYIN pitch estimate fallback for monophonic melody."
         - tool: "librosa.detect_key"
           reference: "Current catalog weak global key estimate fallback."
+        - tool: "librosa.extract_chroma"
+          reference: "Pitch-class energy features as weak harmonic supporting evidence."
 
   - id: signal.quality_noise_reverb_distortion
     task: Audio quality, noise, reverberation, clipping, loudness, distortion.
@@ -411,12 +478,31 @@ skills:
       - slot: timbre_spectral
       - slot: audio_transform
         optional: true
+      - slot: processing_quality_check
+        optional: true
+    guardrails:
+      - "If audio_transform applies denoising/filtering, run processing_quality_check on the derived clip to detect artifacts or content loss."
     default_bindings_from_ref_flows:
       energy_dynamics:
         - tool: "ffmpeg.volumedetect"
           reference: "Current catalog loudness/volume measurement."
+        - tool: "ffmpeg.astats"
+          reference: "Peak/RMS amplitude statistics including clipping indicators."
         - tool: "librosa.extract_rms_energy"
           reference: "ARC signal category uses energy/spectral; current catalog substitute."
+      timbre_spectral:
+        - tool: "ffmpeg.spectral_stats"
+          reference: "FFmpeg spectral descriptors useful for noise/distortion characterization."
+        - tool: "librosa.analyze_spectral_features"
+          reference: "Spectral centroid/bandwidth/rolloff/contrast/flatness for noise vs. signal balance."
+      audio_transform:
+        - tool: "ffmpeg.afftdn_denoise"
+          reference: "FFT-domain denoise candidate for noisy input."
+        - tool: "ffmpeg.afwtdn_denoise"
+          reference: "Wavelet-domain denoise alternative."
+      processing_quality_check:
+        - tool: "omni_captioner.verify_audio_quality"
+          reference: "VLM-style QC on the denoised/processed clip to flag artifacts."
 
   - id: signal.stereo_spatial_channel
     task: Stereo position, channel differences, spatial movement, left/right evidence.
@@ -426,10 +512,17 @@ skills:
       - slot: audio_transform
       - slot: timbre_spectral
         optional: true
+      - slot: visual_acoustic_inspection
+        optional: true
+    guardrails:
+      - "No dedicated channel-split tool is exposed to the planner in core scope; ffmpeg.convert_channels can isolate to mono or downmix but does not preserve L/R separately. For full L/R comparison, use CALL_FRONTEND on the original stereo file."
     default_bindings_from_ref_flows:
       audio_transform:
-        - tool: "ffmpeg.split_channels"
-          reference: "Current catalog stereo split for downstream comparison."
+        - tool: "ffmpeg.convert_channels"
+          reference: "Best available core channel-layout transform; use channels=1 to test mono summability, or compare to original stereo."
+      visual_acoustic_inspection:
+        - tool: "omni_captioner.inspect_audio_plots"
+          reference: "Visual cross-check on per-channel plots when available."
 
   - id: signal.synthetic_repetition_speed_anomaly
     task: Synthetic speech, repeated segments, speed changes, live-vs-recorded, or mechanical anomaly.
@@ -440,7 +533,12 @@ skills:
       - slot: energy_dynamics
       - slot: silence_structure
         optional: true
+      - slot: visual_acoustic_inspection
+        optional: true
     default_bindings_from_ref_flows:
       omni_perception:
         - tool: "omni_captioner.omni_caption"
           reference: "ARC signal category has dedicated anomaly tools; current catalog fallback is omni + low-level features."
+      visual_acoustic_inspection:
+        - tool: "omni_captioner.inspect_audio_plots"
+          reference: "Plots reveal periodic repetition, speed-change artifacts, and unnatural energy patterns."
