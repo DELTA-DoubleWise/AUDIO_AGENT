@@ -16,10 +16,10 @@
 cd audio_agent/tools/catalog/{tool_name}
 
 # 创建环境
-/lihaoyu/workspace/AUDIO_AGENT/.uv/bin/uv venv --python=python3.11
+uv venv --python=python3.11
 
 # 安装依赖
-/lihaoyu/workspace/AUDIO_AGENT/.uv/bin/uv pip install --python .venv/bin/python -e .
+uv pip install --python .venv/bin/python -e .
 ```
 
 > **Critical**: Always use `--python .venv/bin/python` with uv pip install to ensure packages go into the venv, not the base environment.
@@ -28,10 +28,10 @@ cd audio_agent/tools/catalog/{tool_name}
 
 ```bash
 # 导出精确依赖
-/lihaoyu/workspace/AUDIO_AGENT/.uv/bin/uv pip freeze --python .venv/bin/python > requirements.lock
+uv pip freeze --python .venv/bin/python > requirements.lock
 
 # 从 lock 恢复
-/lihaoyu/workspace/AUDIO_AGENT/.uv/bin/uv pip install --python .venv/bin/python -r requirements.lock
+uv pip install --python .venv/bin/python -r requirements.lock
 ```
 
 ## 常见失败和修复
@@ -45,7 +45,7 @@ cd audio_agent/tools/catalog/{tool_name}
 **修复**:
 ```bash
 # 在虚拟环境中重新安装 PyTorch
-/lihaoyu/workspace/AUDIO_AGENT/.uv/bin/uv pip install --python .venv/bin/python torch==2.4.0 torchaudio==2.4.0 --index-url https://download.pytorch.org/whl/cpu
+uv pip install --python .venv/bin/python torch==2.4.0 torchaudio==2.4.0 --index-url https://download.pytorch.org/whl/cpu
 ```
 
 ### 2. NumPy 版本冲突
@@ -56,7 +56,7 @@ cd audio_agent/tools/catalog/{tool_name}
 
 **修复**:
 ```bash
-/lihaoyu/workspace/AUDIO_AGENT/.uv/bin/uv pip install --python .venv/bin/python numpy==1.26.4
+uv pip install --python .venv/bin/python numpy==1.26.4
 ```
 
 ### 3. Torchvision 版本不匹配
@@ -66,7 +66,7 @@ cd audio_agent/tools/catalog/{tool_name}
 **修复**:
 ```bash
 # 安装与 PyTorch 匹配的 torchvision
-/lihaoyu/workspace/AUDIO_AGENT/.uv/bin/uv pip install --python .venv/bin/python torchvision==0.19.0 --index-url https://download.pytorch.org/whl/cpu
+uv pip install --python .venv/bin/python torchvision==0.19.0 --index-url https://download.pytorch.org/whl/cpu
 ```
 
 ### 4. "Multiple top-level modules discovered"
