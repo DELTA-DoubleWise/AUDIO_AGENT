@@ -116,69 +116,6 @@ class MimoFrontend(OpenAICompatibleFrontend):
 
         return text_response.strip()
 
-    def run_direct_answer(self, question, audio_paths, direct_answer_guidance=None):
-        """
-        Run frontend in direct-answer mode with optional response format.
-        """
-        from audio_agent.core.errors import FrontendError
-        from audio_agent.core.schemas import FrontendOutput
-        from audio_agent.utils.prompt_io import load_prompt
-
-        self.validate_inputs(question, audio_paths)
-        stripped_paths = [p.strip() for p in audio_paths]
-
-        system_prompt = load_prompt("frontend_direct_system")
-        audio_list_text = "\n".join(f"- Audio {i}: {p}" for i, p in enumerate(stripped_paths))
-        guidance_text = direct_answer_guidance or "No additional guidance."
-        user_text = load_prompt("frontend_direct_user").format(
-            question=question,
-            audio_list=audio_list_text,
-            direct_answer_guidance=guidance_text,
-        )
-
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": user_text},
-                ],
-            },
-        ]
-
-        for audio_path in stripped_paths:
-            audio_data_url, audio_format = self._encode_audio(audio_path)
-            messages[1]["content"].append(
-                {
-                    "type": "input_audio",
-                    "input_audio": {
-                        "data": audio_data_url,
-                        "format": audio_format,
-                    },
-                }
-            )
-
-        client = self.model_handle
-        kwargs = self._build_api_kwargs(messages, stream=False)
-
-        try:
-            response = client.chat.completions.create(**kwargs)
-        except Exception as e:
-            raise FrontendError(
-                f"API call failed for direct answer: {e}",
-                details={"model": self._model, "error_type": type(e).__name__},
-            ) from e
-
-        if not response.choices or len(response.choices) == 0:
-            raise FrontendError("Empty response from API", details={"model": self._model})
-
-        text = response.choices[0].message.content or ""
-        text = text.strip()
-        if not text:
-            raise FrontendError("API returned empty direct answer", details={"model": self._model})
-
-        return FrontendOutput(question_guided_caption=text)
-
     def generate_final_answer(self, question, audio_paths, context):
         """
         Generate final answer with optional response format.

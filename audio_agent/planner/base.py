@@ -8,7 +8,7 @@ based on accumulated evidence and available tools.
 from abc import ABC, abstractmethod
 
 from audio_agent.core.state import AgentState
-from audio_agent.core.schemas import FrontendOutput, InitialPlan, PlannerDecision, ToolSpec, FormatCheckResult, QuestionClarification
+from audio_agent.core.schemas import FrontendOutput, InitialPlan, PlannerDecision, ToolSpec, FormatCheckResult
 from audio_agent.core.errors import PlannerError
 
 
@@ -88,26 +88,6 @@ class BasePlanner(ABC):
         
         Raises:
             PlannerError: If decision cannot be made or state is invalid
-        """
-        raise NotImplementedError
-
-    @abstractmethod
-    def clarify_question(self, question: str) -> QuestionClarification:
-        """
-        Analyze and classify the question before frontend processing.
-
-        This is a lightweight text-only call (no audio) that determines:
-        - What the question is really asking (clarified_question)
-        - Whether it can be answered directly or needs tools (question_type)
-        - Whether tool verification is advisable (needs_verification)
-        - Whether the observer frontend should provide reasoning (requires_cot)
-        - What aspects the frontend should focus on (suggested_focus)
-
-        Args:
-            question: The raw user question about the audio
-
-        Returns:
-            QuestionClarification with classification and guidance
         """
         raise NotImplementedError
 

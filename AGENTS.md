@@ -146,8 +146,6 @@ audio_agent/
 ├── prompts/                   # Markdown-based prompt files
 │   ├── frontend_system.md           # Frontend system prompt
 │   ├── frontend_user.md             # Frontend user instruction template
-│   ├── frontend_direct_system.md    # Direct observer frontend system prompt
-│   ├── frontend_direct_user.md      # Direct observer frontend user instruction
 │   ├── frontend_followup_system.md  # Targeted frontend follow-up system prompt
 │   ├── frontend_followup_user.md    # Targeted frontend follow-up user instruction
 │   ├── frontend_final_answer_system.md  # Frontend final answer system prompt
@@ -156,8 +154,6 @@ audio_agent/
 │   ├── initial_prompt_user.md       # Planner: question-oriented prompt generation user instruction
 │   ├── plan_system.md               # Planner: initial planning system prompt
 │   ├── plan_user.md                 # Planner: initial planning user instruction
-│   ├── question_clarify_system.md   # Optional dual-frontend question clarification system prompt
-│   ├── question_clarify_user.md     # Optional dual-frontend question clarification user instruction
 │   ├── decide_system.md             # Planner: decision system prompt
 │   ├── decide_user.md               # Planner: decision user instruction template
 │   ├── decide_rules.md              # Planner: decision rules (numbered list)
@@ -464,7 +460,7 @@ The project uses:
 - **test_frontend_model_base.py**: Frontend template/dispatch/normalization tests
 - **test_model_io.py**: Model I/O helper tests (JSON parsing)
 - **test_model_planner_base.py**: Model planner base class tests
-- **test_planner_stages.py**: Planner stage tests (plan, decide, answer, clarify)
+- **test_planner_stages.py**: Planner stage tests (prompt generation, plan, decide, answer)
 - **test_qwen25_planner.py**: Qwen2.5 planner adapter tests
 - **test_qwen*_frontend.py**: Qwen adapter tests (with mock model classes)
 
@@ -630,18 +626,14 @@ All prompts are externalized as markdown files in `audio_agent/prompts/`. This a
 |------|---------|-----------|
 | `frontend_system.md` | Frontend system prompt | None |
 | `frontend_user.md` | Frontend user instruction | `{question}`, `{audio_list}`, `{question_oriented_prompt}` |
-| `frontend_direct_system.md` | Direct observer frontend system prompt | None |
-| `frontend_direct_user.md` | Direct observer frontend user instruction | `{question}`, `{audio_list}`, `{direct_answer_guidance}` |
 | `frontend_followup_system.md` | Targeted frontend follow-up system prompt | None |
 | `frontend_followup_user.md` | Targeted frontend follow-up user instruction | `{question}`, `{audio_list}`, `{followup_prompt}` |
 | `frontend_final_answer_system.md` | Frontend final answer system prompt | None |
-| `frontend_final_answer_user.md` | Frontend final answer user instruction | `{question}`, `{expected_output_format}`, `{initial_plan_text}`, `{frontend_direct_text}`, `{evidence_and_history_text}`, `{audio_summary}`, `{format_critique_section}` |
+| `frontend_final_answer_user.md` | Frontend final answer user instruction | `{question}`, `{expected_output_format}`, `{initial_plan_text}`, `{frontend_initial_text}`, `{evidence_and_history_text}`, `{audio_summary}`, `{format_critique_section}` |
 | `initial_prompt_system.md` | Planner system prompt for question-oriented frontend prompt generation | None |
 | `initial_prompt_user.md` | Planner user prompt for question-oriented frontend prompt generation | `{question}`, `{caption_skills_reference}` |
 | `plan_system.md` | Planner initial planning system prompt | None |
 | `plan_user.md` | Planner initial planning user instruction | `{question}`, `{frontend_caption}` |
-| `question_clarify_system.md` | Optional dual-frontend question clarification system prompt | None |
-| `question_clarify_user.md` | Optional dual-frontend question clarification user prompt | `{question}` |
 | `decide_system.md` | Planner decision system prompt | None |
 | `decide_user.md` | Planner decision user instruction | `{question}`, `{frontend_caption}`, `{initial_plan}`, `{evidence_log}`, `{tool_call_history}`, `{available_tools}`, `{step_count}`, `{max_steps}` |
 | `decide_rules.md` | Planner decision rules (numbered list) | None |
@@ -675,7 +667,7 @@ The `decide_rules.md` file uses a numbered list format:
 ```markdown
 1. If you have enough evidence to answer the question, use action='answer'.
 2. If you need more information, use action='call_tool'.
-3. If the question is unclear, use action='clarify'.
+3. If the question is unclear, use action='fail' with a specific rationale.
 ...
 ```
 

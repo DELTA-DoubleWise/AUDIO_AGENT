@@ -1,244 +1,312 @@
-version: "0.2"
-design: "compact_attention_steering"
+# Task-Oriented Caption Skill Reference
 
-skills:
+- Version: 0.2
+- Design: compact_attention_steering
 
-  - skill_name: content_asr
-    use_when:
-      - "questions about what is being said in the audio"
-      - "questions about semantic content / keywords / transcription"
-    focus:
-      - "keywords and core semantics"
-      - "language / dialect / code-switching"
-      - "unclear key segments"
-    watchouts:
-      - "do not guess the answer solely from the question text"
-      - "do not mistake dialects / accents for another language"
-      - "do not miss code-switching points"
-      - "do not ignore missing key words caused by noise or overlap"
-    thinking_pattern:
-      - "first grasp the core content"
-      - "then mark difficulties that affect understanding"
-      - "finally list low-confidence segments"
-    avoid:
-      - "do not expand into scene descriptions"
-      - "do not assume speaker analysis by default"
-    cue: "Prioritize understanding the content, then point out uncertain words caused by language switching, dialects, accents, or overlapping noise."
+## Skills
 
-  - skill_name: speaker_structure
-    use_when:
-      - "questions about how many people are speaking"
-      - "questions about who is speaking"
-      - "questions about who said what"
-      - "questions about dialogue structure"
-    focus:
-      - "number of speakers"
-      - "turn-taking transitions"
-      - "overlapping segments"
-      - "who spoke which utterance"
-    watchouts:
-      - "do not mistake emotional changes for speaker changes"
-      - "do not ignore short overlaps"
-      - "do not transcribe content without assigning it to a speaker"
-      - "do not lose character continuity across time"
-    thinking_pattern:
-      - "first count active speakers"
-      - "then examine transitions and overlaps"
-      - "finally perform content attribution"
-    avoid:
-      - "do not guess specific identities"
-      - "do not provide transcripts without speaker attribution"
-    cue: "First determine the number of speakers and transitions, mark overlaps, and only attribute utterances you are confident about."
+### content_asr
 
-  - skill_name: event_scene
-    use_when:
-      - "questions about what sound events occurred"
-      - "questions about environment / scene / location"
-      - "questions about what is in the background"
-    focus:
-      - "foreground events"
-      - "background environmental sounds"
-      - "key sound source combinations"
-    watchouts:
-      - "do not summarize the entire scene with a single dominant sound"
-      - "do not ignore weak background clues"
-      - "do not use speech content as the only basis for scene inference"
-      - "do not confuse similar environmental sounds"
-    thinking_pattern:
-      - "first list foreground events"
-      - "then add background environment"
-      - "finally derive scene hypotheses"
-    avoid:
-      - "do not force transcription"
-      - "do not over-interpret irrelevant details"
-    cue: "Listen to foreground events first, then background environment, and only output scene judgments with acoustic evidence."
+Use when:
+- Questions ask what is being said in the audio.
+- Questions ask about semantic content, keywords, or transcription.
 
-  - skill_name: temporal_count
-    use_when:
-      - "questions about order / sequence"
-      - "questions about duration / stage changes"
-      - "questions about quantity / repetition count"
-    focus:
-      - "event boundaries"
-      - "sequential relationships"
-      - "repetition patterns"
-      - "counting units"
-    watchouts:
-      - "do not treat overlap as sequential order"
-      - "do not miscount repeated units"
-      - "do not ignore weak but critical boundary signals"
-      - "do not confuse frequency with object count"
-    thinking_pattern:
-      - "first define the counting / ordering unit"
-      - "then locate boundaries"
-      - "finally provide order or quantity"
-    avoid:
-      - "do not guess the answer first and then reverse-engineer the unit"
-      - "do not make unsupported causal inferences"
-    cue: "Define what you are counting or ordering, find boundaries, output order / count, and mark ambiguous segments."
+Focus:
+- Keywords and core semantics.
+- Language, dialect, and code-switching.
+- Unclear key segments.
 
-  - skill_name: emotion_pragmatics
-    use_when:
-      - "questions about emotion"
-      - "questions about attitude / intent"
-      - "questions about whether someone is joking, being sarcastic, serious, threatening, or apologizing"
-    focus:
-      - "tone and intensity"
-      - "speech rate and pauses"
-      - "laughter / sighs / hesitations"
-      - "conflict between literal meaning and tone"
-    watchouts:
-      - "do not look only at literal meaning"
-      - "do not treat exaggerated performance as genuine emotion"
-      - "do not ignore dialogue context"
-      - "do not miss sarcasm and indirect expressions"
-    thinking_pattern:
-      - "first examine prosody"
-      - "then check against literal content"
-      - "finally give the most conservative pragmatic interpretation"
-    avoid:
-      - "do not default to word-by-word transcription"
-      - "do not state uncertain tones as absolute facts"
-    cue: "Look at prosody, rhythm, and paralinguistic signals first, then check against literal meaning. Be especially alert to sarcasm, indirect expression, and context dependence."
+Watchouts:
+- Do not guess the answer solely from the question text.
+- Do not mistake dialects or accents for another language.
+- Do not miss code-switching points.
+- Do not ignore missing key words caused by noise or overlap.
 
-  - skill_name: music
-    use_when:
-      - "questions about instruments / style / rhythm / harmony / melody"
-      - "questions about musical structure"
-    focus:
-      - "instruments"
-      - "beat and rhythm"
-      - "sectional structure"
-      - "mode / harmonic clues"
-    watchouts:
-      - "do not mistake production effects for instruments"
-      - "do not conclude based only on genre impressions"
-      - "do not ignore rhythm and structural clues"
-      - "do not mix vocal/lyric issues with music structure questions"
-    thinking_pattern:
-      - "first identify main voices / instruments"
-      - "then examine rhythm and structure"
-      - "finally make stylistic or theoretical judgments"
-    avoid:
-      - "do not give vague emotional descriptions"
-      - "do not turn background-music scene questions into music analysis questions"
-    cue: "Identify the main instruments and voices first, then look at rhythm and sections, and finally give stylistic or theoretical judgments."
+Thinking pattern:
+- First grasp the core content.
+- Then mark difficulties that affect understanding.
+- Finally list low-confidence segments.
 
-  - skill_name: quality_reliability
-    use_when:
-      - "questions about whether the audio is clear / reliable"
-      - "the main task is obviously affected by recording conditions"
-    focus:
-      - "noise types"
-      - "far-field vs near-field"
-      - "reverb and echo"
-      - "distortion / clipping / dropped frames"
-    watchouts:
-      - "do not attribute all comprehension difficulties to the content itself"
-      - "do not ignore severe local degradation"
-      - "do not fail to report reliability drops caused by overlap"
-    thinking_pattern:
-      - "first identify the main degradation"
-      - "then see where it occurs"
-      - "finally explain which task point it affects"
-    avoid:
-      - "do not expand into irrelevant semantic analysis"
-    cue: "Briefly point out the main recording difficulty and explain which type of judgment it affects."
+Avoid:
+- Do not expand into scene descriptions.
+- Do not assume speaker analysis by default.
 
-modifiers:
+Cue: Prioritize understanding the content, then point out uncertain words caused by language switching, dialects, accents, or overlapping noise.
 
-  - modifier_name: overlap
-    trigger:
-      - "multiple people speaking simultaneously"
-      - "concurrent sound sources"
-    add_focus:
-      - "overlapping segments"
-      - "attribution conflicts"
-    add_watchouts:
-      - "do not force concurrent events into a linear sequence"
-      - "do not be overconfident in overlapping segments"
-    add_cue: "Pay special attention to overlapping segments; distinguish concurrency from sequential order."
+### speaker_structure
 
-  - modifier_name: long_context
-    trigger:
-      - "long audio"
-      - "meetings / full conversations"
-      - "questions about the whole rather than a local part"
-    add_focus:
-      - "cross-segment consistency"
-      - "global structure"
-    add_watchouts:
-      - "do not represent the whole with only a local fragment"
-      - "do not lose cross-segment character / topic continuity"
-    add_cue: "Do not focus only on local parts; supplement with cross-segment consistency and global structure."
+Use when:
+- Questions ask how many people are speaking.
+- Questions ask who is speaking.
+- Questions ask who said what.
+- Questions ask about dialogue structure.
 
-  - modifier_name: language_mix
-    trigger:
-      - "multiple languages"
-      - "dialects"
-      - "code-switching"
-    add_focus:
-      - "language switching points"
-      - "dialect / accent clues"
-    add_watchouts:
-      - "do not mistake accents for another language"
-      - "do not miss short code-switches"
-    add_cue: "Especially mark language switching points and low-confidence content caused by dialects or accents."
+Focus:
+- Number of speakers.
+- Turn-taking transitions.
+- Overlapping segments.
+- Who spoke which utterance.
 
-  - modifier_name: dialogue_context
-    trigger:
-      - "multi-turn dialogue"
-      - "pragmatics / intent / sarcasm"
-    add_focus:
-      - "relationship between preceding and following turns"
-      - "referents and responding targets"
-    add_watchouts:
-      - "do not understand the current utterance in isolation"
-      - "do not ignore rhetorical questions, sarcasm, or indirect expressions"
-    add_cue: "Put the current utterance back into context; do not interpret it only by literal meaning."
+Watchouts:
+- Do not mistake emotional changes for speaker changes.
+- Do not ignore short overlaps.
+- Do not transcribe content without assigning it to a speaker.
+- Do not lose character continuity across time.
 
-  - modifier_name: low_evidence
-    trigger:
-      - "very short audio"
-      - "weak evidence"
-      - "question goes beyond what is audible"
-    add_focus:
-      - "most direct evidence"
-      - "missing information"
-    add_watchouts:
-      - "do not fill in a definite answer with common-sense guesses"
-      - "do not write guesses as observations"
-    add_cue: "When evidence is weak, only report what can be directly heard and explicitly state missing information."
+Thinking pattern:
+- First count active speakers.
+- Then examine transitions and overlaps.
+- Finally perform content attribution.
 
-  - modifier_name: anti_hallucination
-    trigger:
-      - "all high-risk Q&A"
-      - "open-ended questions"
-    add_focus:
-      - "direct audio evidence"
-      - "auditory clues most relevant to the question"
-    add_watchouts:
-      - "do not default to transcription"
-      - "do not default to speaker ID"
-      - "do not use question prior knowledge in place of auditory evidence"
-    add_cue: "Listen to the evidence first, then answer; do not turn the task into transcription, speaker identification, or common-sense guessing."
+Avoid:
+- Do not guess specific identities.
+- Do not provide transcripts without speaker attribution.
+
+Cue: First determine the number of speakers and transitions, mark overlaps, and only attribute utterances you are confident about.
+
+### event_scene
+
+Use when:
+- Questions ask what sound events occurred.
+- Questions ask about environment, scene, or location.
+- Questions ask what is in the background.
+
+Focus:
+- Foreground events.
+- Background environmental sounds.
+- Key sound source combinations.
+
+Watchouts:
+- Do not summarize the entire scene with a single dominant sound.
+- Do not ignore weak background clues.
+- Do not use speech content as the only basis for scene inference.
+- Do not confuse similar environmental sounds.
+
+Thinking pattern:
+- First list foreground events.
+- Then add background environment.
+- Finally derive scene hypotheses.
+
+Avoid:
+- Do not force transcription.
+- Do not over-interpret irrelevant details.
+
+Cue: Listen to foreground events first, then background environment, and only output scene judgments with acoustic evidence.
+
+### temporal_count
+
+Use when:
+- Questions ask about order or sequence.
+- Questions ask about duration or stage changes.
+- Questions ask about quantity or repetition count.
+
+Focus:
+- Event boundaries.
+- Sequential relationships.
+- Repetition patterns.
+- Counting units.
+
+Watchouts:
+- Do not treat overlap as sequential order.
+- Do not miscount repeated units.
+- Do not ignore weak but critical boundary signals.
+- Do not confuse frequency with object count.
+
+Thinking pattern:
+- First define the counting or ordering unit.
+- Then locate boundaries.
+- Finally provide order or quantity.
+
+Avoid:
+- Do not guess the answer first and then reverse-engineer the unit.
+- Do not make unsupported causal inferences.
+
+Cue: Define what you are counting or ordering, find boundaries, output order or count, and mark ambiguous segments.
+
+### emotion_pragmatics
+
+Use when:
+- Questions ask about emotion.
+- Questions ask about attitude or intent.
+- Questions ask whether someone is joking, being sarcastic, serious, threatening, or apologizing.
+
+Focus:
+- Tone and intensity.
+- Speech rate and pauses.
+- Laughter, sighs, and hesitations.
+- Conflict between literal meaning and tone.
+
+Watchouts:
+- Do not look only at literal meaning.
+- Do not treat exaggerated performance as genuine emotion.
+- Do not ignore dialogue context.
+- Do not miss sarcasm and indirect expressions.
+
+Thinking pattern:
+- First examine prosody.
+- Then check against literal content.
+- Finally give the most conservative pragmatic interpretation.
+
+Avoid:
+- Do not default to word-by-word transcription.
+- Do not state uncertain tones as absolute facts.
+
+Cue: Look at prosody, rhythm, and paralinguistic signals first, then check against literal meaning. Be especially alert to sarcasm, indirect expression, and context dependence.
+
+### music
+
+Use when:
+- Questions ask about instruments, style, rhythm, harmony, or melody.
+- Questions ask about musical structure.
+
+Focus:
+- Instruments.
+- Beat and rhythm.
+- Sectional structure.
+- Mode or harmonic clues.
+
+Watchouts:
+- Do not mistake production effects for instruments.
+- Do not conclude based only on genre impressions.
+- Do not ignore rhythm and structural clues.
+- Do not mix vocal or lyric issues with music structure questions.
+
+Thinking pattern:
+- First identify main voices or instruments.
+- Then examine rhythm and structure.
+- Finally make stylistic or theoretical judgments.
+
+Avoid:
+- Do not give vague emotional descriptions.
+- Do not turn background-music scene questions into music analysis questions.
+
+Cue: Identify the main instruments and voices first, then look at rhythm and sections, and finally give stylistic or theoretical judgments.
+
+### quality_reliability
+
+Use when:
+- Questions ask whether the audio is clear or reliable.
+- The main task is obviously affected by recording conditions.
+
+Focus:
+- Noise types.
+- Far-field vs near-field.
+- Reverb and echo.
+- Distortion, clipping, or dropped frames.
+
+Watchouts:
+- Do not attribute all comprehension difficulties to the content itself.
+- Do not ignore severe local degradation.
+- Do not fail to report reliability drops caused by overlap.
+
+Thinking pattern:
+- First identify the main degradation.
+- Then see where it occurs.
+- Finally explain which task point it affects.
+
+Avoid:
+- Do not expand into irrelevant semantic analysis.
+
+Cue: Briefly point out the main recording difficulty and explain which type of judgment it affects.
+
+## Modifiers
+
+### overlap
+
+Trigger:
+- Multiple people speaking simultaneously.
+- Concurrent sound sources.
+
+Add focus:
+- Overlapping segments.
+- Attribution conflicts.
+
+Add watchouts:
+- Do not force concurrent events into a linear sequence.
+- Do not be overconfident in overlapping segments.
+
+Add cue: Pay special attention to overlapping segments; distinguish concurrency from sequential order.
+
+### long_context
+
+Trigger:
+- Long audio.
+- Meetings or full conversations.
+- Questions about the whole rather than a local part.
+
+Add focus:
+- Cross-segment consistency.
+- Global structure.
+
+Add watchouts:
+- Do not represent the whole with only a local fragment.
+- Do not lose cross-segment character or topic continuity.
+
+Add cue: Do not focus only on local parts; supplement with cross-segment consistency and global structure.
+
+### language_mix
+
+Trigger:
+- Multiple languages.
+- Dialects.
+- Code-switching.
+
+Add focus:
+- Language switching points.
+- Dialect or accent clues.
+
+Add watchouts:
+- Do not mistake accents for another language.
+- Do not miss short code-switches.
+
+Add cue: Especially mark language switching points and low-confidence content caused by dialects or accents.
+
+### dialogue_context
+
+Trigger:
+- Multi-turn dialogue.
+- Pragmatics, intent, or sarcasm.
+
+Add focus:
+- Relationship between preceding and following turns.
+- Referents and responding targets.
+
+Add watchouts:
+- Do not understand the current utterance in isolation.
+- Do not ignore rhetorical questions, sarcasm, or indirect expressions.
+
+Add cue: Put the current utterance back into context; do not interpret it only by literal meaning.
+
+### low_evidence
+
+Trigger:
+- Very short audio.
+- Weak evidence.
+- Question goes beyond what is audible.
+
+Add focus:
+- Most direct evidence.
+- Missing information.
+
+Add watchouts:
+- Do not fill in a definite answer with common-sense guesses.
+- Do not write guesses as observations.
+
+Add cue: When evidence is weak, only report what can be directly heard and explicitly state missing information.
+
+### anti_hallucination
+
+Trigger:
+- All high-risk Q&A.
+- Open-ended questions.
+
+Add focus:
+- Direct audio evidence.
+- Auditory clues most relevant to the question.
+
+Add watchouts:
+- Do not default to transcription.
+- Do not default to speaker ID.
+- Do not use question prior knowledge in place of auditory evidence.
+
+Add cue: Listen to the evidence first, then answer; do not turn the task into transcription, speaker identification, or common-sense guessing.

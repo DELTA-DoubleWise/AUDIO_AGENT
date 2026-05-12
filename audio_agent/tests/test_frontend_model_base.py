@@ -141,25 +141,6 @@ class TestBaseModelFrontend:
 
         assert output.question_guided_caption == "follow-up answer"
 
-    def test_run_direct_answer_uses_dedicated_prompt(self):
-        class InspectingFrontend(EchoModelFrontend):
-            def call_model(self, model_input: UnifiedFrontendInput):
-                assert model_input.metadata["task"] == "observer_direct_answer"
-                assert "Direct Answer Guidance:" in model_input.messages[1]["content"]
-                assert "Question-Oriented Guidance:" not in model_input.messages[1]["content"]
-                assert "General Caption:" not in model_input.messages[1]["content"]
-                assert "Use brief reasoning." in model_input.messages[1]["content"]
-                return "direct observer answer"
-
-        frontend = InspectingFrontend()
-        output = frontend.run_direct_answer(
-            question="What happens in the audio?",
-            audio_paths=["/tmp/audio.wav"],
-            direct_answer_guidance="Use brief reasoning.",
-        )
-
-        assert output.question_guided_caption == "direct observer answer"
-
     def test_run_followup_rejects_empty_prompt(self):
         frontend = EchoModelFrontend()
         with pytest.raises(FrontendError, match="non-empty followup_prompt"):

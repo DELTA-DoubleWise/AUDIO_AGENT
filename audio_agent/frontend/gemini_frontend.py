@@ -15,7 +15,6 @@ from typing import Any
 import requests
 
 from audio_agent.core.errors import FrontendError
-from audio_agent.core.schemas import FrontendOutput
 from audio_agent.frontend.model_frontend import (
     BaseModelFrontend,
     FrontendInputFormat,
@@ -332,10 +331,10 @@ class GeminiFrontend(BaseModelFrontend):
         initial_plan_text = initial_plan.approach if initial_plan else "No initial plan."
 
         initial_frontend_output = context.get("initial_frontend_output")
-        frontend_direct_text = (
+        frontend_initial_text = (
             initial_frontend_output.question_guided_caption
             if initial_frontend_output
-            else "No frontend direct output."
+            else "No initial frontend output."
         )
 
         audio_summary = (
@@ -372,7 +371,7 @@ class GeminiFrontend(BaseModelFrontend):
             question=question,
             expected_output_format=expected_output_format,
             initial_plan_text=initial_plan_text,
-            frontend_direct_text=frontend_direct_text,
+            frontend_initial_text=frontend_initial_text,
             evidence_and_history_text=evidence_and_history_text,
             audio_summary=audio_summary,
             format_critique_section=format_critique_section,
@@ -436,37 +435,3 @@ class GeminiFrontend(BaseModelFrontend):
             return answer
 
         return self._call_with_retries(_call, "generate_final_answer()")
-
-    def run_direct_answer(
-        self,
-        question: str,
-        audio_paths: list[str],
-        direct_answer_guidance: str | None = None,
-    ) -> FrontendOutput:
-        """
-        Run frontend in direct-answer (observer) mode.
-
-        Uses `frontend_direct_system.md` instead of `frontend_system.md`.
-        The returned FrontendOutput.question_guided_caption contains the direct answer text.
-        """
-        self.validate_inputs(question, audio_paths)
-        stripped_paths = [p.strip() for p in audio_paths]
-
-        system_prompt = load_prompt("frontend_direct_system")
-        audio_list_text = "\n".join(f"- Audio {i}: {path}" for i, path in enumerate(stripped_paths))
-        guidance_text = direct_answer_guidance or "No additional guidance."
-        user_text = load_prompt("frontend_direct_user").format(
-            question=question,
-            audio_list=audio_list_text,
-            direct_answer_guidance=guidance_text,
-        )
-        payload = self._build_gemini_payload(system_prompt, user_text, stripped_paths)
-
-        def _call():
-            raw_output = self._call_gemini_api(payload)
-            text = raw_output.strip()
-            if not text:
-                raise FrontendError("Gemini API returned empty direct answer")
-            return FrontendOutput(question_guided_caption=text)
-
-        return self._call_with_retries(_call, "run_direct_answer()")

@@ -179,18 +179,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="Maximum number of agent steps.",
     )
     parser.add_argument(
-        "--use-dual-frontend",
-        action="store_true",
-        default=False,
-        help="Enable dual-frontend mode with verifier + observer calls (default: True).",
-    )
-    parser.add_argument(
-        "--disable-dual-frontend",
-        action="store_false",
-        dest="use_dual_frontend",
-        help="Disable dual-frontend mode.",
-    )
-    parser.add_argument(
         "--enable-format-check",
         action="store_true",
         default=True,
@@ -286,7 +274,6 @@ async def amain() -> int:
     config = AgentConfig(
         max_steps=args.max_steps,
         debug=True,
-        use_dual_frontend=args.use_dual_frontend,
         enable_format_check=args.enable_format_check,
         max_format_checks=args.max_format_checks,
     )
@@ -408,7 +395,7 @@ async def amain() -> int:
     if initial_plan:
         print_initial_plan(initial_plan)
     
-    # Print final clarified intent (may differ from initial if clarification occurred)
+    # Print final intent and expected format from the initial plan
     clarified_intent = final_state.get("clarified_intent")
     expected_format = final_state.get("expected_output_format")
     if clarified_intent or expected_format:

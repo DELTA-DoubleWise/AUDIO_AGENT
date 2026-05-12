@@ -44,7 +44,7 @@ class TestPlannerStages:
         planner = DummyPlanner()
         registry = ToolRegistry()
         registry.register(DummyASRTool())
-        node = create_planner_decision_node(planner, registry)
+        node = create_planner_decision_node(planner, registry, planner_tool_scope="all")
 
         state = create_initial_state("Question", "/tmp/audio.wav")
         state["initial_frontend_output"] = FrontendOutput(
@@ -58,7 +58,7 @@ class TestPlannerStages:
         planner = DummyPlanner()
         registry = ToolRegistry()
         registry.register(DummyASRTool())
-        node = create_planner_decision_node(planner, registry)
+        node = create_planner_decision_node(planner, registry, planner_tool_scope="all")
 
         state = create_initial_state("Question", "/tmp/audio.wav")
         state["initial_plan"] = planner.plan("Question")
@@ -70,7 +70,7 @@ class TestPlannerStages:
         planner = DummyPlanner()
         registry = ToolRegistry()
         registry.register(DummyASRTool())
-        node = create_planner_decision_node(planner, registry)
+        node = create_planner_decision_node(planner, registry, planner_tool_scope="all")
 
         state = create_initial_state("Question", "/tmp/audio.wav")
         state["initial_frontend_output"] = FrontendOutput(

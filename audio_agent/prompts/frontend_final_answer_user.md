@@ -7,8 +7,8 @@
 ## Initial Plan
 {initial_plan_text}
 
-## Frontend Direct Output
-{frontend_direct_text}
+## Initial Frontend Output
+{frontend_initial_text}
 
 {evidence_and_history_text}
 ## Audio Files

@@ -63,10 +63,6 @@ class AgentConfig(BaseModel):
         le=10,
         description="Maximum retries for planner/frontend model output parsing errors"
     )
-    use_dual_frontend: bool = Field(
-        default=True,
-        description="Enable dual frontend calls (verifier caption + observer direct answer)"
-    )
     planner_tool_scope: Literal["core", "all"] = Field(
         default="core",
         description="Planner-visible tool scope: 'core' for benchmark-oriented tools, 'all' for every registered tool",

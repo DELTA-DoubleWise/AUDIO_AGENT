@@ -6,7 +6,6 @@ This frontend returns canned responses without real audio processing.
 
 from typing import Any
 
-from audio_agent.core.schemas import FrontendOutput
 from audio_agent.frontend.model_frontend import BaseModelFrontend, UnifiedFrontendInput
 
 
@@ -77,15 +76,3 @@ class DummyFrontend(BaseModelFrontend):
         )
         import json
         return json.dumps({"final_answer": final_answer, "rationale": rationale}, ensure_ascii=False)
-
-    def run_direct_answer(
-        self,
-        question: str,
-        audio_paths: list[str],
-        direct_answer_guidance: str | None = None,
-    ) -> FrontendOutput:
-        """Return a mock direct answer for testing."""
-        return FrontendOutput(
-            question_guided_caption=f"[Dummy Observer] Based on the audio, the answer to '{question}' is likely affirmative. Confidence: 0.7.",
-            chain_of_thought="Dummy reasoning: detected speech patterns matching the question keywords.",
-        )

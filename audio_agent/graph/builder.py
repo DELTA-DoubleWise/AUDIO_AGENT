@@ -9,7 +9,6 @@ from langgraph.graph import StateGraph, START, END
 from audio_agent.core.state import AgentState
 from audio_agent.graph.nodes import (
     create_initial_prompt_node,
-    create_question_clarification_node,
     create_frontend_evidence_node,
     create_initial_plan_node,
     create_planner_decision_node,
@@ -36,7 +35,6 @@ from audio_agent.graph.routing import (
     NODE_EVIDENCE_SUMMARIZATION,
     NODE_FINAL_ANSWER,
     NODE_FORMAT_CHECK,
-    NODE_QUESTION_CLARIFICATION,
     NODE_FRONTEND_FOLLOWUP,
 )
 from audio_agent.frontend.base import BaseFrontend
@@ -93,8 +91,6 @@ def build_graph(
     # Create executor from registry
     executor = ToolExecutor(registry)
     
-    use_dual = config.use_dual_frontend if config else False
-
     # Create node functions with injected dependencies
     initial_prompt_node_fn = create_initial_prompt_node(planner)
     frontend_node = create_frontend_evidence_node(frontend)
@@ -131,19 +127,10 @@ def build_graph(
     graph.add_node(NODE_ANSWER, answer_node)
     graph.add_node(NODE_FAILURE, failure_node)
     
-    if use_dual:
-        question_clarification_node_fn = create_question_clarification_node(planner)
-        graph.add_node(NODE_QUESTION_CLARIFICATION, question_clarification_node_fn)
-    
     # Add edges
     # START -> initial_prompt_node
     graph.add_edge(START, NODE_INITIAL_PROMPT)
-    
-    if use_dual:
-        graph.add_edge(NODE_INITIAL_PROMPT, NODE_QUESTION_CLARIFICATION)
-        graph.add_edge(NODE_QUESTION_CLARIFICATION, "frontend_evidence_node")
-    else:
-        graph.add_edge(NODE_INITIAL_PROMPT, "frontend_evidence_node")
+    graph.add_edge(NODE_INITIAL_PROMPT, "frontend_evidence_node")
     
     # frontend_evidence_node -> initial_plan_node
     graph.add_edge("frontend_evidence_node", NODE_INITIAL_PLAN)

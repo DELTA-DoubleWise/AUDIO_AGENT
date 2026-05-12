@@ -119,51 +119,6 @@ class BaseModelFrontend(BaseFrontend):
             followup_prompt=followup_prompt,
         )
 
-    def build_direct_answer_task_instruction(
-        self,
-        question: str,
-        audio_paths: list[str],
-        direct_answer_guidance: str | None = None,
-    ) -> str:
-        """Instruction text for direct observer frontend calls."""
-        audio_list_text = "\n".join([f"- Audio {i}: {path}" for i, path in enumerate(audio_paths)])
-        guidance_text = direct_answer_guidance or "No additional guidance."
-        return load_prompt("frontend_direct_user").format(
-            question=question,
-            audio_list=audio_list_text,
-            direct_answer_guidance=guidance_text,
-        )
-
-    def build_direct_answer_common_fields(
-        self,
-        question: str,
-        audio_paths: list[str],
-        direct_answer_guidance: str | None,
-        input_format: FrontendInputFormat,
-    ) -> dict[str, Any]:
-        """Build provider-independent fields for direct observer calls."""
-        user_payload = self._build_common_user_payload(question, audio_paths)
-        user_payload.update(
-            {
-                "task": "observer_direct_answer",
-                "direct_answer_guidance": direct_answer_guidance,
-            }
-        )
-        return {
-            "system_prompt": load_prompt("frontend_direct_system"),
-            "user_text": self.build_direct_answer_task_instruction(
-                question, audio_paths, direct_answer_guidance
-            ),
-            "user_payload": user_payload,
-            "metadata": {
-                "frontend_name": self.name,
-                "input_format": input_format.value,
-                "task": "observer_direct_answer",
-                "audio_count": len(audio_paths),
-                "direct_answer_guidance": direct_answer_guidance,
-            },
-        }
-
     def build_followup_common_fields(
         self,
         question: str,
@@ -346,101 +301,6 @@ class BaseModelFrontend(BaseFrontend):
         if not isinstance(model_input, UnifiedFrontendInput):
             raise FrontendError(
                 "Malformed model input: builder must return UnifiedFrontendInput",
-                details={"returned_type": type(model_input).__name__},
-            )
-
-        self._validate_built_model_input(model_input)
-        return model_input
-
-    def build_direct_answer_api_model_input(
-        self,
-        question: str,
-        audio_paths: list[str],
-        direct_answer_guidance: str | None = None,
-    ) -> UnifiedFrontendInput:
-        """Build API-style input for direct observer calls."""
-        common = self.build_direct_answer_common_fields(
-            question, audio_paths, direct_answer_guidance, FrontendInputFormat.API_MODEL
-        )
-
-        return UnifiedFrontendInput(
-            system_prompt=common["system_prompt"],
-            question=question,
-            audio_paths=audio_paths,
-            user_payload=common["user_payload"],
-            messages=[
-                {"role": "system", "content": common["system_prompt"]},
-                {"role": "user", "content": common["user_text"]},
-            ],
-            metadata=common["metadata"],
-        )
-
-    def build_direct_answer_local_multimodal_model_input(
-        self,
-        question: str,
-        audio_paths: list[str],
-        direct_answer_guidance: str | None = None,
-    ) -> UnifiedFrontendInput:
-        """Build local multimodal input for direct observer calls."""
-        common = self.build_direct_answer_common_fields(
-            question, audio_paths, direct_answer_guidance, FrontendInputFormat.LOCAL_MULTIMODAL
-        )
-
-        content: list[dict[str, Any]] = [{"type": "text", "text": common["user_text"]}]
-        for audio_path in audio_paths:
-            content.append({"type": "audio", "audio": audio_path})
-
-        return UnifiedFrontendInput(
-            system_prompt=common["system_prompt"],
-            question=question,
-            audio_paths=audio_paths,
-            user_payload=common["user_payload"],
-            messages=[
-                {"role": "system", "content": common["system_prompt"]},
-                {"role": "user", "content": content},
-            ],
-            metadata=common["metadata"],
-        )
-
-    def build_direct_answer_model_input(
-        self,
-        question: str,
-        audio_paths: list[str],
-        direct_answer_guidance: str | None = None,
-    ) -> UnifiedFrontendInput:
-        """Build direct observer model input via explicit format-mode dispatch."""
-        mode = self.input_format
-        if isinstance(mode, str):
-            try:
-                mode = FrontendInputFormat(mode)
-            except ValueError as e:
-                raise FrontendError(
-                    "Unsupported frontend input format",
-                    details={"input_format": mode},
-                ) from e
-        elif not isinstance(mode, FrontendInputFormat):
-            raise FrontendError(
-                "Unsupported frontend input format type",
-                details={"input_format_type": type(mode).__name__},
-            )
-
-        if mode == FrontendInputFormat.API_MODEL:
-            model_input = self.build_direct_answer_api_model_input(
-                question, audio_paths, direct_answer_guidance
-            )
-        elif mode == FrontendInputFormat.LOCAL_MULTIMODAL:
-            model_input = self.build_direct_answer_local_multimodal_model_input(
-                question, audio_paths, direct_answer_guidance
-            )
-        else:
-            raise FrontendError(
-                "Unsupported frontend input format",
-                details={"input_format": mode.value},
-            )
-
-        if not isinstance(model_input, UnifiedFrontendInput):
-            raise FrontendError(
-                "Malformed direct observer model input: builder must return UnifiedFrontendInput",
                 details={"returned_type": type(model_input).__name__},
             )
 
@@ -675,58 +535,6 @@ class BaseModelFrontend(BaseFrontend):
             combined_caption = "\n\n".join(captions)
             return FrontendOutput(question_guided_caption=combined_caption)
 
-    def run_direct_answer(
-        self,
-        question: str,
-        audio_paths: list[str],
-        direct_answer_guidance: str | None = None,
-    ) -> FrontendOutput:
-        """Run frontend in direct-answer observer mode."""
-        self.validate_inputs(question, audio_paths)
-        stripped_paths = [p.strip() for p in audio_paths]
-
-        if len(stripped_paths) == 1:
-            model_input = self.build_direct_answer_model_input(
-                question.strip(), stripped_paths, direct_answer_guidance
-            )
-
-            def _call_single():
-                try:
-                    raw_output = self.call_model(model_input)
-                except FrontendError:
-                    raise
-                except Exception as e:
-                    raise FrontendError(
-                        f"Direct observer model call failed: {type(e).__name__}: {e}",
-                        details={"frontend": self.name},
-                    ) from e
-                return self.normalize_model_output(raw_output, model_input)
-
-            return self._call_with_retries(_call_single, "run_direct_answer()")
-
-        captions = []
-        for i, path in enumerate(stripped_paths):
-            single_input = self.build_direct_answer_model_input(
-                question.strip(), [path], direct_answer_guidance
-            )
-
-            def _call_multi():
-                try:
-                    raw_output = self.call_model(single_input)
-                except FrontendError:
-                    raise
-                except Exception as e:
-                    raise FrontendError(
-                        f"Direct observer model call failed for audio {i}: {type(e).__name__}: {e}",
-                        details={"frontend": self.name, "audio_index": i},
-                    ) from e
-                return self.normalize_model_output(raw_output, single_input)
-
-            output = self._call_with_retries(_call_multi, f"run_direct_answer() audio {i}")
-            captions.append(f"Audio {i}: {output.question_guided_caption}")
-
-        return FrontendOutput(question_guided_caption="\n\n".join(captions))
-
     def run_followup(
         self,
         question: str,
@@ -796,10 +604,10 @@ class BaseModelFrontend(BaseFrontend):
         initial_plan_text = initial_plan.approach if initial_plan else "No initial plan."
 
         initial_frontend_output = context.get("initial_frontend_output")
-        frontend_direct_text = (
+        frontend_initial_text = (
             initial_frontend_output.question_guided_caption
             if initial_frontend_output
-            else "No frontend direct output."
+            else "No initial frontend output."
         )
 
         audio_summary = (
@@ -841,7 +649,7 @@ class BaseModelFrontend(BaseFrontend):
             question=question,
             expected_output_format=expected_output_format,
             initial_plan_text=initial_plan_text,
-            frontend_direct_text=frontend_direct_text,
+            frontend_initial_text=frontend_initial_text,
             evidence_and_history_text=evidence_and_history_text,
             audio_summary=audio_summary,
             format_critique_section=format_critique_section,

@@ -177,44 +177,6 @@ class Qwen2AudioFrontend(BaseModelFrontend):
             metadata=common["metadata"],
         )
 
-    def build_direct_answer_local_multimodal_model_input(
-        self,
-        question: str,
-        audio_paths: list[str],
-        direct_answer_guidance: str | None = None,
-    ) -> UnifiedFrontendInput:
-        """Build Qwen2-Audio direct observer input; only audio content shape is specific."""
-        common = self.build_direct_answer_common_fields(
-            question, audio_paths, direct_answer_guidance, FrontendInputFormat.LOCAL_MULTIMODAL
-        )
-
-        content: list[dict[str, str]] = []
-        for audio_path in audio_paths:
-            audio_content: dict[str, str] = {"type": "audio"}
-            if self._is_remote_audio(audio_path):
-                audio_content["audio_url"] = audio_path
-            else:
-                audio_content["audio"] = audio_path
-            content.append(audio_content)
-        content.append(
-            {
-                "type": "text",
-                "text": common["user_text"],
-            }
-        )
-
-        return UnifiedFrontendInput(
-            system_prompt=common["system_prompt"],
-            question=question,
-            audio_paths=audio_paths,
-            user_payload=common["user_payload"],
-            messages=[
-                {"role": "system", "content": common["system_prompt"]},
-                {"role": "user", "content": content},
-            ],
-            metadata=common["metadata"],
-        )
-
     def run_followup(
         self,
         question: str,

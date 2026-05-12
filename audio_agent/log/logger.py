@@ -29,8 +29,6 @@ from audio_agent.log.formatter import (
     format_format_check_result,
     format_error,
     sanitize_filename,
-    format_question_clarification,
-    format_frontend_direct_output,
     format_frontend_followup_history,
 )
 
@@ -171,18 +169,10 @@ class RunLogger:
         question_oriented_prompt = state.get("question_oriented_prompt")
         sections.append(format_question_oriented_prompt(question_oriented_prompt))
         
-        # Question Clarification
-        question_clarification = state.get("question_clarification")
-        sections.append(format_question_clarification(question_clarification))
-
         # Frontend Output
         frontend_output = state.get("initial_frontend_output")
         caption = getattr(frontend_output, 'question_guided_caption', None) if frontend_output else None
         sections.append(format_frontend_output(caption))
-
-        # Frontend Direct Output (Observer)
-        frontend_direct_output = state.get("frontend_direct_output")
-        sections.append(format_frontend_direct_output(frontend_direct_output))
         
         # Frontend Follow-Up History
         planner_trace = state.get("planner_trace", [])

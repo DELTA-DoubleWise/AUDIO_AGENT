@@ -18,7 +18,6 @@ from audio_agent.core.schemas import (
     ToolResult,
     AudioItem,
     FormatCheckResult,
-    QuestionClarification,
 )
 from audio_agent.core.constants import AgentStatus
 
@@ -87,7 +86,7 @@ class AgentState(TypedDict, total=False):
     latest_tool_result: ToolResult | None
     latest_frontend_followup_output: FrontendOutput | None
     
-    # Intent clarification (set during planning or clarification)
+    # Intent extracted during planning
     clarified_intent: str | None
     expected_output_format: str | None
     
@@ -103,12 +102,6 @@ class AgentState(TypedDict, total=False):
     
     # Evidence summary (consolidated narrative before final answer)
     evidence_summary: str | None
-    
-    # Question clarification (optional, set before frontend runs)
-    question_clarification: QuestionClarification | None
-    
-    # Second frontend output (direct answer from observer call)
-    frontend_direct_output: FrontendOutput | None
     
     # Runtime configuration (feature flags passed from AgentConfig)
     config: dict[str, Any] | None
@@ -178,8 +171,6 @@ def create_initial_state(
         format_check_count=0,
         final_answer_rationale=None,
         evidence_summary=None,
-        question_clarification=None,
-        frontend_direct_output=None,
         config=config,
         final_answer=None,
         error_message=None,

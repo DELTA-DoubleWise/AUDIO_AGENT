@@ -320,7 +320,7 @@ async def amain() -> int:
     if initial_plan:
         print_initial_plan(initial_plan)
     
-    # Print final clarified intent (may differ from initial if clarification occurred)
+    # Print final intent and expected format from the initial plan
     clarified_intent = final_state.get("clarified_intent")
     expected_format = final_state.get("expected_output_format")
     if clarified_intent or expected_format:

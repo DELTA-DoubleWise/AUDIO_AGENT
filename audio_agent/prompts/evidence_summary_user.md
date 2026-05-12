@@ -1,6 +1,6 @@
 Question: {question}
 
-## Frontend Direct Output
+## Initial Frontend Output
 {frontend_caption}
 
 ## Evidence Log
