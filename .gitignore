@@ -87,6 +87,11 @@ audio_agent/prompts/tool_use_guide.md
 # Runtime scripts
 sample_run.sh
 
+# Server-specific helper scripts (local-only; not part of the framework).
+# Drop your own Slurm wrappers, cluster-specific verification harnesses, etc.
+# under scripts/.
+scripts/
+
 # Symlink to external models directory
 models
 

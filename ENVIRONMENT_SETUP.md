@@ -91,20 +91,21 @@ Static + import + load test on every tool:
 ./verify_all_tools.sh
 ```
 
-End-to-end with the API frontend (needs `DASHSCOPE_API_KEY`, and a GPU node for
-the tools that load local models):
+Single targeted demo (any tool, run on a GPU allocation if the tool loads a
+local model):
 ```bash
-# On a GPU allocation:
-./scripts/verify_on_gpu.sh
-```
-
-Single targeted demo (any tool):
-```bash
+export DASHSCOPE_API_KEY="sk-..."
 python -m audio_agent.examples.demo_run_api_full \
   --audio path/to/clip.wav \
   --question "Use the transcribe_qwenasr tool to transcribe this audio." \
   --max-steps 5
 ```
+
+For larger end-to-end sweeps (run one targeted question per catalog tool, log
+each demo to `.artifacts/verify_runs/`), wrap the loop in your own helper
+script — the pattern is straightforward and intentionally not in-tree because
+the exact Slurm flags / cache locations / partition names depend on your
+cluster.
 
 ## 6. (Optional) Local-model frontend
 
