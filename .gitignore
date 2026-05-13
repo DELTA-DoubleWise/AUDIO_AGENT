@@ -91,6 +91,11 @@ sample_run.sh
 # drop zone for deployment-specific wrappers and verification harnesses.
 scripts/
 
+# Benchmarking workflows (MMAU / MMAR / etc.) are local-only — they depend
+# on dataset paths and machine-specific runtime conventions that don't
+# belong in the shared repo. Keep your local copy under benchmarking/.
+benchmarking/
+
 # Symlink to external models directory
 models
 
