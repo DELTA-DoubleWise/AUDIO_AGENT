@@ -489,4 +489,14 @@ cd audio_agent/tools/catalog/my_tool && ./setup.sh
 
 ## License
 
-MIT
+MIT — see [LICENSE](./LICENSE). Note that the framework is MIT, but several
+of the catalog tools load third-party model weights with their own licenses:
+
+- **diarizen** uses `BUT-FIT/diarizen-wavlm-large-s80-md` under **CC BY-NC 4.0
+  (Non-Commercial)**.
+- **whisperx** (diarization path) uses `pyannote/speaker-diarization-3.1` and
+  `pyannote/segmentation-3.0`, which are gated and require accepting their user
+  agreement on HuggingFace.
+
+Verify your downstream use is compatible with each model's license before
+deployment.
