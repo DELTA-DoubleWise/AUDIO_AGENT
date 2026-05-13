@@ -1,6 +1,5 @@
 #!/bin/bash
-# Environment smoke check for the WeSpeaker MCP tool.
-# Thin shell wrapper around test_env.py.
+# Environment smoke check template — copy and adapt for a new tool.
 
 set -e
 

@@ -57,40 +57,17 @@ START
 
 ## Environment Setup
 
-### Conda Initialization
+All install / per-tool / model-download / verification instructions live in
+**[ENVIRONMENT_SETUP.md](./ENVIRONMENT_SETUP.md)**. This document only covers
+the *agent-facing* knowledge — architecture, schemas, where to edit things.
 
-Conda is **only required** for the diarizen MCP tool. Everything else uses uv.
-If conda is on `$PATH`, the framework picks it up automatically. Otherwise
-export `CONDA_SH=/path/to/conda/etc/profile.d/conda.sh` to point at it.
+Conda is only required for the `diarizen` MCP tool; everything else uses `uv`.
+If `conda` is on `$PATH`, the framework picks it up automatically; otherwise
+export `CONDA_SH=/path/to/conda/etc/profile.d/conda.sh`.
 
-### Environment Options
-
-The canonical, verified end-to-end setup sequence is in
-[ENVIRONMENT_SETUP.md](./ENVIRONMENT_SETUP.md). It covers prerequisites, the
-main API env, every MCP tool, model downloads, verification, and the optional
-local-model frontend.
-
-1. **Default Environment**: For core framework and API-based usage (no GPU required)
-   - See: `DEFAULT_ENVIRONMENT.md`
-
-2. **Demo Environment**: For running with local Qwen models (GPU required)
-   - See: `DEMO_ENVIRONMENT.md`
-
-### Quick Start
-
-```bash
-# Create and activate a Python 3.11 environment for the framework (uv or conda).
-uv venv --python 3.11 .venv && source .venv/bin/activate
-# (or)  conda create -n audio_agent python=3.11 && conda activate audio_agent
-
-# Install package
-pip install -e .
-# Or with dev/api/download extras:
-pip install -e ".[api,dev,download]"
-
-# Set the models directory (defaults to <repo>/models if unset).
-export AUDIO_AGENT_MODELS_DIR="$PWD/models"
-```
+The models directory defaults to `<repo>/models`. Override with
+`export AUDIO_AGENT_MODELS_DIR=/path/to/models` and every tool config picks it
+up via `${AUDIO_AGENT_MODELS_DIR}` expansion in `audio_agent/tools/catalog/loader.py`.
 
 ## Project Structure
 
@@ -214,214 +191,51 @@ tool_preparation/              # Harness-First Agent Workflow for tool onboardin
 
 ## Build and Run Commands
 
-### Installation
-
-```bash
-# Using conda (recommended for GPU environments)
-conda env create -f environment.yml
-conda activate audio_agent_demo
-
-# Or using pip
-pip install -e .
-
-# With dev dependencies
-pip install -e ".[dev]"
-```
+For the full install + per-tool setup + model-download flow, see
+[ENVIRONMENT_SETUP.md](./ENVIRONMENT_SETUP.md). Only commands directly
+relevant to *editing the agent* are duplicated here.
 
 ### Running Tests
 
 ```bash
-# Run all tests
-pytest audio_agent/tests/ -v
-
-# Run specific test files
-pytest audio_agent/tests/test_graph_smoke.py -v
-pytest audio_agent/tests/test_state.py audio_agent/tests/test_registry.py -q
-
-# Run with coverage
-pytest audio_agent/tests/ --cov=audio_agent
+pytest audio_agent/tests/ -v                                   # all tests
+pytest audio_agent/tests/test_graph_smoke.py -v                # one file
+pytest audio_agent/tests/ --cov=audio_agent                    # coverage
 ```
 
-### Running the Demo
+### Running the Demo (no GPU, no local models)
 
 ```bash
-# Using the installed console script
-audio-agent-demo
+export DASHSCOPE_API_KEY="sk-..."
+export AUDIO_AGENT_MODELS_DIR="$PWD/models"
+python -m audio_agent.examples.demo_run_api_full \
+  --audio /path/to/audio.wav --question "..."
+```
 
-# Or directly with arguments
-python -m audio_agent.examples.demo_run \
-  --audio /path/to/audio.wav \
-  --question "What is being said in this audio?" \
-  --max-steps 5
+Other entrypoints in `audio_agent/examples/`:
+- `demo_run.py` — local Qwen frontend/planner (needs GPU + downloaded weights).
+- `demo_run_api_planner.py` — API planner + local frontend.
+- `demo_run_real_asr.py` — exercises the asr_qwen3 MCP tool specifically.
+- `demo_run_auto_tools.py` — local frontend with auto MCP tool discovery.
+- `demo_run_mimo.py` — Xiaomi MiMo API frontend + planner.
 
-# Or using dummy components (no GPU required)
-python -c "
+Dummy components (no API key, no GPU, no models — useful for graph debugging):
+```python
 from audio_agent.main import create_dummy_agent
 agent = create_dummy_agent()
-result = agent.run('What is in this audio?', '/fake/audio.wav')
-print(result['final_answer'].answer if agent.is_successful(result) else 'Failed')
-"
+result = agent.run("What is in this audio?", ["/path/to/clip.wav"])
 ```
-
-### API-Based Demos (No Local GPU)
-
-For users without local GPU resources, use the fully API-based demo:
-
-```bash
-# Set API key
-export DASHSCOPE_API_KEY="sk-xxx"
-
-# Demo with API planner + local frontend
-python -m audio_agent.examples.demo_run_api_planner \
-  --audio /path/to/audio.wav \
-  --question "What is being said?"
-
-# Demo with API frontend + API planner (fully API-based)
-python -m audio_agent.examples.demo_run_api_full \
-  --audio /path/to/audio.wav \
-  --question "What is being said?"
-```
-
-The `demo_run_api_full.py` script uses:
-- `OpenAICompatibleFrontend` with qwen3-omni-flash for audio understanding
-- `OpenAICompatiblePlanner` with qwen3.5-plus for decision making
-- No local model downloads or GPU required
-
-### MiMo API Demo (No Local GPU)
-
-For users with Xiaomi MiMo API access:
-
-```bash
-# Set API key
-export MIMO_API_KEY="sk-xxx"
-
-# Demo with MiMo frontend + MiMo planner (fully API-based)
-python -m audio_agent.examples.demo_run_mimo \
-  --audio /path/to/audio.wav \
-  --question "What is being said?"
-
-# Using custom models
-python -m audio_agent.examples.demo_run_mimo \
-  --audio /path/to/audio.wav \
-  --question "What is being said?" \
-  --frontend-model "mimo-v2.5" \
-  --planner-model "mimo-v2.5-pro"
-```
-
-The `demo_run_mimo.py` script uses:
-- `MimoFrontend` with mimo-v2.5 for audio understanding
-- `MimoPlanner` with mimo-v2.5-pro for decision making
-- MiMo's OpenAI-compatible API endpoint: `https://token-plan-cn.xiaomimimo.com/v1`
-- No local model downloads or GPU required
 
 ### Setting up MCP Tools
 
-MCP tools require pre-created isolated environments. Each tool has its own `setup.sh` script:
-
 ```bash
-# 1. Install uv (if not already installed)
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# 2. Setup individual tools
-cd audio_agent/tools/catalog/asr_qwen3 && ./setup.sh && cd -
-cd audio_agent/tools/catalog/diarizen && ./setup.sh && cd -
-cd audio_agent/tools/catalog/sortformer_diarization && ./setup.sh && cd -
-cd audio_agent/tools/catalog/lv_chordia && ./setup.sh && cd -
-cd audio_agent/tools/catalog/omni_captioner && ./setup.sh && cd -
-cd audio_agent/tools/catalog/tempo_cnn && ./setup.sh && cd -
-
-# 3. Verify a specific tool
-cd audio_agent/tools/catalog/asr_qwen3 && ./test_env.sh
-
-# 4. Verify all tools at once
-./verify_all_tools.sh
-
-# 5. Setup and verify all tools
-./verify_all_tools.sh --setup
+./setup_all_tools.sh             # discover + build every tool env (uv + conda)
+./verify_all_tools.sh            # run every tool's test_env.sh
+./setup_all_tools.sh ffmpeg lv_chordia    # subset
 ```
 
-See [tool_preparation/playbooks/env_uv.md](./AUDIO_AGENT/tool_preparation/playbooks/env_uv.md) for detailed environment setup instructions and templates.
-
-### Running with Real MCP Tools
-
-```bash
-# Demo with real ASR tool (requires asr_qwen3 setup)
-python -m audio_agent.examples.demo_run_real_asr \
-  --audio /path/to/audio.wav \
-  --question "What is being said in this audio?" \
-  --max-steps 5
-
-# Demo with automatic MCP tool discovery
-python -m audio_agent.examples.demo_run_auto_tools \
-  --audio /path/to/audio.wav \
-  --question "What is being said in this audio?"
-```
-
-### Pre-downloading Models
-
-Model weights live under `${AUDIO_AGENT_MODELS_DIR}` (defaults to `<repo>/models/`
-when unset). All tool `config.yaml` files reference the directory via this env
-var, so a single export covers every tool.
-
-**Download all models (one-time setup):**
-
-```bash
-# Install with download support
-pip install -e ".[download]"
-
-# Download all models
-audio-agent-download-models --all
-```
-
-**Download specific models:**
-
-```bash
-audio-agent-download-models --models qwen2-audio qwen2.5
-```
-
-**List available models and their status:**
-
-```bash
-audio-agent-download-models --list
-```
-
-**Available models:**
-- `qwen2-audio` - Qwen/Qwen2-Audio-7B-Instruct (frontend, ~15GB)
-- `qwen3-omni` - Qwen/Qwen3-Omni-30B-A3B-Instruct (frontend, ~60GB)
-- `qwen2.5` - Qwen/Qwen2.5-7B-Instruct (planner, ~15GB)
-- `qwen3-asr` - Qwen/Qwen3-ASR-1.7B (ASR tool, ~4GB)
-- `qwen3-aligner` - Qwen/Qwen3-ForcedAligner-0.6B (aligner tool, ~1.5GB)
-- `diarizen` - BUT-FIT/diarizen-wavlm-large-s80-md (diarization tool, ~1GB)
-- `sortformer-diar` - nv-community/diar_streaming_sortformer_4spk-v2 (diarization tool, ~450MB, ModelScope)
-- `omni-captioner` - Qwen/Qwen3-Omni-30B-A3B-Captioner (captioner, ~60GB)
-
-**Using HuggingFace Hub paths (fallback):**
-
-If you prefer to use HuggingFace Hub paths directly (models will be downloaded to cache):
-
-```bash
-python -m audio_agent.examples.demo_run \
-  --audio /path/to/audio.wav \
-  --question "What is being said?" \
-  --frontend-model-path Qwen/Qwen2-Audio-7B-Instruct \
-  --planner-model-path Qwen/Qwen2.5-7B-Instruct
-```
-
-**Custom model directory:**
-
-To store models in a different location:
-
-```bash
-# Download to custom directory
-audio-agent-download-models --all --models-dir /path/to/models
-
-# Run with custom paths
-python -m audio_agent.examples.demo_run \
-  --audio /path/to/audio.wav \
-  --question "What?" \
-  --frontend-model-path /path/to/models/Qwen2-Audio-7B-Instruct \
-  --planner-model-path /path/to/models/Qwen2.5-7B-Instruct
-```
+Per-tool setup invariants are documented in
+[tool_preparation/playbooks/env_uv.md](./tool_preparation/playbooks/env_uv.md).
 
 ## Code Style Guidelines
 
@@ -598,7 +412,7 @@ When you modify code in these locations, update the corresponding documentation:
 | Modify schema | AGENTS.md | PROJECT_MAP.md |
 | Add config option | AGENTS.md | README.md |
 | Change graph logic | AGENTS.md | PROJECT_MAP.md |
-| Modify environment setup | DEFAULT_ENVIRONMENT.md | DEMO_ENVIRONMENT.md, AGENTS.md |
+| Modify environment setup | ENVIRONMENT_SETUP.md | README.md, AGENTS.md |
 | Add new example | README.md | AGENTS.md |
 
 ### Adding a New Component
@@ -889,8 +703,8 @@ validate_state_has_fields(
 ## Reading Order for New Agents
 
 1. `README.md` - Architecture overview
-2. `DEFAULT_ENVIRONMENT.md` - Default environment setup
-3. `DEMO_ENVIRONMENT.md` - Demo environment with real models
+2. `ENVIRONMENT_SETUP.md` - Install + per-tool setup + model downloads + verification
+3. `PROJECT_MAP.md` - Directory and dependency map
 4. `tool_preparation/README.md` - Harness-first tool onboarding workflow
 5. `audio_agent/main.py` - Entry point and AudioAgent class
 6. `audio_agent/core/state.py` and `audio_agent/core/schemas.py` - Core contracts

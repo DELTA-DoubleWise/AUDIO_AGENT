@@ -1,380 +1,70 @@
 # Audio Agent Tool Catalog
 
-This directory contains all available MCP (Model Context Protocol) tools for the Audio Agent Framework.
+Each subdirectory is an MCP (Model Context Protocol) tool that runs in its own
+isolated environment. The agent talks to them via `config.yaml` →
+`audio_agent/tools/catalog/loader.py` → MCP server subprocess.
 
-## ⚠️ CRITICAL: Environment Pre-Creation Required
+## Setup
 
-**All tools in this catalog require pre-created environments!**
-
-The MCP servers use explicit venv paths (`.venv/bin/python`) and will **FAIL** if the environment doesn't exist.
-
----
-
-## Tool Onboarding (Recommended)
-
-For **new tool onboarding**, use the **Harness-First Agent Workflow**:
+Build every tool's environment with the root-level helper:
 
 ```bash
-# See the complete automated workflow
-cat tool_preparation/README.md
+./setup_all_tools.sh             # all tools, auto-discovered
+./setup_all_tools.sh ffmpeg lv_chordia   # subset
+./verify_all_tools.sh            # run each tool's test_env.sh
 ```
 
-This workflow automates the entire process of discovering, setting up, and validating new tools.
+Full bootstrap (prerequisites, model downloads, troubleshooting) is in
+**[../../../ENVIRONMENT_SETUP.md](../../../ENVIRONMENT_SETUP.md)**.
 
----
+## Tool inventory
 
-## Manual Tool Setup
+| Tool | What it does | Models needed |
+|---|---|---|
+| `asr_qwen3` | ASR via Qwen3-ASR-1.7B (+ optional forced alignment) | qwen3-asr, qwen3-aligner |
+| `autochord` | Coarse major/minor triad chord recognition | bundled (auto-downloaded) |
+| `diarizen` | Speaker diarization (WavLM-large, CC BY-NC) | diarizen |
+| `ffmpeg` | Audio metadata, filtering, denoise, trim, resample, channel ops | — |
+| `fireredasr2s` | Mandarin/English/code-switching ASR | fireredasr |
+| `fireredvad` | Voice activity + audio event detection | fireredvad |
+| `librosa` | Audio metadata, segmentation, spectral / rhythm / pitch features | — |
+| `lv_chordia` | Large-vocabulary chord recognition (7ths, jazz, etc.) | bundled (auto-downloaded) |
+| `omni_captioner` | LALM caption + VLM plot inspection (DashScope API) | — (needs `DASHSCOPE_API_KEY`) |
+| `snakers4_silero-vad` | Silero VAD | bundled (auto-downloaded) |
+| `sortformer_diarization` | NVIDIA SortFormer streaming diarization (≤4 speakers) | sortformer-diar |
+| `tempo_cnn` | CNN tempo estimation with octave-ambiguity salience | bundled (auto-downloaded) |
+| `wespeaker` | Speaker verification (ResNet embeddings) | auto-downloaded on first use |
+| `whisperx` | WhisperX ASR + optional pyannote diarization | pyannote-diarization, pyannote-segmentation (HF token) |
 
-For **existing tools** or **manual development**:
+## Per-tool structure
 
-### Quick Start
-
-```bash
-# 1. Install uv (one-time)
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# 2. Setup a tool (MUST do this before using)
-cd audio_agent/tools/catalog/asr_qwen3
-./setup.sh
-
-# 3. Verify it's ready
-./test_env.sh
-
-# 4. Use in your agent
-python -c "
-from audio_agent.tools.catalog import load_mcp_server_config
-config = load_mcp_server_config('asr_qwen3')
-print(f'Ready to use: {config.command}')
-"
-```
-
-### Setup All Tools
-
-```bash
-# Setup all tools at once
-./verify_all_tools.sh --setup
-
-# Verify without setup
-./verify_all_tools.sh
-```
-
----
-
-## Overview
-
-Tools in this catalog are organized as MCP (Model Context Protocol) servers that run in separate processes with isolated environments. This provides:
-
-- **Dependency Isolation**: Each tool has its own dependencies
-- **Reproducibility**: Locked environments via uv
-- **Fail-Fast**: Clear errors if environment is missing
-
----
-
-## Available Tools
-
-| Tool | Description | Resources | Status |
-|------|-------------|-----------|--------|
-| [asr_qwen3](./asr_qwen3/) | Speech recognition using Qwen3-ASR-1.7B | 8GB RAM, GPU optional | Ready |
-| [diarizen](./diarizen/) | Speaker diarization using DiariZen | 8GB RAM, GPU optional | Ready |
-| [ffmpeg](./ffmpeg/) | Audio processing with FFmpeg | Minimal | Ready |
-| [librosa](./librosa/) | Audio analysis with librosa | Minimal | Ready |
-| [omni_captioner](./omni_captioner/) | Audio captioning via Qwen3-Omni API | API key required | Ready |
-| [snakers4_silero-vad](./snakers4_silero-vad/) | Voice activity detection | Minimal | Ready |
-
-### Tool Categories
-
-#### Speech Processing
-- **ASR** (Automatic Speech Recognition): Transcribe speech to text
-  - [asr_qwen3](./asr_qwen3/) - Qwen3-ASR-1.7B based ASR with 52 language support
-
-#### Speaker Analysis
-- **Diarization**: Identify who speaks when
-  - [diarizen](./diarizen/) - Speaker diarization with WavLM
-
-#### Audio Processing
-- **Utilities**: Format conversion, analysis
-  - [ffmpeg](./ffmpeg/) - Audio format conversion and processing
-  - [librosa](./librosa/) - Audio feature extraction
-  - [snakers4_silero-vad](./snakers4_silero-vad/) - Voice activity detection
-
-#### Captioning
-- **Omni Captioner**: Generate audio descriptions
-  - [omni_captioner](./omni_captioner/) - API-based captioning
-
----
-
-## Environment Management
-
-### Setup a Specific Tool
-
-```bash
-cd audio_agent/tools/catalog/<tool_name>
-./setup.sh      # Create environment
-./test_env.sh   # Verify environment
-```
-
-### Force Recreate Environment
-
-```bash
-cd audio_agent/tools/catalog/<tool_name>
-rm -rf .venv
-./setup.sh
-```
-
-### Verify All Tools
-
-```bash
-./verify_all_tools.sh
-```
-
----
-
-## Why Explicit Venv Paths?
-
-We use explicit venv paths (`.venv/bin/python`) instead of `uv run` because:
-
-1. **No Runtime Setup**: `uv run` can trigger environment creation during inference
-2. **Predictable Latency**: Pre-created environments start immediately
-3. **Fail-Fast**: Clear error if environment is missing
-4. **Production-Ready**: Explicit dependencies are easier to audit
-
----
-
-## Tool Structure
-
-Each tool has this structure:
+Every tool directory should contain:
 
 ```
-asr_qwen3/
-├── config.yaml          # Tool configuration (uses .venv/bin/python)
-├── server.py            # MCP server implementation
-├── pyproject.toml       # Tool dependencies
-├── setup.sh             # Environment setup script
-├── test_env.py          # Environment verification (Python)
-├── test_env.sh          # Environment verification (shell)
-├── README.md            # Tool documentation
-└── .venv/               # Isolated environment (created by setup.sh)
-    └── bin/python
+<tool>/
+├── __init__.py
+├── config.yaml        # MCP server registration + ${AUDIO_AGENT_MODELS_DIR}/... env vars
+├── pyproject.toml     # tool deps for its own .venv
+├── server.py          # MCP server entrypoint (top-of-file docstring documents any tool-specific quirks)
+├── model.py           # (optional) thin wrapper around the underlying library
+├── setup.sh           # creates .venv (uv) or .venv via conda for diarizen
+├── test_env.sh        # smoke check; called by verify_all_tools.sh
+└── test_env.py        # Python-level smoke check invoked by test_env.sh
 ```
 
----
+`.venv/`, `<tool>_tool.egg-info/`, `__pycache__/`, and tool-specific cache
+directories are gitignored — built on the host, never committed.
 
-## Adding a New Tool
+## Adding a new tool
 
-### Option 1: Harness-First Agent Workflow (Recommended)
-
-For automated tool onboarding, use the harness-first workflow:
-
-```bash
-# See complete workflow documentation
-cat tool_preparation/README.md
-```
-
-This workflow handles discovery, environment setup, validation, and wrapper generation automatically.
-
-### Option 2: Manual Tool Development
-
-#### 1. Copy the Template
+Copy `_template/` and adapt:
 
 ```bash
 cp -r _template my_new_tool
 cd my_new_tool
+# edit pyproject.toml, config.yaml, server.py
+./setup.sh && ./test_env.sh
 ```
 
-#### 2. Define Dependencies (pyproject.toml)
-
-```toml
-[project]
-name = "my-new-tool"
-version = "1.0.0"
-requires-python = ">=3.11"
-dependencies = [
-    "requests>=2.28.0",
-    "librosa>=0.10.0",
-]
-
-[build-system]
-requires = ["setuptools>=61.0", "wheel"]
-build-backend = "setuptools.build_meta"
-
-[tool.setuptools]
-py-modules = ["server", "model"]
-```
-
-#### 3. Configure Server (config.yaml)
-
-```yaml
-name: my_new_tool
-server:
-  command: [".venv/bin/python", "server.py"]
-  working_dir: "."
-  env:
-    MODEL_PATH: "model/name"
-  resources:
-    memory_gb: 4
-    gpu: false
-  lifecycle: "session"
-```
-
-#### 4. Implement server.py
-
-Follow the MCP protocol:
-- Handle `initialize` request
-- Handle `tools/list` request
-- Handle `tools/call` request
-
-See `_template/server.py` for a complete example.
-
-#### 5. Create setup.sh and test_env.sh
-
-Copy templates from `tool_preparation/playbooks/env_uv.md` or use the `_template` versions.
-
-#### 6. Setup Environment
-
-```bash
-./setup.sh      # Create environment
-./test_env.sh   # Verify environment
-```
-
-#### 7. Test
-
-```python
-import asyncio
-from audio_agent.tools.mcp import MCPClient
-
-async def test():
-    client = MCPClient(
-        command=[".venv/bin/python", "server.py"],
-        working_dir="/path/to/my_new_tool"
-    )
-    await client.start()
-    tools = await client.list_tools()
-    print(f"Tools: {[t.name for t in tools]}")
-    await client.stop()
-
-asyncio.run(test())
-```
-
----
-
-## Using Tools in Your Agent
-
-```python
-from audio_agent.tools.catalog import load_mcp_server_config
-from audio_agent.tools.mcp import MCPServerManager, MCPToolAdapter
-
-# Load config (resolves paths)
-config = load_mcp_server_config("asr_qwen3")
-
-# Register with server manager
-manager = MCPServerManager()
-manager.register_config("asr_qwen3", config)
-
-# Discover and register tools
-client = await manager.get_client("asr_qwen3")
-tools = await client.list_tools()
-
-for tool_info in tools:
-    adapter = MCPToolAdapter(
-        server_name="asr_qwen3",
-        tool_info=tool_info,
-        server_manager=manager,
-    )
-    registry.register_mcp(adapter)
-```
-
----
-
-## Configuration Reference
-
-### config.yaml
-
-```yaml
-name: tool_name
-description: "What this tool does"
-version: "1.0.0"
-
-server:
-  command: [".venv/bin/python", "server.py"]
-  working_dir: "."  # Resolved relative to tool directory
-  
-  env:
-    KEY: "value"
-  
-  resources:
-    memory_gb: 8
-    gpu: true
-    cpu_cores: 4
-  
-  lifecycle: "session"  # per_call | session | persistent
-  startup_timeout_sec: 300
-```
-
-### Lifecycle Modes
-
-- **`session`**: Keep server alive during agent session (recommended)
-- **`per_call`**: Spawn new server for each invocation (stateless, slow)
-- **`persistent`**: Always running, managed externally (for production)
-
----
-
-## Troubleshooting
-
-### "Virtual environment not found" error
-
-You forgot to setup the environment:
-```bash
-cd audio_agent/tools/catalog/<tool_name>
-./setup.sh
-```
-
-### Setup fails
-
-Check that pyproject.toml exists and is valid:
-```bash
-cd audio_agent/tools/catalog/<tool_name>
-cat pyproject.toml
-```
-
-### Import errors when running
-
-The environment may be outdated. Recreate it:
-```bash
-cd audio_agent/tools/catalog/<tool_name>
-rm -rf .venv
-./setup.sh
-```
-
-### Verify fails but setup succeeds
-
-There might be a Python version mismatch. Check:
-```bash
-cd audio_agent/tools/catalog/<tool_name>
-.venv/bin/python --version
-```
-
----
-
-## Contributing
-
-When adding a new tool:
-
-1. **Recommended**: Use the Harness-First Agent Workflow (`tool_preparation/`)
-2. **Manual**: Copy `_template/` and customize
-3. Define minimal dependencies in `pyproject.toml`
-4. Use explicit venv path in `config.yaml` (`.venv/bin/python`)
-5. Create `setup.sh` and `test_env.sh` scripts
-6. **Test setup**: `./setup.sh`
-7. **Test verify**: `./test_env.sh`
-8. Document resource requirements accurately
-9. Update this README with the new tool
-
----
-
-## See Also
-
-- [MCP Protocol Documentation](https://modelcontextprotocol.io/)
-- [Template Tool](./_template/) - Starting point for new tools
-- [Tool Preparation Workflow](../../tool_preparation/README.md) - Automated tool onboarding
-- [ASR Qwen3 Example](./asr_qwen3/) - Complete working example
-- [uv Documentation](https://docs.astral.sh/uv/)
+For the full step-by-step (including the harness-first agent workflow), see
+[tool_preparation/README.md](../../../tool_preparation/README.md).

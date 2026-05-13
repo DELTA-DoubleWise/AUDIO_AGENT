@@ -152,7 +152,7 @@ def main():
         print("✗ Some tests failed.")
         print()
         print("Troubleshooting:")
-        print("  - Check SETUP_PROCEDURE.md for detailed setup instructions")
+        print("  - Re-run ./setup.sh in this tool directory")
         print("  - Ensure Python 3.10 is being used (not 3.11)")
         print("  - Verify pyannote.audio is installed from submodule (not PyPI)")
         print("  - Check that numpy==1.26.4 is installed")
