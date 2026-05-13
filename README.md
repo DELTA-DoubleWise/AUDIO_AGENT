@@ -143,207 +143,46 @@ audio_agent/
 
 ## Installation
 
-For a verified, copy-paste-ready setup sequence, see
-[ENVIRONMENT_SETUP.md](./ENVIRONMENT_SETUP.md). The summary below mirrors it.
+The full bootstrap (prerequisites, env, per-tool envs, model downloads,
+verification) lives in **[ENVIRONMENT_SETUP.md](./ENVIRONMENT_SETUP.md)** —
+follow that document end to end on a fresh clone.
 
-### Prerequisites
-
-- **Python 3.11** (the main framework env). Python 3.10 is only required by the
-  diarizen tool, which runs in its own isolated conda env.
-- **uv** — used to provision every tool except diarizen. Install via:
-  ```bash
-  curl -LsSf https://astral.sh/uv/install.sh | sh
-  ```
-  (If your machine already has a system `uv` on `$PATH`, that is enough.)
-- **conda** — only required if you plan to set up the `diarizen` tool. Any
-  miniconda/anaconda install on `$PATH` works; export `CONDA_SH=/path/to/conda/etc/profile.d/conda.sh`
-  to point at a non-standard install.
-- **A HuggingFace token** is needed if you want the `whisperx` diarization path
-  (uses gated pyannote models). Run `huggingface-cli login` after accepting the
-  `pyannote/speaker-diarization-3.1` and `pyannote/segmentation-3.0` user agreements.
-- **API key for the API-based demo**: `DASHSCOPE_API_KEY` (Alibaba DashScope)
-  for `demo_run_api_full.py`. `OPENAI_API_KEY` for OpenAI-style backends.
-
-### Bootstrap
+Quickstart for the impatient (assumes `uv` and a DashScope key are already
+available):
 
 ```bash
-git clone <repo-url> AUDIO_AGENT && cd AUDIO_AGENT
-
-# 1. Main framework env (uv-managed, in repo root)
-uv venv --python 3.11 .venv
-source .venv/bin/activate
+uv venv --python 3.11 .venv && source .venv/bin/activate
 uv pip install -e '.[api,dev,download]'
-
-# 2. Models directory (defaults to <repo>/models; override if you want elsewhere)
 export AUDIO_AGENT_MODELS_DIR="$PWD/models"
-
-# 3. Build every MCP tool's isolated environment
-./setup_all_tools.sh
-
-# 4. Download every model the catalog needs
+./setup_all_tools.sh             # build all 14 MCP tool envs
 audio-agent-download-models --all
-
-# 5. Verify every tool builds and imports
-./verify_all_tools.sh
+./verify_all_tools.sh            # sanity check
 ```
-
-`setup_all_tools.sh` auto-discovers every tool with a `setup.sh` and runs them.
-Pass tool names to set up just a subset (e.g. `./setup_all_tools.sh ffmpeg librosa`).
 
 ## Running the Demo
 
 The API-based demo needs no local GPU for the frontend/planner — only the MCP
-tools that themselves call local models need a GPU.
+tools that load their own local models do.
 
 ```bash
-# API-based, fully cloud-hosted frontend + planner (uses DashScope by default)
-export DASHSCOPE_API_KEY="sk-xxx"
+export DASHSCOPE_API_KEY="sk-..."
 export AUDIO_AGENT_MODELS_DIR="$PWD/models"
 python -m audio_agent.examples.demo_run_api_full \
   --audio /path/to/audio.wav \
   --question "What is being said in this audio?"
 ```
 
-For local-model frontends (Qwen2-Audio, Qwen2.5-Omni, Qwen3-Omni), see
-[DEMO_ENVIRONMENT.md](./DEMO_ENVIRONMENT.md).
-
-### Verifying Tool Environments
-
-To verify all MCP tools are properly configured:
+Multi-audio comparison (e.g. speaker verification) just passes `--audio` more
+than once:
 
 ```bash
-# Test all tools (assumes ./setup_all_tools.sh already ran)
-./verify_all_tools.sh
-
-# Or combined: setup then verify
-./verify_all_tools.sh --setup
-```
-
-See also `demo_run_real_asr.py` for a demo with specific ASR tool configuration.
-
-### API-Based Demos (No Local GPU Required)
-
-If you don't have a local GPU or prefer to use API-based models:
-
-```bash
-# Setup MCP tools first (same as above)
-./verify_all_tools.sh --setup
-
-# Demo with API planner + local frontend (single audio)
-export DASHSCOPE_API_KEY="sk-xxx"
-python -m audio_agent.examples.demo_run_api_planner \
-  --audio /path/to/audio.wav \
-  --question "What is being said?"
-
-# Demo with API frontend + API planner (fully API-based, no local models)
 python -m audio_agent.examples.demo_run_api_full \
-  --audio /path/to/audio.wav \
-  --question "What is being said?" \
-  --frontend-model "qwen3-omni-flash" \
-  --planner-model "qwen3.5-plus"
-
-# Multi-audio example with API (speaker verification)
-python -m audio_agent.examples.demo_run_api_full \
-  --audio /path/to/first_audio.wav --audio /path/to/second_audio.wav \
-  --question "Is the speaker in the second audio the same as the first?" \
-  --frontend-model "qwen3-omni-flash" \
-  --planner-model "qwen3.5-plus"
+  --audio first.wav --audio second.wav \
+  --question "Is the speaker in the second audio the same as the first?"
 ```
 
-### MiMo API Demo (No Local GPU Required)
-
-If you have access to Xiaomi MiMo's API:
-
-```bash
-# Set MiMo API key
-export MIMO_API_KEY="sk-xxx"
-
-# Demo with MiMo frontend + MiMo planner (fully API-based)
-python -m audio_agent.examples.demo_run_mimo \
-  --audio /path/to/audio.wav \
-  --question "What is being said?"
-```
-
-The `demo_run_mimo.py` script uses:
-- `MimoFrontend` with `mimo-v2.5` for audio understanding
-- `MimoPlanner` with `mimo-v2.5-pro` for decision making
-- MiMo's OpenAI-compatible endpoint
-
-The API-based demos are ideal for:
-- Users without local GPU resources
-- Quick prototyping and testing
-- Deployments where model inference is handled externally
-
-## Pre-downloading Models
-
-Model weights live under the directory pointed to by `AUDIO_AGENT_MODELS_DIR`. If
-that env var is unset, the framework defaults to `<repo>/models/` (which is in
-`.gitignore`). All tool `config.yaml` files reference the directory via
-`${AUDIO_AGENT_MODELS_DIR}`, so a single export covers every tool.
-
-```bash
-# Optional: store weights somewhere other than <repo>/models.
-export AUDIO_AGENT_MODELS_DIR=/path/to/your/models
-```
-
-**Download all models (one-time setup):**
-
-```bash
-# Install with download support
-pip install -e ".[download]"
-
-# Download all registered models
-audio-agent-download-models --all
-```
-
-**Download specific models:**
-
-```bash
-audio-agent-download-models --models qwen2-audio qwen2.5
-```
-
-**List available models and their status:**
-
-```bash
-audio-agent-download-models --list
-```
-
-**Available models:**
-- `qwen2-audio` - Qwen/Qwen2-Audio-7B-Instruct (frontend, ~15GB)
-- `qwen2.5-omni` - Qwen/Qwen2.5-Omni-7B (single-GPU unified frontend, ~16GB)
-- `qwen3-omni` - Qwen/Qwen3-Omni-30B-A3B-Instruct (frontend, ~60GB)
-- `qwen2.5` - Qwen/Qwen2.5-7B-Instruct (planner, ~15GB)
-- `qwen3-asr` - Qwen/Qwen3-ASR-1.7B (ASR tool, ~4GB)
-- `qwen3-aligner` - Qwen/Qwen3-ForcedAligner-0.6B (aligner tool, ~1.5GB)
-- `diarizen` - BUT-FIT/diarizen-wavlm-large-s80-md (diarization, ~1GB)
-- `sortformer-diar` - nvidia/diar_streaming_sortformer_4spk-v2 (diarization, ~450MB)
-- `omni-captioner` - Qwen/Qwen3-Omni-30B-A3B-Captioner (captioner, ~60GB)
-- `fireredasr` - FireRedTeam/FireRedASR-AED-L (Mandarin/English ASR, ~3GB)
-- `fireredvad` - FireRedTeam/FireRedVAD (VAD + AED, ~200MB)
-- `wespeaker` - Wespeaker/wespeaker-voxceleb-resnet34-LM (speaker embedding, ~30MB)
-- `pyannote-diarization`, `pyannote-segmentation` - used by whisperx diarization
-  pipeline. **Requires a HuggingFace token with accepted user agreements** for
-  the pyannote models (run `huggingface-cli login`).
-
-**Using HuggingFace Hub paths (fallback):**
-
-If you prefer to use HuggingFace Hub paths directly (models will be downloaded to cache):
-
-```bash
-# Single audio
-python -m audio_agent.examples.demo_run \
-  --audio /path/to/audio.wav \
-  --question "What is being said?" \
-  --frontend-model-path Qwen/Qwen2-Audio-7B-Instruct \
-  --planner-model-path Qwen/Qwen2.5-7B-Instruct
-
-# Multiple audios for comparison
-python -m audio_agent.examples.demo_run \
-  --audio /path/to/audio1.wav --audio /path/to/audio2.wav \
-  --question "Compare the speakers in these two audio files" \
-  --frontend-model-path Qwen/Qwen2-Audio-7B-Instruct \
-  --planner-model-path Qwen/Qwen2.5-7B-Instruct
-```
+For local-model frontends (Qwen2-Audio, Qwen2.5-Omni, Qwen3-Omni) and the
+MiMo API path, see [ENVIRONMENT_SETUP.md §6](./ENVIRONMENT_SETUP.md).
 
 ## Running Tests
 

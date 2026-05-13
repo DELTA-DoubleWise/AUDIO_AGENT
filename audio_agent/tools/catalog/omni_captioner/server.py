@@ -4,6 +4,21 @@ Omni Captioner MCP Server.
 
 MCP server for Qwen3-Omni API via DashScope.
 Supports audio captioning with optional audio response.
+
+Tool-specific notes:
+- **API-based**: no local model download required, but needs a DashScope key:
+    export DASHSCOPE_API_KEY="sk-..."
+  Get one at https://dashscope.console.aliyun.com/.
+- Env vars (set via config.yaml or before launch):
+    DASHSCOPE_API_KEY  - required
+    DASHSCOPE_BASE_URL - default: https://dashscope-intl.aliyuncs.com/compatible-mode/v1
+    DEFAULT_MODEL      - default: qwen3-omni-flash
+    DEFAULT_VOICE      - default: Cherry (only used by omni_caption_with_audio)
+- Three tools exposed: omni_caption, omni_caption_with_audio,
+  inspect_audio_plots, verify_audio_quality. See config.yaml for input
+  schemas. inspect_audio_plots is the only one in the default planner
+  scope; the others are LALM-style perception that's normally served
+  by the framework's CALL_FRONTEND action.
 """
 
 from __future__ import annotations

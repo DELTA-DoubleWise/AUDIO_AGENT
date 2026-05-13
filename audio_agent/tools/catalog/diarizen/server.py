@@ -1,9 +1,18 @@
 #!/usr/bin/env python3
 """
-DiariZen Speaker Diarization MCP Server
+DiariZen Speaker Diarization MCP Server.
 
 MCP server implementation for speaker diarization using DiariZen.
 Uses the BUT-FIT/diarizen-wavlm-large-s80-md model.
+
+Tool-specific notes:
+- This is the **only** tool in the catalog that uses **conda** (Python 3.10)
+  instead of uv. setup.sh creates `.venv/` via `conda create --prefix`.
+- The model weights are licensed **CC BY-NC 4.0 (Non-Commercial)**. Verify
+  your downstream use is allowed before deploying.
+- Memory: pipeline loads ~8 GB RAM; set `DEVICE=cpu` if no GPU.
+- Env vars: `MODEL_PATH` (resolved from $AUDIO_AGENT_MODELS_DIR by
+  config.yaml), `DEVICE` (auto/cpu/cuda).
 """
 
 from __future__ import annotations
