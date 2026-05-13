@@ -37,10 +37,16 @@ fi
 echo "Creating virtual environment with Python 3.11..."
 $UV venv --python 3.11
 
-# Install PyTorch with CUDA 12.1 (must be before NeMo)
-# NOTE: NeMo 2.7+ requires torch>=2.5 for nn.Buffer; we pin 2.5.1+cu121
-echo "Installing PyTorch with CUDA support..."
-$UV pip install --python .venv/bin/python torch==2.5.1+cu121 torchaudio==2.5.1+cu121 --index-url https://download.pytorch.org/whl/cu121
+# Install PyTorch with CUDA (must be before NeMo).
+# NOTE: NeMo 2.7+ requires torch>=2.5 for nn.Buffer; we pin 2.5.1. Default CUDA
+# variant is cu121, which matches libcudart 12.x available on most current GPU
+# installs. Override TORCH_CUDA_VARIANT to e.g. "cu124" or "cu118" for a
+# different host ABI.
+TORCH_CUDA_VARIANT="${TORCH_CUDA_VARIANT:-cu121}"
+echo "Installing PyTorch (torch==2.5.1+${TORCH_CUDA_VARIANT})..."
+$UV pip install --python .venv/bin/python \
+    "torch==2.5.1+${TORCH_CUDA_VARIANT}" "torchaudio==2.5.1+${TORCH_CUDA_VARIANT}" \
+    --index-url "https://download.pytorch.org/whl/${TORCH_CUDA_VARIANT}"
 
 # Install ModelScope SDK for checkpoint download
 echo "Installing ModelScope SDK..."
@@ -54,13 +60,13 @@ $UV pip install --python .venv/bin/python "nemo_toolkit[asr]>=2.0.0"
 echo "Installing remaining dependencies..."
 $UV pip install --python .venv/bin/python -e .
 
-# NeMo's transitive deps tend to upgrade torch/torchaudio to whatever the
-# newest wheel is (currently cu128). Re-pin to cu121 so the resulting wheels
-# match the libcudart on the GPU node (libcudart.so.12 on this cluster).
-echo "Re-pinning torch + torchaudio to cu121 (overriding any NeMo-driven upgrade)..."
+# NeMo's transitive deps tend to upgrade torch/torchaudio. Re-pin to the same
+# CUDA variant we picked above so the resulting wheels still match the host's
+# libcudart.
+echo "Re-pinning torch + torchaudio to ${TORCH_CUDA_VARIANT} (overriding any NeMo-driven upgrade)..."
 $UV pip install --python .venv/bin/python --reinstall \
-    torch==2.5.1+cu121 torchaudio==2.5.1+cu121 \
-    --index-url https://download.pytorch.org/whl/cu121
+    "torch==2.5.1+${TORCH_CUDA_VARIANT}" "torchaudio==2.5.1+${TORCH_CUDA_VARIANT}" \
+    --index-url "https://download.pytorch.org/whl/${TORCH_CUDA_VARIANT}"
 
 echo ""
 echo "Setup complete!"
