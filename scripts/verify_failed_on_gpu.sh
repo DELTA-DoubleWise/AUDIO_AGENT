@@ -6,9 +6,10 @@ set -u
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
-export TMPDIR="${TMPDIR:-/itet-stor/yuchwang/net_scratch/tmp}"
+export TMPDIR="${TMPDIR:-$REPO_ROOT/.artifacts/tmp}"
 export AUDIO_AGENT_MODELS_DIR="${AUDIO_AGENT_MODELS_DIR:-$REPO_ROOT/models}"
 export HF_HOME="${HF_HOME:-$AUDIO_AGENT_MODELS_DIR/.hf_cache}"
+mkdir -p "$TMPDIR"
 
 ARTIFACTS="$REPO_ROOT/.artifacts/verify_runs/retry_$(date +%Y%m%d_%H%M%S)"
 mkdir -p "$ARTIFACTS"

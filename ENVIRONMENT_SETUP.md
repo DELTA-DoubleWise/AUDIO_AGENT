@@ -124,19 +124,24 @@ audio-agent-download-models --models qwen2.5-omni
 The adapter is `audio_agent/frontend/qwen25_omni_frontend.py`. Use it by passing
 `Qwen25OmniFrontend` to `AudioAgent(frontend=...)`.
 
-## Cluster-specific notes (DISCO / TIK)
+## Cluster-specific notes (Slurm)
 
-Login node `tik42x` has no GPU. Use Slurm for any tool that loads a CUDA model:
+Anything below is illustrative — replace partition / node-exclude / paths with
+your cluster's conventions. The framework itself is cluster-agnostic.
+
+On a cluster where the login node has no GPU, use Slurm to grab one for any
+tool that loads a CUDA model:
 
 ```bash
-srun --mem=32GB --gres=gpu:1 --exclude=tikgpu[06-10] --pty bash -i
+# Example (ETH DISCO/TIK): grab a GPU, excluding the highly-contended A100/A6000 nodes.
+srun --mem=32GB --gres=gpu:1 --pty bash -i
 ```
 
-Cache placement (per `disco-cluster-yuchwang`):
+Recommended cache placement (override defaults so caches don't fill $HOME):
 
 ```bash
-export TMPDIR=/itet-stor/$USER/net_scratch/tmp
-export HF_HOME=$AUDIO_AGENT_MODELS_DIR/.hf_cache
+export TMPDIR=/path/to/scratch/tmp                # node-local or shared scratch
+export HF_HOME=$AUDIO_AGENT_MODELS_DIR/.hf_cache  # already the script's default
 mkdir -p "$TMPDIR" "$HF_HOME"
 ```
 
