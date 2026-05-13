@@ -339,8 +339,8 @@ When you modify code in these locations, update the corresponding documentation:
 #### Core Framework Changes
 | Code Location | Documents to Update |
 |---------------|---------------------|
-| `audio_agent/core/schemas.py` | AGENTS.md (schema descriptions), PROJECT_MAP.md |
-| `audio_agent/core/state.py` | AGENTS.md, PROJECT_MAP.md |
+| `audio_agent/core/schemas.py` | AGENTS.md (schema descriptions) |
+| `audio_agent/core/state.py` | AGENTS.md |
 | `audio_agent/core/errors.py` | AGENTS.md |
 | `audio_agent/main.py` | README.md, AGENTS.md |
 | `audio_agent/config/settings.py` | AGENTS.md, README.md |
@@ -348,39 +348,39 @@ When you modify code in these locations, update the corresponding documentation:
 #### Frontend Changes
 | Code Location | Documents to Update |
 |---------------|---------------------|
-| `audio_agent/frontend/*.py` | AGENTS.md, PROJECT_MAP.md |
-| New frontend adapter | README.md, AGENTS.md, PROJECT_MAP.md |
-| `audio_agent/frontend/mimo_frontend.py` | AGENTS.md, PROJECT_MAP.md |
+| `audio_agent/frontend/*.py` | AGENTS.md |
+| New frontend adapter | README.md, AGENTS.md |
+| `audio_agent/frontend/mimo_frontend.py` | AGENTS.md |
 
 #### Planner Changes
 | Code Location | Documents to Update |
 |---------------|---------------------|
-| `audio_agent/planner/*.py` | AGENTS.md, PROJECT_MAP.md |
-| `audio_agent/graph/nodes.py` | AGENTS.md, PROJECT_MAP.md |
+| `audio_agent/planner/*.py` | AGENTS.md |
+| `audio_agent/graph/nodes.py` | AGENTS.md |
 | `audio_agent/graph/routing.py` | AGENTS.md |
 | `audio_agent/graph/builder.py` | AGENTS.md |
-| New planner adapter | README.md, AGENTS.md, PROJECT_MAP.md |
-| `audio_agent/planner/mimo_planner.py` | AGENTS.md, PROJECT_MAP.md |
+| New planner adapter | README.md, AGENTS.md |
+| `audio_agent/planner/mimo_planner.py` | AGENTS.md |
 
 #### Tool Changes
 | Code Location | Documents to Update |
 |---------------|---------------------|
-| `audio_agent/tools/base.py` | AGENTS.md, PROJECT_MAP.md |
+| `audio_agent/tools/base.py` | AGENTS.md |
 | `audio_agent/tools/registry.py` | AGENTS.md |
 | `audio_agent/tools/executor.py` | AGENTS.md |
-| `audio_agent/tools/mcp/*.py` | AGENTS.md, PROJECT_MAP.md |
+| `audio_agent/tools/mcp/*.py` | AGENTS.md |
 | `audio_agent/tools/catalog/<tool>/` | README.md (add to tool list), AGENTS.md |
-| New MCP tool | README.md, AGENTS.md, PROJECT_MAP.md, tool_preparation/*.md |
+| New MCP tool | README.md, AGENTS.md, tool_preparation/*.md |
 
 #### Fusion Changes
 | Code Location | Documents to Update |
 |---------------|---------------------|
-| `audio_agent/fusion/*.py` | AGENTS.md, PROJECT_MAP.md |
+| `audio_agent/fusion/*.py` | AGENTS.md |
 
 #### Log / Output Changes
 | Code Location | Documents to Update |
 |---------------|---------------------|
-| `audio_agent/log/*.py` | AGENTS.md, README.md, PROJECT_MAP.md |
+| `audio_agent/log/*.py` | AGENTS.md, README.md |
 | `audio_agent/core/logging.py` | AGENTS.md |
 | Output audio handling | AGENTS.md, README.md |
 
@@ -406,12 +406,12 @@ When you modify code in these locations, update the corresponding documentation:
 
 | Change Type | Primary Doc | Secondary Docs |
 |-------------|-------------|----------------|
-| Add new module | AGENTS.md | PROJECT_MAP.md, README.md |
-| Add new package | AGENTS.md | PROJECT_MAP.md, README.md |
-| Add new tool | README.md | AGENTS.md, PROJECT_MAP.md, tool_preparation/*.md |
-| Modify schema | AGENTS.md | PROJECT_MAP.md |
+| Add new module | AGENTS.md | README.md |
+| Add new package | AGENTS.md | README.md |
+| Add new tool | README.md | AGENTS.md, tool_preparation/*.md |
+| Modify schema | AGENTS.md | — |
 | Add config option | AGENTS.md | README.md |
-| Change graph logic | AGENTS.md | PROJECT_MAP.md |
+| Change graph logic | AGENTS.md | — |
 | Modify environment setup | ENVIRONMENT_SETUP.md | README.md, AGENTS.md |
 | Add new example | README.md | AGENTS.md |
 
@@ -634,9 +634,9 @@ validate_state_has_fields(
 
 ## Key Configuration Files
 
-- **pyproject.toml**: Package metadata, dependencies, tool configs (pytest, black, ruff, mypy)
-- **environment.yml**: Conda environment with PyTorch + CUDA
-- **requirements.txt**: Pip dependencies (subset of pyproject.toml)
+- **pyproject.toml**: single source of truth for package metadata, dependencies,
+  console scripts (`audio-agent-demo`, `audio-agent-download-models`), and tool
+  configs (pytest, black, ruff, mypy). All install paths go through this.
 
 ## Important Notes
 
@@ -704,13 +704,12 @@ validate_state_has_fields(
 
 1. `README.md` - Architecture overview
 2. `ENVIRONMENT_SETUP.md` - Install + per-tool setup + model downloads + verification
-3. `PROJECT_MAP.md` - Directory and dependency map
-4. `tool_preparation/README.md` - Harness-first tool onboarding workflow
-5. `audio_agent/main.py` - Entry point and AudioAgent class
-6. `audio_agent/core/state.py` and `audio_agent/core/schemas.py` - Core contracts
-7. `audio_agent/graph/builder.py`, `nodes.py`, `routing.py` - Workflow orchestration
-8. `audio_agent/frontend/base.py` and `model_frontend.py` - Frontend patterns
-9. `audio_agent/frontend/openai_compatible_frontend.py` - API frontend implementation
-10. `audio_agent/planner/base.py` and `openai_compatible_planner.py` - Planner interface
-11. `audio_agent/prompts/` - Markdown prompt files
-12. `audio_agent/tests/test_graph_smoke.py` - Usage examples
+3. `tool_preparation/README.md` - Harness-first tool onboarding workflow
+4. `audio_agent/main.py` - Entry point and AudioAgent class
+5. `audio_agent/core/state.py` and `audio_agent/core/schemas.py` - Core contracts
+6. `audio_agent/graph/builder.py`, `nodes.py`, `routing.py` - Workflow orchestration
+7. `audio_agent/frontend/base.py` and `model_frontend.py` - Frontend patterns
+8. `audio_agent/frontend/openai_compatible_frontend.py` - API frontend implementation
+9. `audio_agent/planner/base.py` and `openai_compatible_planner.py` - Planner interface
+10. `audio_agent/prompts/` - Markdown prompt files
+11. `audio_agent/tests/test_graph_smoke.py` - Usage examples
