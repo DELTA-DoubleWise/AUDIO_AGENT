@@ -58,8 +58,7 @@ KeyError: 'qwen2-audio'
 
 ### Step 1: Initialize Conda (if using conda)
 
-If `conda` is already on `$PATH` (common on shared HPC clusters with a per-user
-install), nothing to do. Otherwise source your conda hook:
+If `conda` is already on `$PATH`, nothing to do. Otherwise source your conda hook:
 
 ```bash
 source /path/to/conda/etc/profile.d/conda.sh

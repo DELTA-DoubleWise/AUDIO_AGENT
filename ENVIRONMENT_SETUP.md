@@ -1,8 +1,7 @@
-# Environment Setup — Verified End-to-End
+# Environment Setup
 
-This is the canonical bootstrap sequence verified to take a fresh `git clone`
-all the way to a working `demo_run_api_full.py` on this cluster (and any system
-that follows the same conventions).
+Canonical bootstrap sequence that takes a fresh `git clone` all the way to a
+working `demo_run_api_full.py`.
 
 ## 0. Prerequisites
 
@@ -104,8 +103,8 @@ python -m audio_agent.examples.demo_run_api_full \
 For larger end-to-end sweeps (run one targeted question per catalog tool, log
 each demo to `.artifacts/verify_runs/`), wrap the loop in your own helper
 script — the pattern is straightforward and intentionally not in-tree because
-the exact Slurm flags / cache locations / partition names depend on your
-cluster.
+runtime details (job-scheduler flags, cache locations, env activation) are
+deployment-specific.
 
 ## 6. (Optional) Local-model frontend
 
@@ -125,27 +124,6 @@ audio-agent-download-models --models qwen2.5-omni
 The adapter is `audio_agent/frontend/qwen25_omni_frontend.py`. Use it by passing
 `Qwen25OmniFrontend` to `AudioAgent(frontend=...)`.
 
-## Cluster-specific notes (Slurm)
-
-Anything below is illustrative — replace partition / node-exclude / paths with
-your cluster's conventions. The framework itself is cluster-agnostic.
-
-On a cluster where the login node has no GPU, use Slurm to grab one for any
-tool that loads a CUDA model:
-
-```bash
-# Example (ETH DISCO/TIK): grab a GPU, excluding the highly-contended A100/A6000 nodes.
-srun --mem=32GB --gres=gpu:1 --pty bash -i
-```
-
-Recommended cache placement (override defaults so caches don't fill $HOME):
-
-```bash
-export TMPDIR=/path/to/scratch/tmp                # node-local or shared scratch
-export HF_HOME=$AUDIO_AGENT_MODELS_DIR/.hf_cache  # already the script's default
-mkdir -p "$TMPDIR" "$HF_HOME"
-```
-
 ## Troubleshooting
 
 - **`uv: command not found`** → install uv (see Prerequisites) or set
@@ -153,10 +131,13 @@ mkdir -p "$TMPDIR" "$HF_HOME"
 - **`conda: command not found` when running `diarizen/setup.sh`** → either
   install conda or `export CONDA_SH=/path/to/conda/etc/profile.d/conda.sh`.
 - **`Illegal instruction` from asr_qwen3 on CPU** → flash-attn or torch wheels
-  require AVX-512. Either run on a GPU node (recommended) or rebuild torch from
-  a CPU-feature-compatible wheel.
-- **`libcudart.so.13: cannot open shared object file`** → run on the GPU node;
-  CUDA libs are loaded lazily by torch and are only present on the compute node.
+  require AVX-512. Either run on a host with a CUDA GPU (recommended) or
+  rebuild torch from a CPU-feature-compatible wheel.
+- **`libcudart.so.<N>: cannot open shared object file`** → torch was installed
+  for a CUDA major version that doesn't match the host's libcudart. Re-install
+  torch with the matching CUDA variant (e.g. `cu121`, `cu124`); for the
+  `sortformer_diarization` setup, override `TORCH_CUDA_VARIANT` before
+  running `setup.sh`.
 - **`FireRedVad.from_pretrained` errors** → model not downloaded. Run
   `audio-agent-download-models --models fireredvad`.
 - **WhisperX diarization missing pyannote weights** → accept the model card
