@@ -144,7 +144,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--api-key",
-        default="sk-f8ae3fc37bdd4953977e813f77b7324f",
+        default=None,
         help="API key. If not provided, reads from DASHSCOPE_API_KEY or OPENAI_API_KEY env var.",
     )
     parser.add_argument(
