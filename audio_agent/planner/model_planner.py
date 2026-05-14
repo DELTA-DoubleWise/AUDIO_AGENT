@@ -151,38 +151,34 @@ class BaseModelPlanner(BasePlanner):
             user_text = f"{user_text}\n\n{skills_ref}"
         return user_text
 
-    def build_decision_system_prompt(self) -> str:
-        """Build system prompt for action decision phase."""
-        return load_prompt("decide_system")
-
-    def build_decision_user_instruction(
+    def build_decision_system_prompt(
         self,
         state: AgentState,
         available_tools: list[ToolSpec],
     ) -> str:
-        """Build user instruction for action decision phase."""
-        frontend_output = state["initial_frontend_output"]
-        initial_plan = state["initial_plan"]
-        evidence_log = state.get("evidence_log", [])
-        tool_history = state.get("tool_call_history", [])
-        audio_list = state.get("audio_list", [])
+        """Build system prompt for the action decision phase.
 
-        evidence_summary = [
-            {
-                "source": item.source,
-                "type": item.evidence_type,
-                "content": item.content,
-            }
-            for item in evidence_log
-        ]
-        tool_history_summary = [
-            {
-                "tool_name": record.request.tool_name,
-                "success": record.result.success,
-                "output_keys": list(record.result.output.keys()),
-            }
-            for record in tool_history
-        ]
+        Renders ``prompts/decide_system.md`` with the four static sections
+        that govern agent reasoning across all iterations of a run:
+
+        - ``{decision_rules}`` — full text of ``prompts/decide_rules.md``
+        - ``{tool_category_definitions}`` — categories present in the
+          current ``available_tools`` (filtered via
+          ``planner_tool_inventory.yaml``)
+        - ``{available_tools}`` — the planner-visible tool catalog as
+          pretty-printed JSON
+        - The Required Output Format (PlannerDecision JSON schema) is part
+          of the template itself.
+
+        These pieces are static within a run and would otherwise be
+        re-sent inside every per-iteration user message. Putting them in
+        the system message keeps the user message focused on
+        iteration-volatile state and signals "agent identity / contract"
+        vs "current situation" cleanly to the model.
+        """
+        tool_category_definitions = self._build_tool_category_definitions(
+            state, available_tools
+        )
         tool_summary = [
             {
                 "name": tool.name,
@@ -192,47 +188,127 @@ class BaseModelPlanner(BasePlanner):
             }
             for tool in available_tools
         ]
-        tool_category_definitions = self._build_tool_category_definitions(state, available_tools)
-        
-        # Build audio list summary with descriptions
-        audio_summary = [
+        return load_prompt("decide_system").format(
+            decision_rules=load_prompt("decide_rules"),
+            tool_category_definitions=(
+                json.dumps(
+                    tool_category_definitions, indent=2, ensure_ascii=False
+                )
+                if tool_category_definitions
+                else "(no category definitions configured)"
+            ),
+            available_tools=json.dumps(
+                tool_summary, indent=2, ensure_ascii=False
+            ),
+        )
+
+    def build_decision_user_instruction(
+        self,
+        state: AgentState,
+        available_tools: list[ToolSpec],
+    ) -> str:
+        """Build user instruction for the action decision phase.
+
+        Renders ``prompts/decide_user.md`` with iteration-volatile state
+        only: question, initial plan, loop budget, audio list, and a
+        unified Evidence Ledger that merges ``evidence_log`` with
+        ``tool_call_history`` (so tool-derived entries carry call args and
+        success alongside the fuser-formatted content). The
+        ``available_tools`` argument is kept for symmetry with the
+        system-prompt builder; the catalog itself is rendered into the
+        system message, not here.
+        """
+        initial_plan = state["initial_plan"]
+        evidence_log = state.get("evidence_log", [])
+        tool_history = state.get("tool_call_history", [])
+        audio_list = state.get("audio_list", [])
+
+        evidence_ledger = self._build_evidence_ledger(evidence_log, tool_history)
+
+        audio_summary_lines = [
             f"- {a.audio_id}: {a.description} (source: {a.source})"
             for a in audio_list
         ]
+        audio_summary_text = (
+            "\n".join(audio_summary_lines)
+            if audio_summary_lines
+            else "- audio_0: original input audio (source: original)"
+        )
 
-        # Load decision rules from markdown
-        # Use raw rules text to preserve multi-line formatting and bullet points
-        rules_text = load_prompt("decide_rules")
+        return load_prompt("decide_user").format(
+            question=state["question"],
+            initial_plan=(
+                json.dumps(
+                    initial_plan.model_dump(mode="json"),
+                    indent=2,
+                    ensure_ascii=False,
+                )
+                if initial_plan is not None
+                else "(no initial plan)"
+            ),
+            evidence_ledger=(
+                json.dumps(evidence_ledger, indent=2, ensure_ascii=False)
+                if evidence_ledger
+                else "(no evidence yet)"
+            ),
+            audio_list=audio_summary_text,
+            step_count=state.get("step_count", 0),
+            max_steps=state.get("max_steps", 10),
+        )
 
-        # Build payload with decision rules FIRST so LLM sees them before evidence
-        # This helps the model prioritize following the rules over getting distracted by evidence
-        payload = {
-            "question": state["question"],
-            "decision_rules": rules_text,
-            "expected_output_format": {
-                "action": "answer | call_tool | call_frontend | fail",
-                "rationale": "str - detailed rationale explaining: (a) Why this action was chosen, (b) What evidence supports it, (c) For ANSWER: why confident the frontend model can generate a correct answer (see Rule 1)",
-                "selected_tool_name": "str | null - REQUIRED for call_tool, must be a valid tool name",
-                "selected_tool_args": "dict - arguments for the tool when using call_tool. MUST be {} (empty dict) for answer/call_frontend/fail actions, never null",
-                "selected_audio_id": "str | null - REQUIRED for call_tool, must be a valid audio_id from Available Audio Files",
-                "selected_audio_ids": "list[str] | [] - REQUIRED for call_frontend, must be valid audio_ids from Available Audio Files",
-                "frontend_followup_prompt": "str | null - REQUIRED for call_frontend, the exact prompt/question to send to the frontend model",
-                "frontend_followup_goal": "str | null - OPTIONAL record-only metadata for call_frontend; describes what uncertainty this inspection resolves but is not sent to the frontend model",
-                "draft_answer": "str | null - you do NOT need to provide this for answer; the frontend model will generate the final answer",
-                "confidence": "float - 0.0 to 1.0",
-            },
-            "frontend_caption": frontend_output.question_guided_caption,
-            "initial_plan": initial_plan.model_dump(mode="json"),
-            "evidence_log": evidence_summary,
-            "tool_call_history": tool_history_summary,
-            "audio_list": "\n".join(audio_summary) if audio_summary else "- audio_0: original input audio (source: original)",
-            "tool_category_definitions": tool_category_definitions,
-            "available_tools": tool_summary,
-            "step_count": state.get("step_count", 0),
-            "max_steps": state.get("max_steps", 10),
-        }
-        
-        return json.dumps(payload, ensure_ascii=True)
+    @staticmethod
+    def _build_evidence_ledger(
+        evidence_log: list,
+        tool_history: list,
+    ) -> list[dict]:
+        """Merge ``evidence_log`` and ``tool_call_history`` into one
+        chronological ledger.
+
+        Each tool call appends exactly one ``EvidenceItem`` (via the fuser,
+        with ``evidence_type`` of ``"tool_output"`` for success or
+        ``"error"`` for failure) and exactly one ``ToolCallRecord``. The Nth
+        tool-derived evidence item corresponds to the Nth tool record, so
+        we pair them by FIFO order over the chronologically-ordered
+        ``evidence_log``. Frontend captions, frontend follow-ups, and
+        format critiques are not paired (no tool record exists for them)
+        and pass through unchanged.
+
+        Per-entry shape::
+
+            {
+              "source": str,             # e.g. "trim_audio", "frontend:qwen", "format_check:..."
+              "type":   str,             # evidence_type
+              "content": str,            # fuser-formatted or raw content
+              # Only for tool-derived entries:
+              "step":        int,
+              "args":        dict,
+              "success":     bool,
+              "output_keys": list[str],
+            }
+        """
+        tool_records = list(tool_history)
+        next_tool_idx = 0
+        ledger: list[dict] = []
+        for item in evidence_log:
+            entry: dict = {
+                "source": item.source,
+                "type": item.evidence_type,
+                "content": item.content,
+            }
+            if (
+                item.evidence_type in ("tool_output", "error")
+                and next_tool_idx < len(tool_records)
+            ):
+                rec = tool_records[next_tool_idx]
+                next_tool_idx += 1
+                entry["step"] = rec.step_number
+                entry["args"] = rec.request.args
+                entry["success"] = rec.result.success
+                entry["output_keys"] = (
+                    list(rec.result.output.keys()) if rec.result.output else []
+                )
+            ledger.append(entry)
+        return ledger
 
     def _build_tool_category_definitions(
         self,
@@ -309,7 +385,7 @@ class BaseModelPlanner(BasePlanner):
         available_tools: list[ToolSpec],
     ) -> UnifiedPlannerInput:
         """Build API-style planner input for action decision."""
-        system_prompt = self.build_decision_system_prompt()
+        system_prompt = self.build_decision_system_prompt(state, available_tools)
         user_text = self.build_decision_user_instruction(state, available_tools)
         return UnifiedPlannerInput(
             system_prompt=system_prompt,
@@ -329,7 +405,7 @@ class BaseModelPlanner(BasePlanner):
         available_tools: list[ToolSpec],
     ) -> UnifiedPlannerInput:
         """Build local-text-model input for action decision."""
-        system_prompt = self.build_decision_system_prompt()
+        system_prompt = self.build_decision_system_prompt(state, available_tools)
         user_text = self.build_decision_user_instruction(state, available_tools)
         return UnifiedPlannerInput(
             system_prompt=system_prompt,

@@ -5,7 +5,17 @@ import json
 import pytest
 
 from audio_agent.core.errors import PlannerError
-from audio_agent.core.schemas import FrontendOutput, InitialPlan, PlannerActionType, PlannerDecision, ToolSpec
+from audio_agent.core.schemas import (
+    EvidenceItem,
+    FrontendOutput,
+    InitialPlan,
+    PlannerActionType,
+    PlannerDecision,
+    ToolCallRecord,
+    ToolCallRequest,
+    ToolResult,
+    ToolSpec,
+)
 from audio_agent.core.state import create_initial_state
 from audio_agent.config.settings import AgentConfig
 from audio_agent.planner.model_planner import (
@@ -100,7 +110,21 @@ class TestBaseModelPlanner:
         assert model_input.metadata["input_format"] == PlannerInputFormat.LOCAL_MODEL.value
         assert len(model_input.messages) == 2
 
-    def test_build_decision_model_input_includes_tool_category_definitions(self):
+    def test_build_decision_model_input_separates_static_and_dynamic(self):
+        """Static identity/contract content lives in the system message;
+        iteration-volatile state lives in the user message.
+
+        System message (rendered from decide_system.md) carries:
+          - the role preamble
+          - full decide_rules.md text
+          - tool_category_definitions (definition + guideline per category)
+          - the available_tools catalog
+          - the Required Output Format JSON schema
+
+        User message (rendered from decide_user.md) carries only:
+          - question, initial plan, loop budget, audio list,
+            evidence log, tool call history, and a terminal "Decide" anchor.
+        """
         planner = EchoModelPlanner()
         state = create_initial_state(
             "Question",
@@ -120,21 +144,163 @@ class TestBaseModelPlanner:
         ]
 
         model_input = planner.build_decision_model_input(state, tools)
-        payload = json.loads(model_input.messages[1]["content"])
+        system_content = model_input.messages[0]["content"]
+        user_content = model_input.messages[1]["content"]
 
-        assert payload["tool_category_definitions"] == [
-            {
-                "category": "audio_derivation",
-                "definition": (
-                    "Tools that create a derived audio artifact by trimming, filtering, denoising, "
-                    "resampling, channel conversion, or separation."
-                ),
-                "guideline": (
-                    "Use when a derived audio source may help another tool or frontend follow-up. "
-                    "The derived file is not evidence by itself."
-                ),
-            }
+        # --- System message: 4 static blocks present ---
+        # decide_rules.md inlined
+        assert "## Decision Rules" in system_content
+        assert "Rationale Requirement" in system_content
+        assert "Tool Parameter Rule" in system_content
+        # tool category definitions inlined
+        assert "## Tool Categories" in system_content
+        assert '"category": "audio_derivation"' in system_content
+        assert '"definition":' in system_content
+        assert '"guideline":' in system_content
+        # tool catalog inlined
+        assert "## Available Tools" in system_content
+        assert '"name": "trim_audio"' in system_content
+        # output contract / schema inlined
+        assert "## Output Contract" in system_content
+        assert '"action": "answer | call_tool | call_frontend | fail"' in system_content
+
+        # --- User message: only iteration-volatile state ---
+        assert "## Question" in user_content
+        assert "Question" in user_content  # the question string itself
+        assert "## Initial Plan" in user_content
+        assert "## Loop Budget" in user_content
+        assert "Step 0 of" in user_content
+        assert "## Available Audio Files" in user_content
+        assert "## Evidence Ledger" in user_content
+        # Evidence Log + Tool Call History were merged into the Evidence
+        # Ledger; their old section headers should be gone.
+        assert "## Evidence Log" not in user_content
+        assert "## Tool Call History" not in user_content
+        assert "## Decide" in user_content
+        # The user message is not a JSON envelope.
+        with pytest.raises(json.JSONDecodeError):
+            json.loads(user_content)
+
+        # --- The 4 statics are NOT duplicated into the user message ---
+        assert "Rationale Requirement" not in user_content
+        assert "Tool Parameter Rule" not in user_content
+        assert "## Tool Categories" not in user_content
+        assert "## Available Tools" not in user_content
+        assert "## Output Contract" not in user_content
+
+        # --- No leftover placeholders in either message ---
+        import re
+        for label, content in (("system", system_content), ("user", user_content)):
+            leftover = re.findall(r"\{([a-z_][a-z_0-9]*)\}", content)
+            assert leftover == [], f"Unsubstituted placeholders in {label}: {leftover}"
+
+    def test_build_evidence_ledger_merges_frontend_and_tool_entries(self):
+        """The unified ledger interleaves frontend / tool / followup
+        evidence in chronological order. Tool-derived entries (evidence_type
+        ``"tool_output"`` or ``"error"``) pick up their matching ToolCallRecord
+        by FIFO order and gain ``step``, ``args``, ``success``, ``output_keys``.
+        Non-tool entries pass through unchanged.
+        """
+        evidence_log = [
+            EvidenceItem(
+                source="frontend:qwen3.5-omni-plus",
+                content="<frontend caption>",
+                evidence_type="question_guided_caption",
+                confidence=0.5,
+            ),
+            EvidenceItem(
+                source="trim_audio",
+                content="Trimmed audio_0 → audio_1",
+                evidence_type="tool_output",
+                confidence=0.9,
+            ),
+            EvidenceItem(
+                source="transcribe_qwenasr",
+                content="Tool failed: model offline",
+                evidence_type="error",
+                confidence=0.0,
+            ),
+            EvidenceItem(
+                source="frontend:qwen3.5-omni-plus:followup",
+                content="<refined caption on audio_1>",
+                evidence_type="frontend_followup",
+                confidence=0.7,
+            ),
         ]
+        tool_history = [
+            ToolCallRecord(
+                request=ToolCallRequest(
+                    tool_name="trim_audio",
+                    args={"audio_path": "audio_0", "start_sec": 5.0, "end_sec": 10.0},
+                ),
+                result=ToolResult(
+                    tool_name="trim_audio",
+                    success=True,
+                    output={"generated_audio_path": "/tmp/audio_1.wav", "duration_sec": 5.0},
+                ),
+                step_number=1,
+            ),
+            ToolCallRecord(
+                request=ToolCallRequest(
+                    tool_name="transcribe_qwenasr",
+                    args={"audio_path": "audio_1"},
+                ),
+                result=ToolResult(
+                    tool_name="transcribe_qwenasr",
+                    success=False,
+                    output={},
+                    error_message="model offline",
+                ),
+                step_number=2,
+            ),
+        ]
+
+        ledger = BaseModelPlanner._build_evidence_ledger(evidence_log, tool_history)
+
+        assert len(ledger) == 4
+
+        # Entry 0: frontend caption — no tool fields
+        assert ledger[0]["source"] == "frontend:qwen3.5-omni-plus"
+        assert ledger[0]["type"] == "question_guided_caption"
+        assert "step" not in ledger[0]
+        assert "args" not in ledger[0]
+
+        # Entry 1: tool_output → paired with tool_history[0]
+        assert ledger[1]["source"] == "trim_audio"
+        assert ledger[1]["type"] == "tool_output"
+        assert ledger[1]["step"] == 1
+        assert ledger[1]["args"] == {"audio_path": "audio_0", "start_sec": 5.0, "end_sec": 10.0}
+        assert ledger[1]["success"] is True
+        assert "generated_audio_path" in ledger[1]["output_keys"]
+
+        # Entry 2: error → paired with tool_history[1]
+        assert ledger[2]["source"] == "transcribe_qwenasr"
+        assert ledger[2]["type"] == "error"
+        assert ledger[2]["step"] == 2
+        assert ledger[2]["args"] == {"audio_path": "audio_1"}
+        assert ledger[2]["success"] is False
+        assert ledger[2]["output_keys"] == []
+
+        # Entry 3: followup — no tool fields
+        assert ledger[3]["source"] == "frontend:qwen3.5-omni-plus:followup"
+        assert ledger[3]["type"] == "frontend_followup"
+        assert "step" not in ledger[3]
+
+    def test_build_evidence_ledger_handles_empty_inputs(self):
+        """Empty inputs return an empty ledger; lone evidence with no tool
+        history still passes through (just without tool-side enrichment)."""
+        assert BaseModelPlanner._build_evidence_ledger([], []) == []
+        only_frontend = [
+            EvidenceItem(
+                source="frontend:x",
+                content="cap",
+                evidence_type="question_guided_caption",
+            )
+        ]
+        out = BaseModelPlanner._build_evidence_ledger(only_frontend, [])
+        assert len(out) == 1
+        assert out[0]["source"] == "frontend:x"
+        assert "step" not in out[0]
 
     def test_generate_question_oriented_prompt_returns_string(self):
         planner = EchoModelPlanner()

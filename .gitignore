@@ -101,3 +101,9 @@ models
 
 # Zip archives
 *.zip
+
+# Local Claude Code workspace (worktrees, plans, transcripts)
+.claude/
+
+# Local scratch space for sample renders, debug dumps, etc.
+temp/
