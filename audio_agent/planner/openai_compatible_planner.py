@@ -163,6 +163,82 @@ class OpenAICompatiblePlanner(BaseModelPlanner):
         message = response.choices[0].message
         return self._extract_content(message)
 
+    def supports_native_tools(self) -> bool:
+        """OpenAI-compatible providers (incl. DashScope) all support tools=."""
+        return True
+
+    def call_model_with_tools(
+        self,
+        model_input: UnifiedPlannerInput,
+        tools: list[dict[str, Any]],
+        tool_choice: Any = "required",
+        parallel_tool_calls: bool = True,
+    ) -> Any:
+        """
+        Call the API model with native function-calling enabled and return
+        the raw response ``message`` object (not just its text content).
+
+        The caller is responsible for parsing ``message.tool_calls`` and
+        ``message.content``. Unlike :meth:`call_model`, this does NOT collapse
+        the response down to a string — the structured tool_calls are exactly
+        what we want.
+
+        Args:
+            model_input: The same unified planner input used by ``call_model``.
+            tools: List of OpenAI-shaped tool definitions
+                (``[{"type": "function", "function": {...}}, ...]``). Build
+                via ``BaseModelPlanner._to_openai_tools(...)``.
+            tool_choice: Either ``"auto"``, ``"required"``, ``"none"``, or
+                ``{"type": "function", "function": {"name": "<name>"}}`` to
+                force a specific tool (e.g. ``emit_final_answer`` on the
+                final allowed planner round).
+            parallel_tool_calls: Allow the model to emit multiple tool calls
+                in one response. Defaults to ``True`` — that's the whole
+                point of this path.
+
+        Returns:
+            ``response.choices[0].message`` (OpenAI SDK message object with
+            ``.content``, ``.tool_calls``, etc).
+        """
+        client = self.model_handle
+
+        kwargs: dict[str, Any] = {
+            "model": self._model,
+            "messages": model_input.messages,
+            "temperature": self._temperature,
+            "max_tokens": self._max_tokens,
+            "tools": tools,
+            "tool_choice": tool_choice,
+            "parallel_tool_calls": parallel_tool_calls,
+        }
+        # DashScope's qwen models default to thinking mode for some variants,
+        # which rejects ``tool_choice`` values of ``"required"`` or a forced
+        # function dict. We must pass the flag explicitly (in either
+        # direction) when using native function calling so the model knows
+        # to disable thinking mode. The text-only ``call_model`` path stays
+        # with its previous behaviour (only sets the flag when True).
+        kwargs["extra_body"] = {"enable_thinking": bool(self._enable_thinking)}
+
+        try:
+            response = client.chat.completions.create(**kwargs)
+        except Exception as e:
+            raise PlannerError(
+                f"API call (with tools) failed for model {self._model}: {e}",
+                details={
+                    "model": self._model,
+                    "error_type": type(e).__name__,
+                    "tool_count": len(tools),
+                },
+            ) from e
+
+        if not response.choices:
+            raise PlannerError(
+                "Empty response from API (with tools)",
+                details={"model": self._model},
+            )
+
+        return response.choices[0].message
+
     def _extract_content(self, message) -> str:
         """
         Extract text content from API response message.

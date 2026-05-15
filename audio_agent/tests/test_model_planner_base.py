@@ -25,6 +25,30 @@ from audio_agent.planner.model_planner import (
 )
 
 
+class _FakeToolCall:
+    """Minimal stand-in for an OpenAI SDK ``tool_call`` object.
+
+    The parser only reads ``.function.name`` and ``.function.arguments``
+    (a JSON string), so we mirror just that surface.
+    """
+
+    class _Function:
+        def __init__(self, name: str, arguments_dict: dict | None):
+            self.name = name
+            self.arguments = json.dumps(arguments_dict or {})
+
+    def __init__(self, name: str, args: dict | None):
+        self.function = self._Function(name, args)
+
+
+class _FakeMessage:
+    """Minimal stand-in for an OpenAI SDK ``message`` object."""
+
+    def __init__(self, content: str, tool_calls: list[_FakeToolCall]):
+        self.content = content
+        self.tool_calls = tool_calls
+
+
 class EchoModelPlanner(BaseModelPlanner):
     """Minimal test planner for BaseModelPlanner behavior."""
 
@@ -49,8 +73,9 @@ class EchoModelPlanner(BaseModelPlanner):
         return {
             "action": "call_tool",
             "rationale": "Need ASR evidence first.",
-            "selected_tool_name": "dummy_asr",
-            "selected_tool_args": {"audio_path": "/tmp/audio.wav"},
+            "selected_tool_calls": [
+                {"tool_name": "dummy_asr", "args": {"audio_path": "/tmp/audio.wav"}, "context": {}},
+            ],
             "selected_audio_id": "audio_0",
             "confidence": 0.8,
         }
@@ -114,16 +139,22 @@ class TestBaseModelPlanner:
         """Static identity/contract content lives in the system message;
         iteration-volatile state lives in the user message.
 
-        System message (rendered from decide_system.md) carries:
-          - the role preamble
-          - full decide_rules.md text
-          - tool_category_definitions (definition + guideline per category)
-          - the available_tools catalog
-          - the Required Output Format JSON schema
+        After the native function-calling migration, the system message
+        (rendered from ``decide_system.md``) carries:
+          - the Role preamble
+          - the full ``decide_rules.md`` text
+          - ``tool_category_definitions`` (definition + guideline per
+            category present in available_tools)
+          - the How-To-Decide guidance for emitting tool calls
 
-        User message (rendered from decide_user.md) carries only:
-          - question, initial plan, loop budget, audio list,
-            evidence log, tool call history, and a terminal "Decide" anchor.
+        The tool catalog itself is delivered via the ``tools=`` API
+        parameter (see ``_to_openai_tools``), NOT rendered into the system
+        text. The Output Contract is enforced by the tools' JSON schemas.
+
+        The user message (rendered from ``decide_user.md``) carries only:
+          - question, initial plan, planner reasoning trace, loop budget,
+            audio list, unified evidence ledger, and a terminal "Decide"
+            anchor.
         """
         planner = EchoModelPlanner()
         state = create_initial_state(
@@ -147,7 +178,8 @@ class TestBaseModelPlanner:
         system_content = model_input.messages[0]["content"]
         user_content = model_input.messages[1]["content"]
 
-        # --- System message: 4 static blocks present ---
+        # --- System message: identity + rules + categories + how-to-decide ---
+        assert "## Role" in system_content
         # decide_rules.md inlined
         assert "## Decision Rules" in system_content
         assert "Rationale Requirement" in system_content
@@ -157,17 +189,23 @@ class TestBaseModelPlanner:
         assert '"category": "audio_derivation"' in system_content
         assert '"definition":' in system_content
         assert '"guideline":' in system_content
-        # tool catalog inlined
-        assert "## Available Tools" in system_content
-        assert '"name": "trim_audio"' in system_content
-        # output contract / schema inlined
-        assert "## Output Contract" in system_content
-        assert '"action": "answer | call_tool | call_frontend | fail"' in system_content
+        # How-To-Decide guidance present
+        assert "## How To Decide" in system_content
+        assert "emit_final_answer" in system_content
+        assert "ask_frontend" in system_content
+        assert "give_up" in system_content
+
+        # The catalog itself moves to the `tools=` API parameter —
+        # it should NOT be rendered into the system text. Likewise the
+        # legacy Output Contract section is gone.
+        assert "## Available Tools" not in system_content
+        assert "## Output Contract" not in system_content
 
         # --- User message: only iteration-volatile state ---
         assert "## Question" in user_content
         assert "Question" in user_content  # the question string itself
         assert "## Initial Plan" in user_content
+        assert "## Planner Reasoning Trace" in user_content
         assert "## Loop Budget" in user_content
         assert "Step 0 of" in user_content
         assert "## Available Audio Files" in user_content
@@ -181,12 +219,11 @@ class TestBaseModelPlanner:
         with pytest.raises(json.JSONDecodeError):
             json.loads(user_content)
 
-        # --- The 4 statics are NOT duplicated into the user message ---
+        # --- Statics are NOT duplicated into the user message ---
         assert "Rationale Requirement" not in user_content
         assert "Tool Parameter Rule" not in user_content
         assert "## Tool Categories" not in user_content
-        assert "## Available Tools" not in user_content
-        assert "## Output Contract" not in user_content
+        assert "## How To Decide" not in user_content
 
         # --- No leftover placeholders in either message ---
         import re
@@ -302,6 +339,184 @@ class TestBaseModelPlanner:
         assert out[0]["source"] == "frontend:x"
         assert "step" not in out[0]
 
+    # =========================================================================
+    # Native function-calling (Option 2) tests
+    # =========================================================================
+
+    def test_to_openai_tools_wraps_real_and_appends_synthetic_actions(self):
+        """``_to_openai_tools`` wraps each real ToolSpec into OpenAI tool
+        format and appends the three synthetic action-tools at the end.
+        """
+        real = [
+            ToolSpec(
+                name="trim_audio",
+                description="Trim a clip.",
+                input_schema={
+                    "type": "object",
+                    "properties": {"audio_path": {"type": "string"}},
+                    "required": ["audio_path"],
+                },
+            ),
+        ]
+        tools = BaseModelPlanner._to_openai_tools(real)
+        assert len(tools) == 1 + 3  # one real + three synthetic
+
+        names = [t["function"]["name"] for t in tools]
+        assert names[0] == "trim_audio"
+        assert "emit_final_answer" in names
+        assert "ask_frontend" in names
+        assert "give_up" in names
+
+        # Real tool's input schema is passed through verbatim as parameters.
+        assert tools[0]["function"]["parameters"]["properties"]["audio_path"]["type"] == "string"
+
+        # Synthetic action tools each have a usable parameters schema.
+        action_specs = {t["function"]["name"]: t["function"] for t in tools if t["function"]["name"] in {
+            "emit_final_answer", "ask_frontend", "give_up"
+        }}
+        assert "rationale" in action_specs["emit_final_answer"]["parameters"]["properties"]
+        assert "selected_audio_ids" in action_specs["ask_frontend"]["parameters"]["properties"]
+        assert "reason" in action_specs["give_up"]["parameters"]["properties"]
+
+    def test_parse_tool_calls_emit_final_answer_maps_to_answer_action(self):
+        """A single emit_final_answer tool_call → PlannerDecision(ANSWER)."""
+        msg = _FakeMessage(
+            content="The evidence is sufficient — sample rate and duration are clear.",
+            tool_calls=[
+                _FakeToolCall("emit_final_answer", {"rationale": "all evidence in", "confidence": 0.9}),
+            ],
+        )
+        decision = BaseModelPlanner._parse_tool_calls_to_decision(msg, available_tool_names=None)
+        assert decision.action == PlannerActionType.ANSWER
+        assert decision.selected_tool_calls == []
+        assert "evidence is sufficient" in decision.rationale
+        assert decision.confidence == 0.9
+
+    def test_parse_tool_calls_action_tool_exclusivity_drops_other_calls(self):
+        """When an action tool appears alongside other calls, the action
+        wins and the other calls are discarded with a warning (caller-side
+        behavior; here we only verify the resulting decision shape)."""
+        msg = _FakeMessage(
+            content="Done.",
+            tool_calls=[
+                _FakeToolCall("trim_audio", {"audio_path": "audio_0", "start": 0, "end": 5}),
+                _FakeToolCall("emit_final_answer", {"rationale": "got it"}),
+            ],
+        )
+        decision = BaseModelPlanner._parse_tool_calls_to_decision(msg, available_tool_names=None)
+        assert decision.action == PlannerActionType.ANSWER
+        # The other (real) tool call was discarded.
+        assert decision.selected_tool_calls == []
+
+    def test_parse_tool_calls_parallel_real_tools_become_call_tool(self):
+        """Multiple real tool calls in one round → CALL_TOOL with all of
+        them in ``selected_tool_calls`` (parallel emission)."""
+        msg = _FakeMessage(
+            content="Three independent analyses on the same audio.",
+            tool_calls=[
+                _FakeToolCall("get_audio_info", {"audio_path": "audio_0"}),
+                _FakeToolCall("vad_predict", {"audio_path": "audio_0"}),
+                _FakeToolCall("analyze_onsets", {"audio_path": "audio_0"}),
+            ],
+        )
+        decision = BaseModelPlanner._parse_tool_calls_to_decision(
+            msg,
+            available_tool_names={"get_audio_info", "vad_predict", "analyze_onsets"},
+        )
+        assert decision.action == PlannerActionType.CALL_TOOL
+        assert len(decision.selected_tool_calls) == 3
+        names = [tc.tool_name for tc in decision.selected_tool_calls]
+        assert names == ["get_audio_info", "vad_predict", "analyze_onsets"]
+        assert decision.selected_audio_id == "audio_0"  # extracted from first call's args
+        assert "Three independent" in decision.rationale
+
+    def test_parse_tool_calls_ask_frontend_maps_to_call_frontend(self):
+        """``ask_frontend`` tool_call → PlannerDecision(CALL_FRONTEND)."""
+        msg = _FakeMessage(
+            content="Re-perceive the trimmed clip.",
+            tool_calls=[
+                _FakeToolCall(
+                    "ask_frontend",
+                    {
+                        "selected_audio_ids": ["audio_1"],
+                        "frontend_followup_prompt": "What chord is being played?",
+                        "frontend_followup_goal": "identify chord",
+                    },
+                ),
+            ],
+        )
+        decision = BaseModelPlanner._parse_tool_calls_to_decision(msg, available_tool_names=None)
+        assert decision.action == PlannerActionType.CALL_FRONTEND
+        assert decision.selected_audio_ids == ["audio_1"]
+        assert decision.frontend_followup_prompt == "What chord is being played?"
+        assert decision.frontend_followup_goal == "identify chord"
+        assert decision.selected_tool_calls == []
+
+    def test_parse_tool_calls_give_up_maps_to_fail(self):
+        """``give_up`` tool_call → PlannerDecision(FAIL)."""
+        msg = _FakeMessage(
+            content="",
+            tool_calls=[
+                _FakeToolCall("give_up", {"reason": "no ASR model can transcribe this audio"}),
+            ],
+        )
+        decision = BaseModelPlanner._parse_tool_calls_to_decision(msg, available_tool_names=None)
+        assert decision.action == PlannerActionType.FAIL
+        assert "no ASR" in decision.rationale
+
+    def test_parse_tool_calls_drops_unknown_tool_names(self):
+        """Tool calls referencing names not in available_tool_names are
+        dropped with a warning. If the remaining list is empty, raise."""
+        msg = _FakeMessage(
+            content="x",
+            tool_calls=[
+                _FakeToolCall("nonexistent_tool", {}),
+                _FakeToolCall("get_audio_info", {"audio_path": "audio_0"}),
+            ],
+        )
+        decision = BaseModelPlanner._parse_tool_calls_to_decision(
+            msg, available_tool_names={"get_audio_info"}
+        )
+        # nonexistent_tool dropped; get_audio_info kept.
+        assert decision.action == PlannerActionType.CALL_TOOL
+        assert len(decision.selected_tool_calls) == 1
+        assert decision.selected_tool_calls[0].tool_name == "get_audio_info"
+
+    def test_parse_tool_calls_empty_tool_calls_raises(self):
+        """No tool_calls at all → PlannerError (the tool_choice='required'
+        contract was violated)."""
+        msg = _FakeMessage(content="hello", tool_calls=[])
+        with pytest.raises(PlannerError):
+            BaseModelPlanner._parse_tool_calls_to_decision(msg, available_tool_names=None)
+
+    def test_format_planner_reasoning_trace_renders_rounds(self):
+        """The reasoning trace renders one numbered line per past decision;
+        empty rationales show as ``(no reasoning recorded)``."""
+        trace = [
+            PlannerDecision(
+                action=PlannerActionType.CALL_TOOL,
+                rationale="Need ASR on this clip.",
+                selected_tool_calls=[ToolCallRequest(tool_name="dummy", args={}, context={})],
+            ),
+            PlannerDecision(
+                action=PlannerActionType.CALL_TOOL,
+                rationale="",  # model didn't emit content this round
+                selected_tool_calls=[ToolCallRequest(tool_name="dummy", args={}, context={})],
+            ),
+            PlannerDecision(
+                action=PlannerActionType.ANSWER,
+                rationale="Evidence sufficient.",
+            ),
+        ]
+        rendered = BaseModelPlanner._format_planner_reasoning_trace(trace)
+        assert "Round 1: Need ASR on this clip." in rendered
+        assert "Round 2: (no reasoning recorded)" in rendered
+        assert "Round 3: Evidence sufficient." in rendered
+
+    def test_format_planner_reasoning_trace_empty(self):
+        rendered = BaseModelPlanner._format_planner_reasoning_trace([])
+        assert "no prior rounds" in rendered
+
     def test_generate_question_oriented_prompt_returns_string(self):
         planner = EchoModelPlanner()
         result = planner.generate_question_oriented_prompt("What is in this audio?")
@@ -329,7 +544,7 @@ class TestBaseModelPlanner:
 
         assert isinstance(result, PlannerDecision)
         assert result.action == PlannerActionType.CALL_TOOL
-        assert result.selected_tool_name == "dummy_asr"
+        assert result.selected_tool_calls[0].tool_name == "dummy_asr"
 
     def test_invalid_plan_output_raises(self):
         class BadPlanner(EchoModelPlanner):

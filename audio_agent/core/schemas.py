@@ -258,20 +258,41 @@ class InitialPlan(BaseModel):
 class PlannerDecision(BaseModel):
     """
     Decision made by the planner.
-    
+
+    Each decision represents the action chosen for one planner round. With
+    native function calling enabled (DashScope ``tools=`` parameter), one
+    round may carry multiple parallel real-tool calls (CALL_TOOL with
+    ``len(selected_tool_calls) >= 1``), or exactly one exclusive action
+    (ANSWER / CALL_FRONTEND / FAIL).
+
     Validation ensures consistency:
-    - CALL_TOOL requires selected_tool_name and selected_audio_id
-    - CALL_FRONTEND requires selected_audio_ids and frontend_followup_prompt
-    - ANSWER no longer requires draft_answer (the frontend model generates the final answer)
-    - ANSWER must NOT carry frontend-followup fields (to prevent mixed actions)
+    - CALL_TOOL requires ``selected_tool_calls`` non-empty.
+    - CALL_FRONTEND requires ``selected_audio_ids`` and
+      ``frontend_followup_prompt``; no tool calls.
+    - ANSWER carries no tool calls and no frontend-followup fields.
+    - FAIL carries no tool calls and no frontend-followup fields.
+
+    Notes:
+    - ``selected_audio_id`` is retained for backward-compat with downstream
+      readers that summarise a "primary" audio for a round; populated as
+      best-effort from the first real tool call's audio-typed argument
+      when CALL_TOOL is the action. Optional otherwise.
     """
     action: PlannerActionType
-    rationale: str = Field(..., min_length=1, description="Explanation for the decision")
-    selected_tool_name: str | None = Field(default=None)
-    selected_tool_args: dict[str, Any] = Field(default_factory=dict)
+    rationale: str = Field(
+        default="",
+        description="Free-text reasoning preamble (captured from message.content). May be empty.",
+    )
+    selected_tool_calls: list[ToolCallRequest] = Field(
+        default_factory=list,
+        description="One or more real-tool calls when action=CALL_TOOL. Empty for other actions.",
+    )
     selected_audio_id: str | None = Field(
         default=None,
-        description="Audio ID to use for tool call (required for CALL_TOOL)"
+        description=(
+            "Best-effort summary of the primary audio_id for a CALL_TOOL round. "
+            "Populated from the first tool call's first audio-typed parameter."
+        ),
     )
     selected_audio_ids: list[str] = Field(
         default_factory=list,
@@ -294,15 +315,22 @@ class PlannerDecision(BaseModel):
     def validate_action_consistency(self) -> "PlannerDecision":
         """Ensure action-specific fields are populated and not mixed."""
         if self.action == PlannerActionType.CALL_TOOL:
-            if not self.selected_tool_name:
+            if not self.selected_tool_calls:
                 raise ValueError(
-                    "PlannerDecision with action=CALL_TOOL must have non-empty selected_tool_name"
+                    "PlannerDecision with action=CALL_TOOL must have non-empty selected_tool_calls"
                 )
-            if not self.selected_audio_id:
+            for tc in self.selected_tool_calls:
+                if not tc.tool_name or not tc.tool_name.strip():
+                    raise ValueError(
+                        "PlannerDecision selected_tool_calls entries must have non-empty tool_name"
+                    )
+        else:
+            # Non-CALL_TOOL actions must not carry tool calls.
+            if self.selected_tool_calls:
                 raise ValueError(
-                    "PlannerDecision with action=CALL_TOOL must have non-empty selected_audio_id"
+                    f"PlannerDecision with action={self.action.value} must not carry selected_tool_calls"
                 )
-        
+
         if self.action == PlannerActionType.CALL_FRONTEND:
             if not self.selected_audio_ids:
                 raise ValueError(
@@ -317,7 +345,7 @@ class PlannerDecision(BaseModel):
                 raise ValueError(
                     "PlannerDecision with action=CALL_FRONTEND must have non-empty frontend_followup_prompt"
                 )
-        
+
         if self.action == PlannerActionType.ANSWER:
             if self.selected_audio_ids:
                 raise ValueError(
@@ -327,7 +355,7 @@ class PlannerDecision(BaseModel):
                 raise ValueError(
                     "PlannerDecision with action=ANSWER must not carry frontend_followup_prompt"
                 )
-        
+
         # FAIL requires no additional fields - uses rationale only
         return self
 

@@ -97,8 +97,11 @@ class TestGraphSmoke:
                         return PlannerDecision(
                             action=PlannerActionType.CALL_TOOL,
                             rationale="Always call tool",
-                            selected_tool_name="dummy_asr",
-                            selected_tool_args={},
+                            selected_tool_calls=[
+
+                                ToolCallRequest(tool_name="dummy_asr", args={}, context={}),
+
+                            ],
                             selected_audio_id=selected_audio_id,
                             confidence=0.5,
                         )
@@ -106,8 +109,11 @@ class TestGraphSmoke:
                     return PlannerDecision(
                         action=PlannerActionType.CALL_TOOL,
                         rationale="Always call tool",
-                        selected_tool_name="dummy_asr",
-                        selected_tool_args={},
+                        selected_tool_calls=[
+
+                            ToolCallRequest(tool_name="dummy_asr", args={}, context={}),
+
+                        ],
                         selected_audio_id=selected_audio_id,
                         confidence=0.5,
                     )
@@ -449,7 +455,11 @@ class TestFrontendFollowupSmoke:
                         return PlannerDecision(
                             action=PlannerActionType.CALL_TOOL,
                             rationale="Call tool first",
-                            selected_tool_name="dummy_asr",
+                            selected_tool_calls=[
+
+                                ToolCallRequest(tool_name="dummy_asr", args={}, context={}),
+
+                            ],
                             selected_audio_id=audio_list[0].audio_id if audio_list else "audio_0",
                             confidence=0.8,
                         )

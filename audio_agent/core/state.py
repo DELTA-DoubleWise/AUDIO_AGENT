@@ -55,7 +55,9 @@ class AgentState(TypedDict, total=False):
         initial_plan_trace: Log of initial planning outputs (append-only)
         planner_trace: Log of planner action decisions (append-only)
         current_decision: Latest planner decision
-        latest_tool_result: Most recent tool execution result (transient)
+        latest_tool_results: Most recent tool execution results for the
+            current round (transient). One round can carry multiple tool
+            results when the planner emitted parallel tool calls.
         final_answer: The final answer if agent completed successfully
         error_message: Error message if agent failed
         step_count: Current step number
@@ -83,7 +85,7 @@ class AgentState(TypedDict, total=False):
     
     # Current state (overwritten each cycle)
     current_decision: PlannerDecision | None
-    latest_tool_result: ToolResult | None
+    latest_tool_results: list[ToolResult]
     latest_frontend_followup_output: FrontendOutput | None
     
     # Intent extracted during planning
@@ -162,7 +164,7 @@ def create_initial_state(
         initial_plan_trace=[],
         planner_trace=[],
         current_decision=None,
-        latest_tool_result=None,
+        latest_tool_results=[],
         latest_frontend_followup_output=None,
         clarified_intent=None,
         expected_output_format=None,

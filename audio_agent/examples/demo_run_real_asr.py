@@ -81,8 +81,10 @@ def print_planner_trace(planner_trace: list) -> None:
     for i, decision in enumerate(planner_trace, 1):
         print(f"\n[{i}] Action: {decision.action.value}")
         print(f"    Rationale: {decision.rationale}")
-        if decision.selected_tool_name:
-            print(f"    Tool: {decision.selected_tool_name}")
+        tool_calls = getattr(decision, "selected_tool_calls", None) or []
+        if tool_calls:
+            names = ", ".join(tc.tool_name for tc in tool_calls)
+            print(f"    Tool(s) ({len(tool_calls)}): {names}")
         print(f"    Confidence: {decision.confidence:.2f}")
 
 

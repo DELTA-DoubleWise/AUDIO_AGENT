@@ -19,7 +19,14 @@ from pydantic import BaseModel, Field
 
 from audio_agent.core.errors import PlannerError
 from audio_agent.core.logging import get_logger
-from audio_agent.core.schemas import InitialPlan, PlannerDecision, ToolSpec, FormatCheckResult
+from audio_agent.core.schemas import (
+    FormatCheckResult,
+    InitialPlan,
+    PlannerActionType,
+    PlannerDecision,
+    ToolCallRequest,
+    ToolSpec,
+)
 from audio_agent.core.state import AgentState
 from audio_agent.planner.base import BasePlanner
 from audio_agent.tools.inventory import (
@@ -83,6 +90,36 @@ class BaseModelPlanner(BasePlanner):
     def call_model(self, model_input: UnifiedPlannerInput) -> Any:
         """Invoke model/backend and return raw output."""
         raise NotImplementedError
+
+    def call_model_with_tools(
+        self,
+        model_input: UnifiedPlannerInput,
+        tools: list[dict[str, Any]],
+        tool_choice: Any = "required",
+        parallel_tool_calls: bool = True,
+    ) -> Any:
+        """Invoke model with native function-calling enabled.
+
+        Subclasses that support OpenAI-style native function calling
+        (``OpenAICompatiblePlanner`` and friends) override this. The default
+        raises ``NotImplementedError`` so backends without native support
+        (Gemini, local-model planners, etc.) fall back to the JSON-text
+        path inside :meth:`decide` rather than silently misbehaving.
+        """
+        raise NotImplementedError(
+            f"{type(self).__name__} does not support native function calling. "
+            "Override call_model_with_tools or extend OpenAICompatiblePlanner."
+        )
+
+    def supports_native_tools(self) -> bool:
+        """Whether this backend supports :meth:`call_model_with_tools`.
+
+        Used by :meth:`decide` to route through the native-tools path when
+        available, and to fall back to the legacy JSON-text path otherwise.
+        Subclasses that implement ``call_model_with_tools`` should return
+        ``True``.
+        """
+        return False
 
     def build_initial_prompt_system_prompt(self) -> str:
         """Build system prompt for question-oriented prompt generation."""
@@ -158,36 +195,22 @@ class BaseModelPlanner(BasePlanner):
     ) -> str:
         """Build system prompt for the action decision phase.
 
-        Renders ``prompts/decide_system.md`` with the four static sections
-        that govern agent reasoning across all iterations of a run:
+        Renders ``prompts/decide_system.md`` with the static sections that
+        govern agent reasoning across all iterations of a run:
 
-        - ``{decision_rules}`` — full text of ``prompts/decide_rules.md``
-        - ``{tool_category_definitions}`` — categories present in the
-          current ``available_tools`` (filtered via
-          ``planner_tool_inventory.yaml``)
-        - ``{available_tools}`` — the planner-visible tool catalog as
-          pretty-printed JSON
-        - The Required Output Format (PlannerDecision JSON schema) is part
-          of the template itself.
+        - ``{decision_rules}`` — full text of ``prompts/decide_rules.md``.
+        - ``{tool_category_definitions}`` — definition + guideline per
+          category present in the current ``available_tools`` (filtered via
+          ``planner_tool_inventory.yaml``).
 
-        These pieces are static within a run and would otherwise be
-        re-sent inside every per-iteration user message. Putting them in
-        the system message keeps the user message focused on
-        iteration-volatile state and signals "agent identity / contract"
-        vs "current situation" cleanly to the model.
+        The tool catalog itself is NOT rendered into the system text — it
+        is delivered to the model via the ``tools=`` API parameter (see
+        :meth:`_to_openai_tools`). ``available_tools`` is still accepted
+        here so we can build the category-definitions block from it.
         """
         tool_category_definitions = self._build_tool_category_definitions(
             state, available_tools
         )
-        tool_summary = [
-            {
-                "name": tool.name,
-                "description": tool.description,
-                "input_schema": tool.input_schema,
-                "tags": tool.tags,
-            }
-            for tool in available_tools
-        ]
         return load_prompt("decide_system").format(
             decision_rules=load_prompt("decide_rules"),
             tool_category_definitions=(
@@ -196,9 +219,6 @@ class BaseModelPlanner(BasePlanner):
                 )
                 if tool_category_definitions
                 else "(no category definitions configured)"
-            ),
-            available_tools=json.dumps(
-                tool_summary, indent=2, ensure_ascii=False
             ),
         )
 
@@ -222,8 +242,10 @@ class BaseModelPlanner(BasePlanner):
         evidence_log = state.get("evidence_log", [])
         tool_history = state.get("tool_call_history", [])
         audio_list = state.get("audio_list", [])
+        planner_trace = state.get("planner_trace", [])
 
         evidence_ledger = self._build_evidence_ledger(evidence_log, tool_history)
+        reasoning_trace = self._format_planner_reasoning_trace(planner_trace)
 
         audio_summary_lines = [
             f"- {a.audio_id}: {a.description} (source: {a.source})"
@@ -246,6 +268,7 @@ class BaseModelPlanner(BasePlanner):
                 if initial_plan is not None
                 else "(no initial plan)"
             ),
+            planner_reasoning_trace=reasoning_trace,
             evidence_ledger=(
                 json.dumps(evidence_ledger, indent=2, ensure_ascii=False)
                 if evidence_ledger
@@ -255,6 +278,27 @@ class BaseModelPlanner(BasePlanner):
             step_count=state.get("step_count", 0),
             max_steps=state.get("max_steps", 10),
         )
+
+    @staticmethod
+    def _format_planner_reasoning_trace(
+        planner_trace: list[PlannerDecision],
+    ) -> str:
+        """Render past planner rationales as a numbered chronological list.
+
+        Each entry is the model's brief preamble (captured from
+        ``message.content`` and stored in ``PlannerDecision.rationale``) for
+        that round's tool emission. Empty rationales render as
+        ``(no reasoning recorded)`` so the round numbering stays continuous.
+        """
+        if not planner_trace:
+            return "(no prior rounds — this is your first decision)"
+        lines: list[str] = []
+        for i, decision in enumerate(planner_trace, start=1):
+            rationale = (decision.rationale or "").strip()
+            if not rationale:
+                rationale = "(no reasoning recorded)"
+            lines.append(f"Round {i}: {rationale}")
+        return "\n".join(lines)
 
     @staticmethod
     def _build_evidence_ledger(
@@ -309,6 +353,336 @@ class BaseModelPlanner(BasePlanner):
                 )
             ledger.append(entry)
         return ledger
+
+    # =========================================================================
+    # Native function-calling helpers (DashScope `tools=` parameter)
+    # =========================================================================
+
+    # Names of the three synthetic action-tools exposed alongside the real
+    # catalog. The planner picks one of these when the round's decision is
+    # to answer / hand off to the frontend / give up. See _to_openai_tools
+    # below for their JSON-Schema definitions, and _parse_tool_calls_to_decision
+    # for how they are converted back into PlannerDecision objects.
+    ACTION_TOOL_ANSWER: str = "emit_final_answer"
+    ACTION_TOOL_ASK_FRONTEND: str = "ask_frontend"
+    ACTION_TOOL_GIVE_UP: str = "give_up"
+
+    @classmethod
+    def _exclusive_action_tool_names(cls) -> frozenset[str]:
+        """Action tools that must be the only call in their round."""
+        return frozenset(
+            {
+                cls.ACTION_TOOL_ANSWER,
+                cls.ACTION_TOOL_ASK_FRONTEND,
+                cls.ACTION_TOOL_GIVE_UP,
+            }
+        )
+
+    @classmethod
+    def _to_openai_tools(
+        cls,
+        available_tools: list[ToolSpec],
+    ) -> list[dict[str, Any]]:
+        """Convert the planner-visible catalog into OpenAI ``tools=`` shape.
+
+        Wraps each real tool's ``input_schema`` (already JSON Schema) into a
+        ``{"type": "function", "function": {...}}`` envelope, then appends
+        the three synthetic action-tools (``emit_final_answer``,
+        ``ask_frontend``, ``give_up``) so the model picks an action by
+        calling a tool, rather than emitting a JSON ``PlannerDecision`` as
+        text. Each synthetic tool's description states the exclusivity
+        rule — the parser also enforces it server-side.
+        """
+        tools: list[dict[str, Any]] = []
+
+        # Real tools — pass-through, only the wrapping is added.
+        for spec in available_tools:
+            tools.append(
+                {
+                    "type": "function",
+                    "function": {
+                        "name": spec.name,
+                        "description": spec.description,
+                        "parameters": spec.input_schema or {"type": "object", "properties": {}},
+                    },
+                }
+            )
+
+        # Synthetic action-tools.
+        tools.append(
+            {
+                "type": "function",
+                "function": {
+                    "name": cls.ACTION_TOOL_ANSWER,
+                    "description": (
+                        "Signal that the accumulated evidence is sufficient and the "
+                        "frontend final-answer node should generate the answer. "
+                        "EXCLUSIVE: this MUST be the only tool call in the round."
+                    ),
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "rationale": {
+                                "type": "string",
+                                "description": (
+                                    "Why the current evidence is sufficient to answer. "
+                                    "Cite the specific evidence items / tool outputs that ground the answer."
+                                ),
+                            },
+                            "confidence": {
+                                "type": "number",
+                                "minimum": 0.0,
+                                "maximum": 1.0,
+                                "description": "Confidence in answer-readiness (0.0 to 1.0).",
+                            },
+                        },
+                        "required": ["rationale"],
+                    },
+                },
+            }
+        )
+        tools.append(
+            {
+                "type": "function",
+                "function": {
+                    "name": cls.ACTION_TOOL_ASK_FRONTEND,
+                    "description": (
+                        "Re-perceive selected audios with the LALM frontend to resolve "
+                        "uncertainty that cannot be answered by metadata/measurements/derivation. "
+                        "EXCLUSIVE: this MUST be the only tool call in the round."
+                    ),
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "selected_audio_ids": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": (
+                                    "Non-empty list of audio_ids from Available Audio Files to send "
+                                    "to the frontend for re-perception (e.g. ['audio_1'])."
+                                ),
+                                "minItems": 1,
+                            },
+                            "frontend_followup_prompt": {
+                                "type": "string",
+                                "description": "Exact prompt sent to the frontend model.",
+                            },
+                            "frontend_followup_goal": {
+                                "type": "string",
+                                "description": (
+                                    "Optional record-only metadata describing what uncertainty "
+                                    "this follow-up resolves; not sent to the frontend."
+                                ),
+                            },
+                        },
+                        "required": ["selected_audio_ids", "frontend_followup_prompt"],
+                    },
+                },
+            }
+        )
+        tools.append(
+            {
+                "type": "function",
+                "function": {
+                    "name": cls.ACTION_TOOL_GIVE_UP,
+                    "description": (
+                        "Signal that the question cannot be answered with the available "
+                        "tools and evidence. EXCLUSIVE: this MUST be the only tool call in the round."
+                    ),
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "reason": {
+                                "type": "string",
+                                "description": "Why the task cannot be completed (concrete and specific).",
+                            },
+                        },
+                        "required": ["reason"],
+                    },
+                },
+            }
+        )
+
+        return tools
+
+    @classmethod
+    def _parse_tool_calls_to_decision(
+        cls,
+        message: Any,
+        available_tool_names: set[str] | None = None,
+    ) -> PlannerDecision:
+        """Convert a model response message into a ``PlannerDecision``.
+
+        The model is called with ``tool_choice="required"`` (or forced to
+        ``emit_final_answer`` on the last allowed round), so every message
+        is expected to carry ``message.tool_calls``. The message's free-text
+        ``content`` (which may be empty) is captured as the round's
+        ``rationale``.
+
+        Action-tool exclusivity is enforced:
+
+        - If any of ``emit_final_answer`` / ``ask_frontend`` / ``give_up``
+          appears in the list, that one action wins. Other tool calls in the
+          same round are discarded with a warning log.
+        - Otherwise, every tool call must name a real tool from the supplied
+          ``available_tool_names`` (if provided). Unknown names are dropped
+          with a warning rather than failing the whole round.
+
+        Raises ``PlannerError`` if the message carries no usable tool call.
+        """
+        logger = get_logger()
+        rationale = (getattr(message, "content", None) or "").strip()
+
+        raw_calls = getattr(message, "tool_calls", None) or []
+        if not raw_calls:
+            raise PlannerError(
+                "Planner emitted no tool_calls. tool_choice='required' should "
+                "guarantee at least one tool call; this likely indicates an API "
+                "fallback or a model that ignored the constraint.",
+                details={"content_preview": rationale[:200] if rationale else None},
+            )
+
+        # Normalize each tool_call into (name, args_dict, raw_args_str).
+        parsed: list[tuple[str, dict[str, Any], str]] = []
+        for raw in raw_calls:
+            func = getattr(raw, "function", None) or {}
+            name = getattr(func, "name", None) if not isinstance(func, dict) else func.get("name")
+            raw_args = (
+                getattr(func, "arguments", None)
+                if not isinstance(func, dict)
+                else func.get("arguments")
+            )
+            if not name or not isinstance(name, str):
+                logger.warning("Planner emitted tool_call with no name; skipping.")
+                continue
+            args: dict[str, Any] = {}
+            if raw_args is None:
+                pass
+            elif isinstance(raw_args, dict):
+                args = raw_args
+            else:
+                try:
+                    args = json.loads(raw_args) if raw_args else {}
+                except (TypeError, ValueError) as exc:
+                    logger.warning(
+                        "Planner tool_call '%s' had malformed JSON arguments (%s); using empty args.",
+                        name,
+                        exc,
+                    )
+                    args = {}
+            parsed.append((name, args, raw_args if isinstance(raw_args, str) else ""))
+
+        if not parsed:
+            raise PlannerError(
+                "All emitted tool_calls had missing/invalid names; cannot build decision.",
+                details={"raw_count": len(raw_calls)},
+            )
+
+        # Detect exclusive action-tools first. If multiple were emitted in
+        # one round (unlikely), the first one wins; the rest are ignored.
+        action_tools = cls._exclusive_action_tool_names()
+        action_hits = [(name, args) for name, args, _ in parsed if name in action_tools]
+        if action_hits:
+            picked_name, picked_args = action_hits[0]
+            if len(parsed) > 1:
+                discarded = [n for n, _, _ in parsed if n != picked_name]
+                logger.warning(
+                    "Planner emitted action tool '%s' alongside other tool_calls %s; "
+                    "discarding the rest (exclusivity rule).",
+                    picked_name,
+                    discarded,
+                )
+            return cls._build_action_tool_decision(picked_name, picked_args, rationale)
+
+        # All real-tool calls. Validate names against the catalog (if known)
+        # and drop unknowns rather than failing the round outright.
+        kept: list[tuple[str, dict[str, Any]]] = []
+        for name, args, _ in parsed:
+            if available_tool_names is not None and name not in available_tool_names:
+                logger.warning(
+                    "Planner emitted unknown tool '%s'; not in available_tools — dropping.",
+                    name,
+                )
+                continue
+            kept.append((name, args))
+
+        if not kept:
+            raise PlannerError(
+                "After filtering, no valid tool_calls remained.",
+                details={"emitted": [n for n, _, _ in parsed]},
+            )
+
+        tool_calls = [
+            ToolCallRequest(tool_name=name, args=args, context={})
+            for name, args in kept
+        ]
+        primary_audio_id = cls._first_audio_id_from_args(kept[0][1])
+
+        return PlannerDecision(
+            action=PlannerActionType.CALL_TOOL,
+            rationale=rationale,
+            selected_tool_calls=tool_calls,
+            selected_audio_id=primary_audio_id,
+            confidence=0.8,
+        )
+
+    @classmethod
+    def _build_action_tool_decision(
+        cls,
+        name: str,
+        args: dict[str, Any],
+        rationale: str,
+    ) -> PlannerDecision:
+        """Synthesize a PlannerDecision for an exclusive action-tool call."""
+        if name == cls.ACTION_TOOL_ANSWER:
+            return PlannerDecision(
+                action=PlannerActionType.ANSWER,
+                rationale=rationale or str(args.get("rationale") or "(no rationale)"),
+                confidence=float(args.get("confidence") or 0.7),
+            )
+        if name == cls.ACTION_TOOL_GIVE_UP:
+            return PlannerDecision(
+                action=PlannerActionType.FAIL,
+                rationale=rationale or str(args.get("reason") or "(no reason given)"),
+                confidence=float(args.get("confidence") or 0.0),
+            )
+        if name == cls.ACTION_TOOL_ASK_FRONTEND:
+            audio_ids = args.get("selected_audio_ids") or []
+            if isinstance(audio_ids, str):  # tolerate the model sending a single string
+                audio_ids = [audio_ids]
+            return PlannerDecision(
+                action=PlannerActionType.CALL_FRONTEND,
+                rationale=rationale or "(no rationale)",
+                selected_audio_ids=[str(aid) for aid in audio_ids],
+                frontend_followup_prompt=str(args.get("frontend_followup_prompt") or "").strip() or None,
+                frontend_followup_goal=(
+                    str(args["frontend_followup_goal"]) if args.get("frontend_followup_goal") else None
+                ),
+                confidence=0.7,
+            )
+        raise PlannerError(
+            f"Unknown action-tool name '{name}'",
+            details={"args": args},
+        )
+
+    @staticmethod
+    def _first_audio_id_from_args(args: dict[str, Any]) -> str | None:
+        """Extract the first audio_id-looking value from a tool's args dict.
+
+        Used only to populate ``PlannerDecision.selected_audio_id`` for
+        logging / display continuity with the old singular-tool contract.
+        Returns ``None`` if nothing audio-id-shaped is found.
+        """
+        for value in args.values():
+            if isinstance(value, str) and value.startswith("audio_"):
+                return value
+        # Lists of audio_ids (e.g. some tools accept multiple inputs).
+        for value in args.values():
+            if isinstance(value, list) and value and isinstance(value[0], str) and value[0].startswith("audio_"):
+                return value[0]
+        return None
+
+    # =========================================================================
 
     def _build_tool_category_definitions(
         self,
@@ -600,12 +974,32 @@ class BaseModelPlanner(BasePlanner):
                         "raw_output": raw_output,
                     },
                 )
+
+            # Translate the legacy singular-tool fields
+            # ({"selected_tool_name", "selected_tool_args"}) into the new
+            # ``selected_tool_calls`` list. This keeps backends that still
+            # emit a JSON PlannerDecision (dummy / gemini / mimo / qwen25)
+            # compatible after the schema migration without rewriting them.
+            translated_output = dict(raw_output)
+            legacy_name = translated_output.pop("selected_tool_name", None)
+            legacy_args = translated_output.pop("selected_tool_args", None)
+            if legacy_name:
+                translated_output["selected_tool_calls"] = [
+                    ToolCallRequest(
+                        tool_name=legacy_name,
+                        args=legacy_args if isinstance(legacy_args, dict) else {},
+                        context={},
+                    )
+                ]
+            elif legacy_args is not None:
+                # Args without a name — drop the orphan.
+                pass
+
             # Sanitize: remove None values for fields that have defaults
-            # This allows Pydantic to use the default values instead of failing validation
+            # so Pydantic uses defaults instead of failing validation.
             fields_with_defaults = {
                 "confidence",
-                "selected_tool_args",
-                "selected_tool_name",
+                "selected_tool_calls",
                 "selected_audio_id",
                 "selected_audio_ids",
                 "frontend_followup_prompt",
@@ -613,7 +1007,7 @@ class BaseModelPlanner(BasePlanner):
                 "draft_answer",
             }
             sanitized_output = {
-                k: v for k, v in raw_output.items() 
+                k: v for k, v in translated_output.items()
                 if v is not None or k not in fields_with_defaults
             }
             try:
@@ -726,11 +1120,32 @@ class BaseModelPlanner(BasePlanner):
         state: AgentState,
         available_tools: list[ToolSpec],
     ) -> PlannerDecision:
-        """Action decision phase using state + available tools."""
+        """Action decision phase using state + available tools.
+
+        When the backend supports native function calling
+        (:meth:`supports_native_tools` returns ``True``), the planner
+        emits structured ``tool_calls`` directly:
+
+        - Real tool names from ``available_tools`` map to
+          ``PlannerDecision(action=CALL_TOOL, selected_tool_calls=[...])``.
+        - Synthetic action-tools (``emit_final_answer`` / ``ask_frontend``
+          / ``give_up``) map to ANSWER / CALL_FRONTEND / FAIL.
+
+        On the final allowed round (``step_count >= max_steps - 1``),
+        ``tool_choice`` is set to force ``emit_final_answer``, replacing the
+        old "synthesize ANSWER inside the node" hack.
+
+        Backends without native function calling fall back to the legacy
+        JSON-text path via :meth:`normalize_decision_output`.
+        """
         self.validate_state(state)
         model_input = self.build_decision_model_input(state, available_tools)
 
-        def _call():
+        if self.supports_native_tools():
+            return self._decide_with_native_tools(model_input, state, available_tools)
+
+        # Legacy JSON-text path (for backends without function-calling support).
+        def _legacy_call():
             try:
                 raw_output = self.call_model(model_input)
             except PlannerError:
@@ -742,7 +1157,47 @@ class BaseModelPlanner(BasePlanner):
                 ) from e
             return self.normalize_decision_output(raw_output)
 
-        return self._call_with_retries(_call, "decide()")
+        return self._call_with_retries(_legacy_call, "decide()")
+
+    def _decide_with_native_tools(
+        self,
+        model_input: "UnifiedPlannerInput",
+        state: AgentState,
+        available_tools: list[ToolSpec],
+    ) -> PlannerDecision:
+        """Decide via the native ``tools=`` API path."""
+        tools = self._to_openai_tools(available_tools)
+        available_tool_names = {spec.name for spec in available_tools} | self._exclusive_action_tool_names()
+
+        step_count = int(state.get("step_count", 0) or 0)
+        max_steps = int(state.get("max_steps", 10) or 10)
+        is_final_step = step_count >= max_steps - 1
+        if is_final_step:
+            tool_choice: Any = {
+                "type": "function",
+                "function": {"name": self.ACTION_TOOL_ANSWER},
+            }
+        else:
+            tool_choice = "required"
+
+        def _call():
+            try:
+                message = self.call_model_with_tools(
+                    model_input,
+                    tools=tools,
+                    tool_choice=tool_choice,
+                    parallel_tool_calls=True,
+                )
+            except PlannerError:
+                raise
+            except Exception as e:
+                raise PlannerError(
+                    f"Planner native-tools call failed during decision phase: {type(e).__name__}: {e}",
+                    details={"planner": self.name, "tool_choice": tool_choice},
+                ) from e
+            return self._parse_tool_calls_to_decision(message, available_tool_names)
+
+        return self._call_with_retries(_call, "decide() [native tools]")
 
     # =============================================================================
     # Format Check Methods

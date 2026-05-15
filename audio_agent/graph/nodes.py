@@ -17,6 +17,7 @@ from audio_agent.core.schemas import (
     PlannerActionType,
     ToolCallRequest,
     ToolCallRecord,
+    ToolResult,
     FinalAnswer,
     AudioItem,
     AudioOutput,
@@ -406,7 +407,18 @@ def create_planner_decision_node(
     def planner_decision_node(state: AgentState) -> dict:
         """
         Make an action decision based on current state.
-        On final step, generates final answer instead of making decision.
+
+        Termination strategy depends on the planner backend:
+
+        - **Native function calling** (OpenAI-compatible planners): the
+          planner forces ``emit_final_answer`` on the last allowed round
+          via ``tool_choice``, so this node does not need a fallback.
+        - **Legacy JSON-text backends** (dummy planner, custom planners
+          that don't implement ``call_model_with_tools``): we keep the
+          original synthesis hack — if ``step_count >= max_steps - 1``,
+          synthesize an ANSWER decision and skip the planner LLM call.
+          This guarantees termination for backends without per-call
+          ``tool_choice`` control.
 
         Validates:
         - question exists
@@ -421,32 +433,33 @@ def create_planner_decision_node(
         max_steps = state.get("max_steps", 10)
         is_final_step = step_count >= max_steps - 1
 
-        # Final step: force ANSWER decision so the frontend generates the final answer
-        if is_final_step:
+        # Synthesis fallback for backends without native function calling:
+        # force ANSWER on the final round to guarantee termination.
+        if is_final_step and not planner.supports_native_tools():
             log_node_start(
                 "planner_decision_node",
-                {
-                    "step_count": step_count,
-                    "mode": "final_answer",
-                },
+                {"step_count": step_count, "mode": "final_answer_fallback"},
             )
-
             decision = PlannerDecision(
                 action=PlannerActionType.ANSWER,
-                rationale=f"Maximum steps ({max_steps}) reached. Delegating final answer generation to the frontend model.",
+                rationale=(
+                    f"Maximum steps ({max_steps}) reached. Delegating final "
+                    "answer generation to the frontend model. (Synthesised "
+                    "fallback for non-native-tools planner.)"
+                ),
                 draft_answer=None,
                 confidence=0.7,
             )
-
             log_planner_decision("answer", decision.rationale, None)
-            log_node_end("planner_decision_node", {"action": "answer", "mode": "final_answer"})
-
+            log_node_end(
+                "planner_decision_node",
+                {"action": "answer", "mode": "final_answer_fallback"},
+            )
             return {
                 "current_decision": decision,
                 "planner_trace": [decision],
             }
 
-        # Normal decision flow
         log_node_start(
             "planner_decision_node",
             {
@@ -483,13 +496,25 @@ def create_planner_decision_node(
         if decision is None:
             raise PlannerError("Planner returned None", details={"planner": planner.name})
 
+        # Summarize the round's tool emission for the structured log.
+        tool_call_summary = (
+            ", ".join(tc.tool_name for tc in decision.selected_tool_calls)
+            if decision.selected_tool_calls
+            else None
+        )
         log_planner_decision(
             decision.action.value,
             decision.rationale,
-            decision.selected_tool_name,
+            tool_call_summary,
         )
 
-        log_node_end("planner_decision_node", {"action": decision.action.value})
+        log_node_end(
+            "planner_decision_node",
+            {
+                "action": decision.action.value,
+                "tool_calls": tool_call_summary,
+            },
+        )
 
         return {
             "current_decision": decision,
@@ -512,17 +537,33 @@ def create_tool_executor_node(executor: ToolExecutor):
 
     async def tool_executor_node(state: AgentState) -> dict:
         """
-        Execute the tool specified in current_decision.
+        Execute all tool calls emitted by the planner for this round.
+
+        With native function calling enabled, a single planner round can
+        emit multiple parallel tool calls (``decision.selected_tool_calls``
+        is a list). This node iterates the list sequentially, executing
+        each call and accumulating:
+
+        - One ``ToolCallRecord`` per call (appended to ``tool_call_history``).
+        - One ``ToolResult`` per call (kept in ``latest_tool_results`` so the
+          downstream ``evidence_fusion_node`` can fuse all of them).
+        - Zero or one new ``AudioItem`` per audio-producing tool, appended
+          to the running ``audio_list`` so a later call in the **same round**
+          could reference it (though the planner is instructed not to do this).
+
+        Within-round dependency errors (a tool referencing an audio_id
+        that is not yet visible) fail that single call cleanly with an
+        error ``ToolResult``, log a warning, and the loop continues. The
+        planner sees the error in the next round's evidence and self-corrects.
 
         Validates:
-        - current_decision exists and is CALL_TOOL
-        - selected_tool_name is present
-        - selected_audio_id is present and valid
+        - ``current_decision`` exists and is CALL_TOOL
+        - ``selected_tool_calls`` is non-empty
 
         Updates:
-        - latest_tool_result
-        - tool_call_history (appends record)
-        - audio_list (if tool generates new audio)
+        - ``latest_tool_results`` (list)
+        - ``tool_call_history`` (appends N records, one per executed call)
+        - ``audio_list`` (extended with any new audio produced this round)
         """
         log_node_start("tool_executor_node")
 
@@ -533,7 +574,7 @@ def create_tool_executor_node(executor: ToolExecutor):
         )
 
         decision: PlannerDecision = state["current_decision"]
-        audio_list: list[AudioItem] = state["audio_list"]
+        starting_audio_list: list[AudioItem] = list(state["audio_list"])
 
         if decision.action != PlannerActionType.CALL_TOOL:
             raise StateValidationError(
@@ -541,220 +582,299 @@ def create_tool_executor_node(executor: ToolExecutor):
                 details={"action": decision.action.value},
             )
 
-        if not decision.selected_tool_name:
+        if not decision.selected_tool_calls:
             raise StateValidationError(
-                "CALL_TOOL decision has no selected_tool_name",
+                "CALL_TOOL decision has no selected_tool_calls",
                 details={"decision": decision.model_dump()},
             )
 
-        if not decision.selected_audio_id:
-            raise StateValidationError(
-                "CALL_TOOL decision has no selected_audio_id",
-                details={"decision": decision.model_dump()},
-            )
-
-        # Find the selected audio in the list
-        selected_audio = next(
-            (a for a in audio_list if a.audio_id == decision.selected_audio_id), None
-        )
-        if selected_audio is None:
-            raise StateValidationError(
-                f"Audio '{decision.selected_audio_id}' not found in audio_list",
-                details={
-                    "selected_audio_id": decision.selected_audio_id,
-                    "available_ids": [a.audio_id for a in audio_list],
-                },
-            )
-
-        # Build request with audio paths resolved from audio IDs
-        args = decision.selected_tool_args or {}
         temp_dir = state.get("temp_dir", "")
+        step_count = state.get("step_count", 0)
 
-        def resolve_audio_id(audio_id: str) -> str:
-            """
-            Resolve an audio_id to the actual file path.
+        # Running audio_list grows as audio-producing tools complete within
+        # this round; later tools in the same round see the new audio_ids
+        # appended here. This is intentionally extensible despite the design
+        # rule that the planner should not emit within-round dependencies —
+        # if it does anyway, the resolver succeeds rather than failing.
+        running_audio_list: list[AudioItem] = list(starting_audio_list)
+        accumulated_records: list[ToolCallRecord] = []
+        accumulated_results: list[ToolResult] = []
+        per_call_summaries: list[dict[str, Any]] = []
 
-            First tries to find in audio_list, then falls back to glob in temp_dir
-            for files matching audio_id.* pattern.
-            """
-            # First, check if it's in the audio_list
-            audio_item = next((a for a in audio_list if a.audio_id == audio_id), None)
-            if audio_item:
-                return audio_item.path
-
-            # If not in audio_list and temp_dir is available, glob for the file
-            if temp_dir and os.path.isdir(temp_dir):
-                # Look for files matching audio_id.* (e.g., audio_0.wav, audio_0.mp3)
-                pattern = os.path.join(temp_dir, f"{audio_id}.*")
-                matches = glob.glob(pattern)
-                if matches:
-                    # Return the first match (should be the only one)
-                    return matches[0]
-
-            # If still not found, raise error
-            raise StateValidationError(
-                f"Audio ID '{audio_id}' not found in audio_list or temp_dir",
-                details={
-                    "audio_id": audio_id,
-                    "available_ids": [a.audio_id for a in audio_list],
-                    "temp_dir": temp_dir,
-                },
-            )
-
-        # Track if we auto-generated output_path so we can add to audio_list later
-        auto_generated_output = False
-        new_audio_id = None
-        new_output_path = None
-
-        # Get tool spec to check input schema for audio parameters
-        try:
-            tool = executor._registry.get(decision.selected_tool_name)
-            input_schema = tool.spec.input_schema
-            properties = input_schema.get("properties", {})
-
-            # Find all audio-related parameters in the schema
-            audio_params = []
-            for param_name, param_spec in properties.items():
-                param_desc = param_spec.get("description", "").lower()
-                if "audio" in param_name or "audio" in param_desc or "path" in param_name:
-                    audio_params.append(param_name)
-
-            # Resolve audio IDs to paths for all audio parameters
-            resolved_args = {}
-            for param_name in audio_params:
-                param_value = args.get(param_name)
-                if param_value:
-                    # Check if value is an audio_id that needs resolution
-                    if isinstance(param_value, str) and param_value.startswith("audio_"):
-                        # Resolve audio_id to actual file path (with extension discovery)
-                        resolved_path = resolve_audio_id(param_value)
-                        resolved_args[param_name] = resolved_path
-                    else:
-                        # Value is already a path or not an audio_id
-                        resolved_args[param_name] = param_value
-
-            # Merge resolved args with original args
-            args = {**args, **resolved_args}
-
-            # For backward compatibility: if tool has audio_path but planner didn't provide it,
-            # inject the selected audio's path
-            if "audio_path" in audio_params and "audio_path" not in args:
-                args["audio_path"] = selected_audio.path
-
-            # Auto-generate output_path for tools that produce audio output
-            # Check if tool has output_path parameter and it's not provided
-            if "output_path" in audio_params and "output_path" not in args:
-                if temp_dir and os.path.isdir(temp_dir):
-                    # Generate next audio_id based on current audio_list length
-                    new_audio_id = f"audio_{len(audio_list)}"
-                    new_output_path = os.path.join(temp_dir, f"{new_audio_id}.wav")
-                    args["output_path"] = new_output_path
-                    auto_generated_output = True
-                    log_info(
-                        "auto_generated_output_path",
-                        {
-                            "audio_id": new_audio_id,
-                            "path": new_output_path,
-                            "tool": decision.selected_tool_name,
-                        },
+        for call_index, tool_call in enumerate(decision.selected_tool_calls):
+            tool_name = tool_call.tool_name
+            try:
+                request, auto_gen_id, auto_gen_path = _prepare_tool_request(
+                    executor=executor,
+                    tool_name=tool_name,
+                    raw_args=tool_call.args or {},
+                    audio_list=running_audio_list,
+                    temp_dir=temp_dir,
+                    state_question=state.get("question", ""),
+                    step_count=step_count,
+                )
+            except StateValidationError as prep_error:
+                # The most common reason for this is a within-round audio_id
+                # dependency: the planner referenced an audio_id that doesn't
+                # exist yet because the producer is later in this same round.
+                # Surface it as a failing ToolResult and continue.
+                error_msg = f"Argument resolution failed for '{tool_name}': {prep_error}"
+                log_error("tool_executor_node", prep_error)
+                failed_result = ToolResult(
+                    tool_name=tool_name,
+                    success=False,
+                    output={},
+                    error_message=error_msg,
+                )
+                failed_request = ToolCallRequest(
+                    tool_name=tool_name,
+                    args=tool_call.args or {},
+                    context={
+                        "question": state.get("question", ""),
+                        "step_count": step_count,
+                        "call_index": call_index,
+                        "resolution_error": str(prep_error),
+                    },
+                )
+                accumulated_records.append(
+                    ToolCallRecord(
+                        request=failed_request,
+                        result=failed_result,
+                        step_number=step_count,
                     )
+                )
+                accumulated_results.append(failed_result)
+                per_call_summaries.append(
+                    {
+                        "tool": tool_name,
+                        "success": False,
+                        "error": "argument_resolution_failed",
+                    }
+                )
+                continue
 
-        except Exception as e:
-            if isinstance(e, StateValidationError):
+            try:
+                result = await executor.execute(request)
+            except ToolExecutionError:
                 raise
-            # If we can't get tool spec, fall back to original behavior
-            args = {**args, "audio_path": selected_audio.path}
+            except Exception as e:
+                log_error("tool_executor_node", e)
+                raise ToolExecutionError(
+                    f"Tool execution failed: {e}",
+                    details={"tool_name": tool_name},
+                ) from e
 
-        request = ToolCallRequest(
-            tool_name=decision.selected_tool_name,
-            args=args,
-            context={
-                "question": state.get("question", ""),
-                "step_count": state.get("step_count", 0),
-                "selected_audio_id": decision.selected_audio_id,
-                "selected_audio_description": selected_audio.description,
-            },
-        )
+            accumulated_records.append(
+                ToolCallRecord(
+                    request=request,
+                    result=result,
+                    step_number=step_count,
+                )
+            )
+            accumulated_results.append(result)
 
-        # Execute (async)
-        try:
-            result = await executor.execute(request)
-        except ToolExecutionError:
-            raise
-        except Exception as e:
-            log_error("tool_executor_node", e)
-            raise ToolExecutionError(
-                f"Tool execution failed: {e}", details={"tool_name": decision.selected_tool_name}
-            ) from e
+            # Register any newly-produced audio so the next call in this
+            # round (if any) and the next round can see it.
+            generated_path = result.output.get("generated_audio_path") if isinstance(result.output, dict) else None
+            if generated_path or auto_gen_id:
+                if auto_gen_id and auto_gen_path:
+                    actual_new_id = auto_gen_id
+                    actual_path = generated_path or auto_gen_path
+                else:
+                    actual_new_id = f"audio_{len(running_audio_list)}"
+                    actual_path = generated_path
 
-        # Create history record
-        record = ToolCallRecord(
-            request=request,
-            result=result,
-            step_number=state.get("step_count", 0),
-        )
+                # Defensive: if the tool returned a relative path (some
+                # tools echo back exactly what the planner gave them),
+                # promote it to absolute under temp_dir so audio_id lookups
+                # in future rounds get a path the dispatch layer can open.
+                if (
+                    actual_path
+                    and isinstance(actual_path, str)
+                    and not os.path.isabs(actual_path)
+                    and temp_dir
+                ):
+                    actual_path = os.path.join(temp_dir, actual_path)
 
-        # Prepare return updates
-        updates: dict = {
-            "latest_tool_result": result,
-            "tool_call_history": [record],
-        }
-
-        # If tool generates new audio, add it to audio_list
-        # Use auto-generated info if we created the output_path, otherwise use result
-        generated_path = result.output.get("generated_audio_path")
-        if generated_path or auto_generated_output:
-            # If we auto-generated the output path but tool didn't return it in result,
-            # use our tracked new_audio_id and new_output_path
-            if auto_generated_output and new_audio_id and new_output_path:
-                actual_new_id = new_audio_id
-                actual_path = generated_path or new_output_path
+                tool_description = (
+                    result.output.get("audio_description")
+                    if isinstance(result.output, dict)
+                    else None
+                )
+                if tool_description:
+                    description = tool_description
+                else:
+                    description = _build_audio_description(
+                        tool_name,
+                        request.args,
+                        request.context.get("selected_audio_id") if isinstance(request.context, dict) else None,
+                    )
+                running_audio_list.append(
+                    AudioItem(
+                        audio_id=actual_new_id,
+                        path=actual_path,
+                        source=tool_name,
+                        description=description,
+                        metadata=result.output.get("audio_metadata", {}) if isinstance(result.output, dict) else {},
+                    )
+                )
+                per_call_summaries.append(
+                    {
+                        "tool": tool_name,
+                        "success": result.success,
+                        "new_audio_id": actual_new_id,
+                    }
+                )
             else:
-                # Tool returned the path, generate new id
-                actual_new_id = f"audio_{len(audio_list)}"
-                actual_path = generated_path
-
-            # Build a descriptive description based on tool and arguments
-            # Use tool's provided description if available, otherwise construct one
-            tool_description = result.output.get("audio_description")
-            if tool_description:
-                description = tool_description
-            else:
-                # Construct description from tool name and key arguments
-                description = _build_audio_description(
-                    decision.selected_tool_name,
-                    args,
-                    decision.selected_audio_id,
+                per_call_summaries.append(
+                    {
+                        "tool": tool_name,
+                        "success": result.success,
+                    }
                 )
 
-            new_audio = AudioItem(
-                audio_id=actual_new_id,
-                path=actual_path,
-                source=decision.selected_tool_name,
-                description=description,
-                metadata=result.output.get("audio_metadata", {}),
-            )
-            updates["audio_list"] = audio_list + [new_audio]
-            log_node_end(
-                "tool_executor_node",
-                {
-                    "tool": decision.selected_tool_name,
-                    "success": result.success,
-                    "new_audio_id": actual_new_id,
-                },
-            )
-        else:
-            log_node_end(
-                "tool_executor_node",
-                {
-                    "tool": decision.selected_tool_name,
-                    "success": result.success,
-                },
-            )
+        updates: dict = {
+            "latest_tool_results": accumulated_results,
+            "tool_call_history": accumulated_records,
+        }
+        if len(running_audio_list) != len(starting_audio_list):
+            updates["audio_list"] = running_audio_list
+
+        log_node_end(
+            "tool_executor_node",
+            {
+                "call_count": len(decision.selected_tool_calls),
+                "calls": per_call_summaries,
+            },
+        )
 
         return updates
 
     return tool_executor_node
+
+
+def _prepare_tool_request(
+    executor: ToolExecutor,
+    tool_name: str,
+    raw_args: dict,
+    audio_list: list[AudioItem],
+    temp_dir: str,
+    state_question: str,
+    step_count: int,
+) -> tuple[ToolCallRequest, str | None, str | None]:
+    """Resolve audio_ids → paths and auto-fill output_path for one tool call.
+
+    Returns ``(request, auto_generated_audio_id, auto_generated_output_path)``.
+    When the tool produces audio but the planner didn't specify
+    ``output_path``, we auto-generate one under ``temp_dir`` using the next
+    audio_id (``audio_{len(audio_list)}``); the caller registers the new
+    ``AudioItem`` only if execution succeeds.
+
+    Raises ``StateValidationError`` when an audio_id referenced in args is
+    not yet visible in ``audio_list`` (typically a within-round dependency
+    the planner shouldn't have emitted).
+    """
+    args = dict(raw_args)
+
+    def resolve_audio_id(audio_id: str) -> str:
+        item = next((a for a in audio_list if a.audio_id == audio_id), None)
+        if item:
+            return item.path
+        if temp_dir and os.path.isdir(temp_dir):
+            matches = glob.glob(os.path.join(temp_dir, f"{audio_id}.*"))
+            if matches:
+                return matches[0]
+        raise StateValidationError(
+            f"Audio ID '{audio_id}' not found in audio_list or temp_dir",
+            details={
+                "audio_id": audio_id,
+                "available_ids": [a.audio_id for a in audio_list],
+                "temp_dir": temp_dir,
+            },
+        )
+
+    auto_generated_id: str | None = None
+    auto_generated_path: str | None = None
+    primary_audio_id: str | None = None
+    primary_audio_description: str | None = None
+
+    try:
+        tool = executor._registry.get(tool_name)
+        input_schema = tool.spec.input_schema or {}
+        properties = input_schema.get("properties", {})
+
+        audio_params: list[str] = []
+        for param_name, param_spec in properties.items():
+            param_desc = param_spec.get("description", "").lower() if isinstance(param_spec, dict) else ""
+            if "audio" in param_name or "audio" in param_desc or "path" in param_name:
+                audio_params.append(param_name)
+
+        resolved_args: dict[str, Any] = {}
+        for param_name in audio_params:
+            param_value = args.get(param_name)
+            if param_value:
+                if isinstance(param_value, str) and param_value.startswith("audio_"):
+                    resolved_path = resolve_audio_id(param_value)
+                    resolved_args[param_name] = resolved_path
+                    if primary_audio_id is None and param_name in ("audio_path", "input_audio", "enrollment_audio"):
+                        primary_audio_id = param_value
+                        primary_audio_description = next(
+                            (a.description for a in audio_list if a.audio_id == param_value),
+                            None,
+                        )
+                else:
+                    resolved_args[param_name] = param_value
+
+        args = {**args, **resolved_args}
+
+        # Auto-generate output_path for audio-producing tools when omitted.
+        if "output_path" in audio_params and "output_path" not in args:
+            if temp_dir and os.path.isdir(temp_dir):
+                auto_generated_id = f"audio_{len(audio_list)}"
+                auto_generated_path = os.path.join(temp_dir, f"{auto_generated_id}.wav")
+                args["output_path"] = auto_generated_path
+                log_info(
+                    "auto_generated_output_path",
+                    {
+                        "audio_id": auto_generated_id,
+                        "path": auto_generated_path,
+                        "tool": tool_name,
+                    },
+                )
+        elif "output_path" in args and isinstance(args["output_path"], str):
+            # The system-prompt rule promises that a bare-filename
+            # output_path will be placed under temp_dir. Honor it: if the
+            # planner gave us a relative filename, resolve it against
+            # temp_dir so the audio_list registers an absolute path.
+            user_output_path = args["output_path"]
+            if not os.path.isabs(user_output_path) and temp_dir:
+                args["output_path"] = os.path.join(temp_dir, user_output_path)
+                log_info(
+                    "resolved_relative_output_path",
+                    {
+                        "original": user_output_path,
+                        "resolved": args["output_path"],
+                        "tool": tool_name,
+                    },
+                )
+    except StateValidationError:
+        raise
+    except Exception:
+        # Tool not in registry / schema introspection failed.
+        # Fall through with raw args; the executor will surface a clean error.
+        pass
+
+    request = ToolCallRequest(
+        tool_name=tool_name,
+        args=args,
+        context={
+            "question": state_question,
+            "step_count": step_count,
+            "selected_audio_id": primary_audio_id,
+            "selected_audio_description": primary_audio_description,
+        },
+    )
+    return request, auto_generated_id, auto_generated_path
 
 
 def create_evidence_fusion_node(fuser: BaseEvidenceFuser):
@@ -770,61 +890,75 @@ def create_evidence_fusion_node(fuser: BaseEvidenceFuser):
 
     def evidence_fusion_node(state: AgentState) -> dict:
         """
-        Fuse latest result into evidence items.
+        Fuse the round's results into evidence items.
 
-        Handles both tool results (latest_tool_result) and frontend follow-up
-        results (latest_frontend_followup_output). After a tool execution, the
-        fuser converts the tool result into evidence. After a frontend follow-up,
-        the evidence was already added by frontend_followup_node; we just
-        increment the step counter.
+        Handles both tool results (``latest_tool_results`` — a list, one
+        entry per tool call in the round) and frontend follow-up results
+        (``latest_frontend_followup_output``).
+
+        For the tool path, the fuser is called once per ``ToolResult``;
+        the accumulated EvidenceItems are appended to ``evidence_log``.
+        For the frontend follow-up path, evidence was already added by
+        ``frontend_followup_node``; this node just increments the step
+        counter.
+
+        ``step_count`` increments by 1 per round, regardless of how many
+        tool calls executed in that round (per the "one LLM round = one
+        step" budget convention).
 
         Validates:
-        - Either latest_tool_result or latest_frontend_followup_output is present
+        - Either ``latest_tool_results`` is non-empty OR
+          ``latest_frontend_followup_output`` is set.
 
         Updates:
-        - evidence_log (appends fused evidence for tool path)
-        - step_count (increments)
-        - latest_tool_result (clears to None)
-        - latest_frontend_followup_output (clears to None)
+        - ``evidence_log`` (appends fused evidence for the tool path)
+        - ``step_count`` (increments by 1)
+        - ``latest_tool_results`` (clears to ``[]``)
+        - ``latest_frontend_followup_output`` (clears to ``None``)
         """
         log_node_start("evidence_fusion_node")
 
-        tool_result = state.get("latest_tool_result")
+        tool_results = state.get("latest_tool_results") or []
         followup_output = state.get("latest_frontend_followup_output")
 
-        if tool_result is None and followup_output is None:
+        if not tool_results and followup_output is None:
             raise StateValidationError(
-                "evidence_fusion_node requires either latest_tool_result or latest_frontend_followup_output",
+                "evidence_fusion_node requires either latest_tool_results or latest_frontend_followup_output",
                 details={"context": "evidence_fusion_node"},
             )
 
         current_step = state.get("step_count", 0)
         updates: dict = {
             "step_count": current_step + 1,
-            "latest_tool_result": None,
+            "latest_tool_results": [],
             "latest_frontend_followup_output": None,
         }
 
-        if tool_result is not None:
-            # Tool path: use fuser to convert tool result to evidence
-            try:
-                evidence_items = fuser.fuse(state, tool_result)
-            except FusionError:
-                raise
-            except Exception as e:
-                log_error("evidence_fusion_node", e)
-                raise FusionError(
-                    f"Evidence fusion failed: {e}", details={"fuser": fuser.name}
-                ) from e
+        if tool_results:
+            # Tool path: fuse each result into one or more EvidenceItems.
+            fused_items: list = []
+            for tr in tool_results:
+                try:
+                    items = fuser.fuse(state, tr)
+                except FusionError:
+                    raise
+                except Exception as e:
+                    log_error("evidence_fusion_node", e)
+                    raise FusionError(
+                        f"Evidence fusion failed: {e}", details={"fuser": fuser.name}
+                    ) from e
+                if items is None:
+                    raise FusionError(
+                        "Fuser returned None", details={"fuser": fuser.name}
+                    )
+                fused_items.extend(items)
 
-            if evidence_items is None:
-                raise FusionError("Fuser returned None", details={"fuser": fuser.name})
-
-            updates["evidence_log"] = evidence_items
+            updates["evidence_log"] = fused_items
             log_node_end(
                 "evidence_fusion_node",
                 {
-                    "new_evidence_count": len(evidence_items),
+                    "new_evidence_count": len(fused_items),
+                    "tool_results_fused": len(tool_results),
                     "step_count": current_step + 1,
                 },
             )

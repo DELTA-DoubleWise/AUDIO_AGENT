@@ -1,10 +1,10 @@
 # Decision Rules
 
-Use this file for decision procedure. Use `tool_category_definitions` and `available_tools` for tool capability boundaries.
+Use this file for decision procedure. Use `tool_category_definitions` and the catalog of tools you've been given (the real audio tools plus the action tools `emit_final_answer`, `ask_frontend`, `give_up`) for tool capability boundaries.
 
 ## 1. General Decision Discipline
 
-1. **Rationale Requirement:** You MUST provide a concrete rationale for every decision. Include: (a) why you chose this action, (b) what evidence supports it, (c) for `answer`, why the frontend final-answer node can now generate a correct answer, and (d) for `call_tool` or `call_frontend`, exactly what evidence is still missing.
+1. **Rationale Requirement:** You MUST briefly state your reasoning in the message content alongside your tool call(s). Include: (a) why these calls (or this action), (b) what evidence supports the choice, (c) for `emit_final_answer`, why the frontend final-answer node can now generate a correct answer, and (d) for any real-tool call or `ask_frontend`, exactly what evidence is still missing.
 
 2. **Plan Adherence Rule:** If `initial_plan.detailed_plan` contains execution steps, use them as guidance and follow them sequentially when still appropriate. Complete the current step before proceeding to the next. Do not skip steps unless evidence shows that a step is unnecessary or already completed.
 
@@ -17,31 +17,25 @@ Use this file for decision procedure. Use `tool_category_definitions` and `avail
 
 ## 2. Choosing The Next Action
 
-4. **Answer Readiness Rule:** If the accumulated evidence is sufficient, use `action="answer"`. You do NOT need to write the final answer yourself; the frontend final-answer node will generate it using the question, original audio, frontend evidence, tool evidence, and planner trace.
+4. **Answer Readiness Rule:** If the accumulated evidence is sufficient, call `emit_final_answer`. You do NOT need to write the final answer yourself; the frontend final-answer node will generate it using the question, original audio, frontend evidence, tool evidence, and planner trace.
 
-5. **Tool Call Rule:** If a tool is needed, use `action="call_tool"` and follow this process:
+5. **Tool Call Rule:** If real tools are needed, call them directly. The process:
    - Identify the missing evidence needed to answer the question.
    - Use `tool_category_definitions` to identify the needed capability category.
-   - Select the concrete tool from `available_tools` that best matches the needed capability.
-   - Specify `selected_audio_id` from Available Audio Files to tell the tool which audio to process. DO NOT construct file paths yourself - the system will automatically resolve audio_ids to the correct file paths
-   - Example: if the original audio is listed as `audio_0`, set `"selected_audio_id": "audio_0"` and use `"audio_path": "audio_0"` in `selected_tool_args` when the tool input schema requires `audio_path`, not `"audio_path": "/some/path/audio_0.wav"`.
+   - Select the concrete tool(s) that best match the needed capability.
+   - For audio file parameters, pass the `audio_id` (e.g. `"audio_0"`) as a string — the system resolves it to the real file path. DO NOT construct file paths yourself.
    - Consider the audio description and source when choosing between original and derived audio.
 
-6. **Frontend Follow-Up Rule:** Use `action="call_frontend"` when a tool has produced a materially better audio source and the remaining uncertainty is best resolved by direct audio perception rather than metadata, measurements, segmentation, isolation, or transformation.
+6. **Frontend Follow-Up Rule:** Call `ask_frontend` when a tool has produced a materially better audio source and the remaining uncertainty is best resolved by direct audio perception rather than metadata, measurements, segmentation, isolation, or transformation.
    - Examples: isolated speaker track needs emotion analysis, trimmed segment needs chord identification, denoised clip needs background sound description.
-   - Required fields: `selected_audio_ids` as a non-empty list of valid audio_ids, and `frontend_followup_prompt` as the exact question/instruction sent to the frontend.
-   - Optional field: `frontend_followup_goal` is record-only metadata that describes the uncertainty being resolved; it is not sent to the frontend model.
+   - Required arguments: `selected_audio_ids` (non-empty list of valid audio_ids) and `frontend_followup_prompt` (the exact instruction sent to the frontend).
+   - Optional: `frontend_followup_goal` is record-only metadata describing the uncertainty being resolved; it is not sent to the frontend model.
    - The prompt should be specific and scoped to the selected audio(s). It may ask a subquestion, a verification question, or the original question on a cleaner clip.
-   - Do NOT use `call_frontend` as a fallback for weak reasoning. Use it only when transformed or selected audio genuinely changes what the frontend can perceive.
+   - Do NOT use `ask_frontend` as a fallback for weak reasoning. Use it only when transformed or selected audio genuinely changes what the frontend can perceive.
 
 ## 3. Tool Call Mechanics And Evidence Handling
 
-7. **Tool Parameter Rule:** For `action="call_tool"`:
-   - Use the EXACT parameter names from the tool's `input_schema`; names are case-sensitive and must not be abbreviated.
-   - Example: If input_schema has `{{"enrollment_audio": {{...}}, "trial_audio": {{...}}}}`, you MUST use those exact names
-   - For audio file parameters, use the audio_id directly as the value. The system will resolve it to the actual file path.
-   - Example: use `"audio_path": "audio_0"` or `"enrollment_audio": "audio_1"`, not full file paths.
-   - Do not construct file paths yourself.
+7. **Tool Parameter Rule:** When calling a tool, use the parameter names from the tool's declared schema (the native function-calling layer enforces this — emit the call in the structured tool-use format, not as a JSON string). For audio file parameters, pass the audio_id directly as the value. The system resolves it to the actual file path.
 
 8. **Threshold-Sensitive Tool Rule:** For threshold-sensitive detection, segmentation, or preprocessing tools, do not treat one negative or surprising result as decisive when the conclusion depends on that result.
    - Applies especially to silence detection/removal, non-silent segmentation, VAD/speech activity, onset detection, denoising, filtering, gating, and compression.
@@ -76,12 +70,17 @@ Use this file for decision procedure. Use `tool_category_definitions` and `avail
     - VAD: `fireredvad_predict` > `vad_predict`
     Honor an explicit user request for a specific tool even if it is not first in this priority order.
 
-## 5. Output And Efficiency Side Notes
+## 5. Action-Tool Exclusivity And Parallel-Call Dependency
 
-13. **Action Field Requirements:** `call_tool` requires `selected_tool_name` and `selected_audio_id`. `call_frontend` requires `selected_audio_ids` and `frontend_followup_prompt`. For `answer`, `call_frontend`, and `fail`, `selected_tool_args` must be `{}`.
+13. **Action-Tool Exclusivity:** When emitting `emit_final_answer`, `ask_frontend`, or `give_up`, it MUST be the only tool call in the round. These three are "actions", not investigations — you cannot say "do one more tool AND answer" in the same round. Answer/give-up after seeing the evidence in the next round; follow-up perceptions are issued alone so the planner can react to them next round.
 
-14. **No Redundant Tool Rule:** Do NOT use `action="call_tool"` if you are ready to answer. Use `action="answer"` instead.
+14. **Parallel-Call Dependency:** Multiple real-tool calls in one round must be independent of each other (no call consumes another's output in the same round). Cross-round dependencies are encouraged: emit the producer this round, the consumer next round once its new `audio_id` appears in Available Audio Files.
+   - OK (independent analyses): `[get_audio_info(audio_0), vad_predict(audio_0), analyze_onsets(audio_0)]`
+   - OK (fan-out producers): `[trim_audio(audio_0, 0, 5), trim_audio(audio_0, 5, 10), trim_audio(audio_0, 10, 15)]` — round 1 produces audio_1/2/3; round 2 can then fan in with `[recognize_chords(audio_1), recognize_chords(audio_2), recognize_chords(audio_3)]`.
+   - NOT OK (within-round dependency): `[trim_audio(audio_0, 0, 5), recognize_chords(audio_1)]` — audio_1 doesn't exist until trim completes.
 
-15. **Output Path Rule:** For tools that generate audio files (trim_audio, convert_format, etc.):
+15. **No Redundant Tool Rule:** Do NOT call real tools if you are ready to answer. Call `emit_final_answer` instead.
+
+16. **Output Path Rule:** For tools that generate audio files (trim_audio, convert_format, etc.):
    - Do NOT provide an `output_path` parameter unless you need a specific filename. The system auto-generates one in the temp directory.
    - If you do provide `output_path`, use a simple filename (e.g., `trimmed_segment.wav`) — the system will place it in the correct directory.

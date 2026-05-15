@@ -267,17 +267,21 @@ def format_planner_trace(planner_trace: list[Any]) -> str:
     for i, decision in enumerate(planner_trace, 1):
         action = getattr(decision, 'action', 'Unknown')
         rationale = getattr(decision, 'rationale', '')
-        selected_tool = getattr(decision, 'selected_tool_name', None)
+        tool_calls = getattr(decision, 'selected_tool_calls', None) or []
         draft_answer = getattr(decision, 'draft_answer', None)
         confidence = getattr(decision, 'confidence', 0.0)
-        
+
         lines.append(f"### Decision {i}: {action}")
         lines.append("")
         lines.append(f"- **Action**: {action}")
         lines.append(f"- **Confidence**: {confidence:.2f}")
-        
-        if selected_tool:
-            lines.append(f"- **Tool**: {selected_tool}")
+
+        if tool_calls:
+            tool_names = ", ".join(getattr(tc, "tool_name", "?") for tc in tool_calls)
+            lines.append(f"- **Tool(s)** ({len(tool_calls)}): {tool_names}")
+            for j, tc in enumerate(tool_calls, 1):
+                tc_args = getattr(tc, "args", {}) or {}
+                lines.append(f"  - Call {j}: `{getattr(tc, 'tool_name', '?')}({tc_args})`")
         
         lines.append("")
         lines.append("**Rationale**:")

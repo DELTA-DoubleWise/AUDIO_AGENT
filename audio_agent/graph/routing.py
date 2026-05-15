@@ -68,8 +68,8 @@ def route_after_planner_decision(state: AgentState) -> str:
         return NODE_EVIDENCE_SUMMARIZATION
     
     elif action == PlannerActionType.CALL_TOOL:
-        tool_name = decision.selected_tool_name
-        logger.info(f"ROUTING: action={action.value}, tool={tool_name} -> {NODE_TOOL_EXECUTOR}")
+        tool_names = ", ".join(tc.tool_name for tc in decision.selected_tool_calls) or "<none>"
+        logger.info(f"ROUTING: action={action.value}, tools=[{tool_names}] -> {NODE_TOOL_EXECUTOR}")
         return NODE_TOOL_EXECUTOR
     
     elif action == PlannerActionType.CALL_FRONTEND:
@@ -106,10 +106,10 @@ def route_after_tool(state: AgentState) -> str:
     """
     logger = get_logger()
     
-    # Check if tool result exists
-    if state.get("latest_tool_result") is None:
+    # Check if any tool result exists
+    if not state.get("latest_tool_results"):
         raise GraphRoutingError(
-            "Cannot route after tool: latest_tool_result is None"
+            "Cannot route after tool: latest_tool_results is empty"
         )
     
     logger.info(f"ROUTING: after tool -> {NODE_EVIDENCE_FUSION}")

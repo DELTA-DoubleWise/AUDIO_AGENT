@@ -4,6 +4,11 @@
 ## Initial Plan
 {initial_plan}
 
+## Planner Reasoning Trace
+Brief reasoning you stated alongside each prior round's tool call(s), in order:
+
+{planner_reasoning_trace}
+
 ## Loop Budget
 Step {step_count} of {max_steps}.
 
@@ -18,5 +23,5 @@ content.
 {evidence_ledger}
 
 ## Decide
-Choose your next action. Return ONLY the JSON object per the Output Contract
-in your system instructions.
+Choose your next action by calling the appropriate tool(s). State your brief
+reasoning in the message content alongside the tool call(s).

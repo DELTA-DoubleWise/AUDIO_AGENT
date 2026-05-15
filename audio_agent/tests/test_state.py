@@ -5,7 +5,7 @@ import pytest
 from audio_agent.core.state import create_initial_state, AgentState
 from audio_agent.core.constants import AgentStatus
 from audio_agent.core.errors import StateValidationError
-from audio_agent.core.schemas import AudioItem, PlannerDecision, PlannerActionType
+from audio_agent.core.schemas import AudioItem, PlannerDecision, PlannerActionType, ToolCallRequest
 from audio_agent.utils.validation import validate_state_has_fields, validate_non_empty_string
 
 
@@ -280,7 +280,11 @@ class TestPlannerDecisionValidation:
         decision = PlannerDecision(
             action=PlannerActionType.CALL_TOOL,
             rationale="Call tool",
-            selected_tool_name="dummy_asr",
+            selected_tool_calls=[
+
+                ToolCallRequest(tool_name="dummy_asr", args={}, context={}),
+
+            ],
             selected_audio_id="audio_0",
             frontend_followup_prompt="What emotion?",  # Mixed field
             confidence=0.8,

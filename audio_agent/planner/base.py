@@ -32,6 +32,18 @@ class BasePlanner(ABC):
         """Return the name of this planner for logging and identification."""
         raise NotImplementedError
 
+    def supports_native_tools(self) -> bool:
+        """Whether this planner uses the native ``tools=`` API path.
+
+        Subclasses that override ``decide`` to emit / parse structured
+        ``tool_calls`` (via the OpenAI-compatible function-calling
+        interface) should return ``True``. The graph uses this flag to
+        decide whether to apply a synthesis fallback on the final allowed
+        round (legacy backends without per-call ``tool_choice`` control
+        rely on the synthesis to guarantee termination).
+        """
+        return False
+
     @abstractmethod
     def plan(self, question: str, frontend_output: FrontendOutput | None = None) -> InitialPlan:
         """

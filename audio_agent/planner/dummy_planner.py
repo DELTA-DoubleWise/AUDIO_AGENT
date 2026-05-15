@@ -9,6 +9,7 @@ from audio_agent.core.schemas import (
     InitialPlan,
     PlannerDecision,
     PlannerActionType,
+    ToolCallRequest,
     ToolSpec,
     FormatCheckResult,
 )
@@ -151,8 +152,9 @@ class DummyPlanner(BasePlanner):
                     "Initial plan indicates transcription-first strategy; "
                     "call ASR to gather direct textual evidence."
                 ),
-                selected_tool_name=target_tool,
-                selected_tool_args={},
+                selected_tool_calls=[
+                    ToolCallRequest(tool_name=target_tool, args={}, context={}),
+                ],
                 selected_audio_id=selected_audio_id,
                 confidence=0.8,
             )
