@@ -20,7 +20,32 @@ structured tool calls, NOT by writing JSON in plain text.
 
 ## How To Decide
 
-Each round, emit exactly one of these patterns:
+**Every round you MUST emit BOTH a non-empty message `content` field AND
+your tool call(s). The `content` field is REQUIRED, not optional.**
+Leaving it empty breaks the reasoning thread — the next round's Planner
+Reasoning Trace will show "(no reasoning)" for this round, and you (the
+same planner on the next round) will not be able to recall why you took
+this action.
+
+The `content` must be 1–2 sentences stating:
+- (a) why these calls right now,
+- (b) what evidence / uncertainty they resolve (or for `emit_final_answer`,
+  why the existing evidence is already enough),
+- (c) for `give_up`, why the task cannot be completed.
+
+Example `content` for a real-tool round:
+> "Frontend reports a minor key with confidence 0.85 but the question
+> needs the exact tonic and mode; running detect_key on audio_0 in
+> parallel with analyze_pitch to resolve both."
+
+Example `content` for an `emit_final_answer` round:
+> "detect_key returned G major (conf 0.55) and analyze_pitch returned
+> mean 120 Hz, range 65–372 Hz. Evidence is complete for all three
+> sub-questions; the frontend final-answer node can now generate the
+> answer."
+
+Then, alongside that `content`, emit exactly one of these tool-call
+patterns:
 
 - **One action tool** (`emit_final_answer`, `ask_frontend`, or `give_up`).
   These MUST be the only tool call in the round — never combined with
@@ -30,11 +55,6 @@ Each round, emit exactly one of these patterns:
   output. Cross-round dependencies are fine and expected: emit the
   producer this round, the consumer next round once its `audio_id`
   appears in Available Audio Files.
-
-When emitting tool calls, briefly state your reasoning in the message
-content (1–2 sentences) explaining what uncertainty these calls resolve.
-This reasoning is preserved across rounds in your Planner Reasoning Trace
-so future rounds can see how your plan has evolved.
 
 Examples:
 - OK parallel: `[get_audio_info(audio_0), vad_predict(audio_0), analyze_onsets(audio_0)]` — three independent analyses of the same input.

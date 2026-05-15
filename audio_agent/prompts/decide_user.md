@@ -23,5 +23,11 @@ content.
 {evidence_ledger}
 
 ## Decide
-Choose your next action by calling the appropriate tool(s). State your brief
-reasoning in the message content alongside the tool call(s).
+Emit BOTH of the following in this response — both are required:
+
+1. **Message `content`** — 1–2 sentences of reasoning (why these call(s),
+   what evidence is still missing or already sufficient). An empty
+   `content` is a protocol violation; it makes your own Planner Reasoning
+   Trace show "(no reasoning)" on the next round.
+2. **Tool call(s)** for your chosen next action, following the rules
+   above.

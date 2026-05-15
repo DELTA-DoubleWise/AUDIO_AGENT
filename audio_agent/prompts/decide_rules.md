@@ -4,7 +4,7 @@ Use this file for decision procedure. Use `tool_category_definitions` and the ca
 
 ## 1. General Decision Discipline
 
-1. **Rationale Requirement:** You MUST briefly state your reasoning in the message content alongside your tool call(s). Include: (a) why these calls (or this action), (b) what evidence supports the choice, (c) for `emit_final_answer`, why the frontend final-answer node can now generate a correct answer, and (d) for any real-tool call or `ask_frontend`, exactly what evidence is still missing.
+1. **Rationale Requirement (HARD REQUIREMENT, every round):** Your response on every round MUST contain BOTH a non-empty message `content` field AND the tool call(s). The `content` is NOT optional — an empty `content` is a protocol violation. Write 1–2 sentences in `content` covering: (a) why these calls (or this action) right now, (b) what evidence supports the choice, (c) for `emit_final_answer`, why the frontend final-answer node can now generate a correct answer, and (d) for any real-tool call or `ask_frontend`, exactly what evidence is still missing. This `content` is captured into your Planner Reasoning Trace and shown back to you on later rounds — without it, you lose your own chain of thought across rounds.
 
 2. **Plan Adherence Rule:** If `initial_plan.detailed_plan` contains execution steps, use them as guidance and follow them sequentially when still appropriate. Complete the current step before proceeding to the next. Do not skip steps unless evidence shows that a step is unnecessary or already completed.
 
