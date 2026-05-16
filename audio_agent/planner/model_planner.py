@@ -122,19 +122,35 @@ class BaseModelPlanner(BasePlanner):
         return False
 
     def build_initial_prompt_system_prompt(self) -> str:
-        """Build system prompt for question-oriented prompt generation."""
-        return load_prompt("initial_prompt_system")
+        """Build system prompt for the question-oriented-prompt generation
+        phase.
 
-    def build_initial_prompt_user_instruction(self, question: str) -> str:
-        """Build user instruction for question-oriented prompt generation."""
+        Renders ``prompts/initial_prompt_system.md`` with the static
+        Task-Oriented Caption Skills Reference (from
+        ``prompts/task_oriented_caption_skill.md``) inlined into the
+        ``{caption_skills_reference}`` placeholder. Both pieces are
+        iteration-invariant for a given install, so they live together
+        in the system slot — mirroring how ``decide_system.md`` and
+        ``plan_system.md`` carry their static references.
+        """
         try:
             caption_skills = load_prompt("task_oriented_caption_skill")
         except Exception:
-            caption_skills = "No caption skills reference available."
-        return load_prompt("initial_prompt_user").format(
-            question=question,
+            caption_skills = "(no caption skills reference available)"
+        return load_prompt("initial_prompt_system").format(
             caption_skills_reference=caption_skills,
         )
+
+    def build_initial_prompt_user_instruction(self, question: str) -> str:
+        """Build user instruction for the question-oriented-prompt
+        generation phase.
+
+        Renders ``prompts/initial_prompt_user.md`` with iteration-volatile
+        state only: the user question. Static material (the role,
+        formatting rules, and the caption-skills reference) lives in
+        the system prompt.
+        """
+        return load_prompt("initial_prompt_user").format(question=question)
 
     def build_api_model_input_for_initial_prompt(self, question: str) -> UnifiedPlannerInput:
         """Build API-style planner input for question-oriented prompt generation."""

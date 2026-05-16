@@ -1,5 +1,3 @@
-# Task-Oriented Caption Skill Reference
-
 - Version: 0.2
 - Design: compact_attention_steering
 
