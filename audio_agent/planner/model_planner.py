@@ -1380,12 +1380,18 @@ class BaseModelPlanner(BasePlanner):
         return load_prompt("evidence_summary_system")
 
     def build_evidence_summary_user_instruction(self, state: AgentState) -> str:
-        """Build user instruction for evidence summarization phase."""
+        """Build user instruction for evidence summarization phase.
+
+        The frontend caption is NOT rendered as its own section here —
+        it already appears in ``evidence_log`` (as the first entry with
+        ``evidence_type="question_guided_caption"``), so a standalone
+        ``## Initial Frontend Output`` block would be a verbatim
+        duplicate.
+        """
         question = state["question"]
         evidence_log = state.get("evidence_log", [])
         planner_trace = state.get("planner_trace", [])
         tool_history = state.get("tool_call_history", [])
-        frontend_output = state.get("initial_frontend_output")
         clarified_intent = state.get("clarified_intent")
         expected_output_format = state.get("expected_output_format")
 
@@ -1404,14 +1410,8 @@ class BaseModelPlanner(BasePlanner):
             for record in tool_history
         ) if tool_history else "No tools called."
 
-        frontend_caption = (
-            frontend_output.question_guided_caption
-            if frontend_output else "No frontend output yet."
-        )
-
         return load_prompt("evidence_summary_user").format(
             question=question,
-            frontend_caption=frontend_caption,
             evidence_text=evidence_text,
             planner_trace_text=planner_trace_text,
             tool_history_text=tool_history_text,

@@ -1,8 +1,5 @@
 Question: {question}
 
-## Initial Frontend Output
-{frontend_caption}
-
 ## Evidence Log
 {evidence_text}
 
