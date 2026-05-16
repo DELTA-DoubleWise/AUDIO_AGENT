@@ -24,6 +24,13 @@ def render_skills_reference() -> str:
     Render task_skills.yaml as a markdown reference for the planner.
 
     Returns an empty string if the file is missing or YAML is unavailable.
+
+    NOTE: The output is content-only — the ``## Task Skills Reference``
+    section header is provided by the calling prompt template
+    (``plan_system.md``), so this function should not emit its own H2.
+    The lead paragraph (explaining how the planner should use these
+    skills) is still included as the first paragraph of the rendered
+    content.
     """
     data = _load_yaml_safe(TASK_SKILLS_PATH)
     if not data:
@@ -34,8 +41,6 @@ def render_skills_reference() -> str:
         return ""
 
     lines = [
-        "## Task Skills Reference",
-        "",
         "The following skills describe useful abstract tool chains and guardrails for common audio tasks. "
         "Use them as guidance when forming your approach, focus_points, possible_tool_types, and detailed_plan. "
         "You are not required to follow them rigidly. If you draw on a specific skill, mention it in `notes`.",

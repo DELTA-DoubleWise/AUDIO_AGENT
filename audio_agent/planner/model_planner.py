@@ -169,24 +169,42 @@ class BaseModelPlanner(BasePlanner):
         )
 
     def build_plan_system_prompt(self) -> str:
-        """Build system prompt for initial planning phase."""
-        return load_prompt("plan_system")
+        """Build system prompt for the initial planning phase.
 
-    def build_plan_user_instruction(self, question: str, frontend_output: FrontendOutput | None = None) -> str:
-        """Build user instruction for initial planning phase."""
+        Renders ``prompts/plan_system.md`` with the static Task Skills
+        Reference (from ``prompts/task_skills.yaml``) inlined into the
+        ``{task_skills_reference}`` placeholder. Both pieces are
+        iteration-invariant for a given install, so they live together
+        in the system slot — mirroring how ``decide_system.md`` carries
+        ``{decision_rules}`` and ``{tool_category_definitions}``.
+        """
+        skills_ref = render_skills_reference()
+        return load_prompt("plan_system").format(
+            task_skills_reference=(
+                skills_ref or "(no task skills reference configured)"
+            ),
+        )
+
+    def build_plan_user_instruction(
+        self,
+        question: str,
+        frontend_output: FrontendOutput | None = None,
+    ) -> str:
+        """Build user instruction for the initial planning phase.
+
+        Renders ``prompts/plan_user.md`` with iteration-volatile state
+        only: the user question and the frontend caption. Static
+        material (planning rules, schema, detailed-plan patterns, task
+        skills reference) lives in the system prompt.
+        """
         frontend_caption = (
             frontend_output.question_guided_caption
             if frontend_output else "No frontend caption available."
         )
-        user_text = load_prompt("plan_user").format(
+        return load_prompt("plan_user").format(
             question=question,
             frontend_caption=frontend_caption,
         )
-
-        skills_ref = render_skills_reference()
-        if skills_ref:
-            user_text = f"{user_text}\n\n{skills_ref}"
-        return user_text
 
     def build_decision_system_prompt(
         self,

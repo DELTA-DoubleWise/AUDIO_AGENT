@@ -108,14 +108,24 @@ class TestBaseModelPlanner:
         planner = EchoModelPlanner()
         model_input = planner.build_plan_model_input("What is in this audio?")
 
+        # As of the plan-prompt cleanup, the Task Skills Reference is
+        # rendered into the SYSTEM message (static content), not the
+        # user message. The user message carries only iteration-volatile
+        # state (question + frontend caption) plus the produce-
+        # InitialPlan instruction.
+        system_content = model_input.messages[0]["content"]
         user_content = model_input.messages[1]["content"]
-        # If task_skills.yaml exists, the reference should be appended
-        # If it does not exist, the prompt should still be valid
+
         from audio_agent.utils.skill_io import TASK_SKILLS_PATH
         if TASK_SKILLS_PATH.exists():
-            assert "Task Skills Reference" in user_content
+            assert "Task Skills Reference" in system_content
         else:
-            assert "Question:" in user_content
+            # When the YAML is missing, the placeholder is filled with a
+            # bracketed sentinel; the system prompt still renders cleanly.
+            assert "(no task skills reference configured)" in system_content
+
+        # User message should always carry the question.
+        assert "What is in this audio?" in user_content
 
     def test_build_decision_model_input_local_mode(self):
         class LocalPlanner(EchoModelPlanner):
