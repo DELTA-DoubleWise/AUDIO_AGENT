@@ -474,9 +474,11 @@ class TestBaseModelPlanner:
         assert decision.action == PlannerActionType.FAIL
         assert "no ASR" in decision.rationale
 
-    def test_parse_tool_calls_drops_unknown_tool_names(self):
-        """Tool calls referencing names not in available_tool_names are
-        dropped with a warning. If the remaining list is empty, raise."""
+    def test_parse_tool_calls_surfaces_unknown_tool_names_as_invalid(self):
+        """Unknown tool names are NOT silently dropped — they are
+        surfaced as invalid-tool-call markers so the executor records
+        them as failures and the next planner round can self-correct.
+        Valid tool calls in the same round still pass through normally."""
         msg = _FakeMessage(
             content="x",
             tool_calls=[
@@ -487,17 +489,54 @@ class TestBaseModelPlanner:
         decision = BaseModelPlanner._parse_tool_calls_to_decision(
             msg, available_tool_names={"get_audio_info"}
         )
-        # nonexistent_tool dropped; get_audio_info kept.
+        assert decision.action == PlannerActionType.CALL_TOOL
+        # Both calls are preserved (unknown as marker, real as-is).
+        assert len(decision.selected_tool_calls) == 2
+
+        bad, good = decision.selected_tool_calls
+        # Unknown surfaced with marker.
+        assert bad.tool_name == "nonexistent_tool"
+        assert bad.context.get("_invalid_tool_call") is True
+        assert "not in the available tool catalog" in (
+            bad.context.get("_invalid_reason") or ""
+        )
+        # Real tool kept with empty context.
+        assert good.tool_name == "get_audio_info"
+        assert not good.context.get("_invalid_tool_call")
+
+    def test_parse_tool_calls_all_unknown_still_returns_decision(self):
+        """When EVERY emitted tool name is unknown, the parser still
+        returns a valid PlannerDecision (with invalid markers). The
+        executor will then synthesize failing ToolResults for each — no
+        PlannerError, no API retry, just normal evidence flow."""
+        msg = _FakeMessage(
+            content="some rationale",
+            tool_calls=[_FakeToolCall("content", {})],  # the qwen hallucination
+        )
+        decision = BaseModelPlanner._parse_tool_calls_to_decision(
+            msg, available_tool_names={"get_audio_info", "detect_key"}
+        )
+        assert decision.action == PlannerActionType.CALL_TOOL
+        assert decision.rationale == "some rationale"
+        assert len(decision.selected_tool_calls) == 1
+        tc = decision.selected_tool_calls[0]
+        assert tc.tool_name == "content"
+        assert tc.context.get("_invalid_tool_call") is True
+
+    def test_parse_tool_calls_empty_tool_calls_surfaces_invalid_marker(self):
+        """No tool_calls at all → synthesized invalid-tool-call marker
+        so the failure flows as evidence into the next round, not as a
+        PlannerError that the retry wrapper just repeats."""
+        msg = _FakeMessage(content="hello", tool_calls=[])
+        decision = BaseModelPlanner._parse_tool_calls_to_decision(
+            msg, available_tool_names=None
+        )
         assert decision.action == PlannerActionType.CALL_TOOL
         assert len(decision.selected_tool_calls) == 1
-        assert decision.selected_tool_calls[0].tool_name == "get_audio_info"
-
-    def test_parse_tool_calls_empty_tool_calls_raises(self):
-        """No tool_calls at all → PlannerError (the tool_choice='required'
-        contract was violated)."""
-        msg = _FakeMessage(content="hello", tool_calls=[])
-        with pytest.raises(PlannerError):
-            BaseModelPlanner._parse_tool_calls_to_decision(msg, available_tool_names=None)
+        tc = decision.selected_tool_calls[0]
+        assert tc.tool_name == "__no_tool_call__"
+        assert tc.context.get("_invalid_tool_call") is True
+        assert "no tool_calls" in (tc.context.get("_invalid_reason") or "").lower()
 
     def test_format_planner_reasoning_trace_renders_rounds(self):
         """The reasoning trace renders one numbered line per past decision;

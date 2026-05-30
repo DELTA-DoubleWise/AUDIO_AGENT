@@ -603,6 +603,44 @@ def create_tool_executor_node(executor: ToolExecutor):
 
         for call_index, tool_call in enumerate(decision.selected_tool_calls):
             tool_name = tool_call.tool_name
+            ctx = tool_call.context or {}
+
+            # Invalid-tool-call marker (model hallucinated a tool name,
+            # emitted no tool_calls at all, etc. — see
+            # ``BaseModelPlanner._build_invalid_tool_call``). Bypass
+            # _prepare_tool_request + executor entirely and synthesize a
+            # failing ToolResult whose error_message is the reason text.
+            # This routes the failure into the normal evidence log so the
+            # next planner round can see what went wrong and self-correct,
+            # rather than dying inside the API-retry wrapper.
+            if ctx.get("_invalid_tool_call"):
+                reason = ctx.get("_invalid_reason") or (
+                    f"Tool name '{tool_name}' is not in the available "
+                    "tool catalog."
+                )
+                failed_result = ToolResult(
+                    tool_name=tool_name,
+                    success=False,
+                    output={},
+                    error_message=reason,
+                )
+                accumulated_records.append(
+                    ToolCallRecord(
+                        request=tool_call,
+                        result=failed_result,
+                        step_number=step_count,
+                    )
+                )
+                accumulated_results.append(failed_result)
+                per_call_summaries.append(
+                    {
+                        "tool": tool_name,
+                        "success": False,
+                        "error": "invalid_tool_call",
+                    }
+                )
+                continue
+
             try:
                 request, auto_gen_id, auto_gen_path = _prepare_tool_request(
                     executor=executor,

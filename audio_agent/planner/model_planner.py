@@ -559,21 +559,51 @@ class BaseModelPlanner(BasePlanner):
           appears in the list, that one action wins. Other tool calls in the
           same round are discarded with a warning log.
         - Otherwise, every tool call must name a real tool from the supplied
-          ``available_tool_names`` (if provided). Unknown names are dropped
-          with a warning rather than failing the whole round.
+          ``available_tool_names`` (if provided). Unknown names are NOT
+          silently dropped — they are surfaced as invalid-tool-call markers
+          (``ToolCallRequest`` with ``context["_invalid_tool_call"]=True``).
+          The tool executor recognizes the marker and synthesizes a failing
+          ``ToolResult`` so the failure becomes a normal evidence entry the
+          next round can read and self-correct against. Same treatment for
+          a response with no tool_calls at all, or one whose tool_calls all
+          lack a function name.
 
-        Raises ``PlannerError`` if the message carries no usable tool call.
+        This is intentionally not a ``PlannerError`` path: raising would
+        trigger the API retry wrapper, and a deterministic model would
+        just re-emit the same bad output. Surfacing as evidence lets the
+        main agent loop give the model corrective feedback over multiple
+        rounds, bounded by ``max_steps``.
         """
         logger = get_logger()
         rationale = (getattr(message, "content", None) or "").strip()
 
         raw_calls = getattr(message, "tool_calls", None) or []
         if not raw_calls:
-            raise PlannerError(
-                "Planner emitted no tool_calls. tool_choice='required' should "
-                "guarantee at least one tool call; this likely indicates an API "
-                "fallback or a model that ignored the constraint.",
-                details={"content_preview": rationale[:200] if rationale else None},
+            # No tool_calls in response. Surface as an invalid marker so
+            # the next round sees the failure and can correct.
+            logger.warning(
+                "Planner emitted no tool_calls (tool_choice='required'); "
+                "surfacing as invalid-tool-call for next-round visibility."
+            )
+            return PlannerDecision(
+                action=PlannerActionType.CALL_TOOL,
+                rationale=rationale,
+                selected_tool_calls=[
+                    cls._build_invalid_tool_call(
+                        tool_name="__no_tool_call__",
+                        args={},
+                        reason=(
+                            "Model emitted no tool_calls in its response, "
+                            "even though tool_choice='required' was set. "
+                            "Possible causes: API gateway fallback, or "
+                            "model ignored the tool_choice constraint. On "
+                            "the next round, call one of the available "
+                            "tools — or emit_final_answer / ask_frontend / "
+                            "give_up if appropriate."
+                        ),
+                    )
+                ],
+                confidence=0.5,
             )
 
         # Normalize each tool_call into (name, args_dict, raw_args_str).
@@ -607,9 +637,31 @@ class BaseModelPlanner(BasePlanner):
             parsed.append((name, args, raw_args if isinstance(raw_args, str) else ""))
 
         if not parsed:
-            raise PlannerError(
-                "All emitted tool_calls had missing/invalid names; cannot build decision.",
-                details={"raw_count": len(raw_calls)},
+            # Every tool_call in the response lacked a usable function
+            # name. Surface as an invalid marker rather than raise — see
+            # the docstring rationale at the top of this method.
+            logger.warning(
+                "All %d emitted tool_calls had missing/invalid names; "
+                "surfacing as invalid-tool-call for next-round visibility.",
+                len(raw_calls),
+            )
+            return PlannerDecision(
+                action=PlannerActionType.CALL_TOOL,
+                rationale=rationale,
+                selected_tool_calls=[
+                    cls._build_invalid_tool_call(
+                        tool_name="__nameless_tool_call__",
+                        args={},
+                        reason=(
+                            f"All {len(raw_calls)} tool_calls in the "
+                            "response had missing or non-string function "
+                            "names; nothing usable. On the next round, "
+                            "ensure each tool call has a valid function "
+                            "name from the available catalog."
+                        ),
+                    )
+                ],
+                confidence=0.5,
             )
 
         # Detect exclusive action-tools first. If multiple were emitted in
@@ -628,29 +680,46 @@ class BaseModelPlanner(BasePlanner):
                 )
             return cls._build_action_tool_decision(picked_name, picked_args, rationale)
 
-        # All real-tool calls. Validate names against the catalog (if known)
-        # and drop unknowns rather than failing the round outright.
-        kept: list[tuple[str, dict[str, Any]]] = []
+        # All real-tool calls. Validate names against the catalog. Known
+        # names go straight in as normal ToolCallRequests; unknown names
+        # are surfaced as invalid-tool-call markers (NOT silently dropped)
+        # so the executor records each as a failure and the next round
+        # can see + correct against it. Mixed rounds (some valid, some
+        # hallucinated) preserve both for full audit-trail symmetry.
+        tool_calls: list[ToolCallRequest] = []
         for name, args, _ in parsed:
-            if available_tool_names is not None and name not in available_tool_names:
+            if (
+                available_tool_names is not None
+                and name not in available_tool_names
+            ):
                 logger.warning(
-                    "Planner emitted unknown tool '%s'; not in available_tools — dropping.",
+                    "Planner emitted unknown tool '%s'; surfacing as "
+                    "invalid-tool-call for next-round visibility.",
                     name,
                 )
+                tool_calls.append(
+                    cls._build_invalid_tool_call(
+                        tool_name=name,
+                        args=args,
+                        reason=(
+                            f"Tool name '{name}' is not in the available "
+                            "tool catalog. The available tools were "
+                            "provided to you via the API's tools= "
+                            "parameter. On the next round, call one of "
+                            "those tools — or emit_final_answer / "
+                            "ask_frontend / give_up if appropriate."
+                        ),
+                    )
+                )
                 continue
-            kept.append((name, args))
-
-        if not kept:
-            raise PlannerError(
-                "After filtering, no valid tool_calls remained.",
-                details={"emitted": [n for n, _, _ in parsed]},
+            tool_calls.append(
+                ToolCallRequest(tool_name=name, args=args, context={})
             )
 
-        tool_calls = [
-            ToolCallRequest(tool_name=name, args=args, context={})
-            for name, args in kept
-        ]
-        primary_audio_id = cls._first_audio_id_from_args(kept[0][1])
+        # tool_calls is guaranteed non-empty here: ``parsed`` was checked
+        # non-empty above, and every parsed entry produces exactly one
+        # ToolCallRequest (real or invalid marker).
+        primary_audio_id = cls._first_audio_id_from_args(parsed[0][1])
 
         return PlannerDecision(
             action=PlannerActionType.CALL_TOOL,
@@ -658,6 +727,38 @@ class BaseModelPlanner(BasePlanner):
             selected_tool_calls=tool_calls,
             selected_audio_id=primary_audio_id,
             confidence=0.8,
+        )
+
+    @classmethod
+    def _build_invalid_tool_call(
+        cls,
+        tool_name: str,
+        args: dict[str, Any],
+        reason: str,
+    ) -> ToolCallRequest:
+        """Build a ToolCallRequest that the tool executor will surface as
+        a failure WITHOUT dispatching to the registry.
+
+        Used when the model emits something we cannot honor (an unknown
+        tool name, no tool_calls at all, etc.) and we want the failure
+        to land in the evidence log so the next round can react —
+        rather than raising and triggering the API retry wrapper, which
+        a deterministic model would just repeat.
+
+        The marker is ``context["_invalid_tool_call"] = True`` and the
+        explanatory text lives at ``context["_invalid_reason"]``. The
+        tool executor (``audio_agent/graph/nodes.py``'s
+        ``tool_executor_node``) checks for the marker before
+        ``_prepare_tool_request`` runs and synthesizes a failing
+        ``ToolResult`` whose ``error_message`` is the reason text.
+        """
+        return ToolCallRequest(
+            tool_name=tool_name,
+            args=args,
+            context={
+                "_invalid_tool_call": True,
+                "_invalid_reason": reason,
+            },
         )
 
     @classmethod
