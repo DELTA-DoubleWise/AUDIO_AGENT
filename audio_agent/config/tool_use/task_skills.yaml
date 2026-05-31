@@ -19,37 +19,37 @@ abstract_slots:
     current_catalog_defaults: ["fireredvad.fireredvad_aed"]
   speech_asr:
     contract: Transcribe speech content, optionally with timestamps.
-    current_catalog_defaults: ["asr_qwen3.transcribe_qwenasr", "whisperx.transcribe_audio", "fireredasr2s.transcribe_fireredasr"]
+    current_catalog_defaults: ["asr_qwen3.transcribe_qwenasr", "whisperx.transcribe_whisperx", "fireredasr2s.transcribe_fireredasr"]
   timestamped_asr:
     contract: Transcribe speech with word/segment timestamps.
-    current_catalog_defaults: ["asr_qwen3.transcribe_qwenasr_with_timestamps", "whisperx.transcribe_audio"]
+    current_catalog_defaults: ["asr_qwen3.transcribe_qwenasr_with_timestamps", "whisperx.transcribe_whisperx"]
   diarization:
     contract: Who-spoke-when speaker segments.
-    current_catalog_defaults: ["diarizen.diarize", "whisperx.transcribe_with_diarization"]
+    current_catalog_defaults: ["diarizen.diarize", "whisperx.transcribe_whisperx_with_diarization"]
   speaker_verification:
     contract: Same/different speaker verification between two clips.
     current_catalog_defaults: ["wespeaker.speaker_verify"]
   omni_perception:
     contract: LALM question-guided caption or direct perceptual observation.
-    current_catalog_defaults: ["omni_captioner.omni_caption"]
+    current_catalog_defaults: ["ask_frontend"]
   beat_onset:
     contract: Tempo, beat positions, onset positions; not action counts by itself.
-    current_catalog_defaults: ["librosa.analyze_beats", "librosa.analyze_onsets"]
+    current_catalog_defaults: ["tempo_cnn.estimate_tempo_cnn_mirex", "librosa.analyze_onsets"]
   music_pitch_harmony:
     contract: Weak low-level pitch/chroma/key/tuning features.
-    current_catalog_defaults: ["librosa.analyze_pitch", "librosa.extract_chroma", "librosa.detect_key", "librosa.estimate_tuning"]
+    current_catalog_defaults: ["librosa.analyze_pitch", "librosa.extract_chroma", "librosa.detect_key"]
   timbre_spectral:
     contract: Low-level spectral/timbre/noisiness features.
-    current_catalog_defaults: ["librosa.extract_mfcc", "librosa.analyze_spectral_features", "librosa.extract_zero_crossing_rate"]
+    current_catalog_defaults: ["librosa.extract_mfcc", "librosa.analyze_spectral_features"]
   energy_dynamics:
     contract: RMS/volume/loudness dynamics and peaks.
-    current_catalog_defaults: ["librosa.extract_rms_energy", "ffmpeg.volumedetect", "ffmpeg.ebur128"]
+    current_catalog_defaults: ["librosa.extract_rms_energy", "ffmpeg.volumedetect", "ffmpeg.astats"]
   source_separation:
     contract: Produce derived source-like audio stems or harmonic/percussive splits.
     current_catalog_defaults: ["librosa.separate_harmonic_percussive"]
   audio_transform:
     contract: Generate a derived clip or normalized signal for downstream tools.
-    current_catalog_defaults: ["ffmpeg.trim_audio", "ffmpeg.resample_audio", "ffmpeg.convert_channels", "ffmpeg.loudnorm"]
+    current_catalog_defaults: ["ffmpeg.trim_audio", "ffmpeg.resample_audio", "ffmpeg.convert_channels"]
 
 skills:
   - id: speech.asr.clean_english_read
@@ -63,7 +63,7 @@ skills:
         optional: true
     default_bindings_from_ref_flows:
       speech_asr:
-        - tool: "whisperx.transcribe_audio"
+        - tool: "whisperx.transcribe_whisperx"
           reference: "ARC-Agent-NO1 tools/toolkit.py: transcribe_audio; tools.yaml fixes Whisper large-v3 for quality."
         - tool: "asr_qwen3.transcribe_qwenasr"
           reference: "Current catalog fallback for multilingual ASR."
@@ -122,7 +122,7 @@ skills:
       - slot: speech_asr
     default_bindings_from_ref_flows:
       speech_asr:
-        - tool: "whisperx.transcribe_audio"
+        - tool: "whisperx.transcribe_whisperx"
           reference: "ARC default high-quality ASR path."
         - tool: "asr_qwen3.transcribe_qwenasr"
           reference: "Current catalog fallback; report Table 3 competitive on VoxPopuli-en."
@@ -158,7 +158,7 @@ skills:
         - tool: "asr_qwen3.transcribe_qwenasr"
           reference: "Current catalog ASR fallback; table includes Qwen3-ASR ContextASR result."
       omni_perception:
-        - tool: "omni_captioner.omni_caption"
+        - tool: "ask_frontend"
           reference: "Current front-end LALM fallback for context-sensitive perception."
 
   - id: speech.asr.contextual_named_entities_zh
@@ -187,7 +187,7 @@ skills:
       diarization:
         - tool: "diarizen.diarize"
           reference: "ARC speaker category uses diarization and speaker count."
-        - tool: "whisperx.transcribe_with_diarization"
+        - tool: "whisperx.transcribe_whisperx_with_diarization"
           reference: "Current catalog fallback with ASR + diarization."
 
   - id: speech.speaker_identity_same_different
@@ -210,7 +210,7 @@ skills:
         optional: true
     default_bindings_from_ref_flows:
       timestamped_asr:
-        - tool: "whisperx.transcribe_with_diarization"
+        - tool: "whisperx.transcribe_whisperx_with_diarization"
           reference: "ARC content category uses dialogue structure + diarization."
         - tool: "asr_qwen3.transcribe_qwenasr_with_timestamps"
           reference: "Current catalog timestamped ASR."
@@ -229,7 +229,7 @@ skills:
         optional: true
     default_bindings_from_ref_flows:
       omni_perception:
-        - tool: "omni_captioner.omni_caption"
+        - tool: "ask_frontend"
           reference: "ARC emotion category uses vocal emotion + speech LLM; current catalog has omni perception."
 
   - id: speech.slu_reasoning
@@ -242,7 +242,7 @@ skills:
         optional: true
     default_bindings_from_ref_flows:
       omni_perception:
-        - tool: "omni_captioner.omni_caption"
+        - tool: "ask_frontend"
           reference: "xlance and ARC both use speech LLM observations for high-level reasoning."
 
   - id: speech.s2tt.zh_to_en
@@ -255,7 +255,7 @@ skills:
         optional: true
     default_bindings_from_ref_flows:
       omni_perception:
-        - tool: "omni_captioner.omni_caption"
+        - tool: "ask_frontend"
           reference: "Current catalog LALM fallback; report Table 4 favors Qwen3-Omni."
 
   - id: speech.s2tt.en_to_zh
@@ -268,7 +268,7 @@ skills:
         optional: true
     default_bindings_from_ref_flows:
       omni_perception:
-        - tool: "omni_captioner.omni_caption"
+        - tool: "ask_frontend"
           reference: "Current catalog LALM fallback when report winner is unavailable."
 
   - id: audio.scene_environment
@@ -282,7 +282,7 @@ skills:
         optional: true
     default_bindings_from_ref_flows:
       omni_perception:
-        - tool: "omni_captioner.omni_caption"
+        - tool: "ask_frontend"
           reference: "ARC scene category uses scene context + speech LLM; current catalog has omni perception."
 
   - id: audio.event_count_class_specific
@@ -354,7 +354,7 @@ skills:
         optional: true
     default_bindings_from_ref_flows:
       beat_onset:
-        - tool: "librosa.analyze_beats"
+        - tool: "tempo_cnn.estimate_tempo_cnn_mirex"
           reference: "ARC music/timing uses beat/onset and tempo."
       music_pitch_harmony:
         - tool: "librosa.analyze_pitch"
@@ -371,7 +371,7 @@ skills:
         optional: true
     default_bindings_from_ref_flows:
       omni_perception:
-        - tool: "omni_captioner.omni_caption"
+        - tool: "ask_frontend"
           reference: "ARC music theory has identify_instruments; current catalog lacks dedicated model."
 
   - id: music.rhythm_tempo_meter
@@ -382,7 +382,7 @@ skills:
       - slot: energy_dynamics
     default_bindings_from_ref_flows:
       beat_onset:
-        - tool: "librosa.analyze_beats"
+        - tool: "tempo_cnn.estimate_tempo_cnn_mirex"
           reference: "ARC beat_tracking/librosa_tool default."
 
   - id: music.pitch_key_tuning
@@ -427,7 +427,7 @@ skills:
         optional: true
     default_bindings_from_ref_flows:
       audio_transform:
-        - tool: "ffmpeg.split_channels"
+        - tool: "ffmpeg.convert_channels"
           reference: "Current catalog stereo split for downstream comparison."
 
   - id: signal.synthetic_repetition_speed_anomaly
@@ -441,5 +441,5 @@ skills:
         optional: true
     default_bindings_from_ref_flows:
       omni_perception:
-        - tool: "omni_captioner.omni_caption"
+        - tool: "ask_frontend"
           reference: "ARC signal category has dedicated anomaly tools; current catalog fallback is omni + low-level features."
