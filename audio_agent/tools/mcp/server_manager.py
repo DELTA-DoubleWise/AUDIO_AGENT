@@ -115,6 +115,11 @@ class MCPServerManager:
                 running.append(name)
         return running
     
+    def is_per_call(self, name: str) -> bool:
+        """Whether the named server uses the per_call (ephemeral) lifecycle."""
+        config = self._configs.get(name)
+        return bool(config and config.lifecycle == "per_call")
+
     async def stop_server(self, name: str) -> None:
         """
         Stop a specific server.

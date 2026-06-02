@@ -7,6 +7,7 @@ Nodes follow fail-fast principles with explicit validation.
 
 import glob
 import os
+from typing import Any
 
 from audio_agent.core.state import AgentState
 from audio_agent.core.schemas import (
@@ -714,7 +715,10 @@ def create_tool_executor_node(executor: ToolExecutor):
             # Register any newly-produced audio so the next call in this
             # round (if any) and the next round can see it.
             generated_path = result.output.get("generated_audio_path") if isinstance(result.output, dict) else None
-            if generated_path or auto_gen_id:
+            # Only register produced audio when the tool actually succeeded; a failed
+            # audio-producing tool must not register an AudioItem pointing at a path it
+            # never wrote (later rounds would hand that nonexistent path downstream).
+            if result.success and (generated_path or auto_gen_id):
                 if auto_gen_id and auto_gen_path:
                     actual_new_id = auto_gen_id
                     actual_path = generated_path or auto_gen_path
@@ -897,10 +901,14 @@ def _prepare_tool_request(
                 )
     except StateValidationError:
         raise
-    except Exception:
-        # Tool not in registry / schema introspection failed.
-        # Fall through with raw args; the executor will surface a clean error.
-        pass
+    except Exception as e:
+        # Tool not in registry / schema introspection failed, or arg handling hit an
+        # unexpected error. Fall through with raw args (the executor will surface a clean
+        # error), but log it so a real bug in this block is not silently swallowed.
+        log_warning(
+            "tool_arg_resolution_failed",
+            {"tool": tool_name, "error": f"{type(e).__name__}: {e}"},
+        )
 
     request = ToolCallRequest(
         tool_name=tool_name,

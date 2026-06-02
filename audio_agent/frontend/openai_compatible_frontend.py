@@ -88,6 +88,11 @@ class OpenAICompatibleFrontend(BaseModelFrontend):
         """Whether this frontend answers the question directly (no QoP-guided caption)."""
         return self._direct_answer
 
+    @direct_answer.setter
+    def direct_answer(self, value: bool) -> None:
+        """Set the mode. AudioAgent uses this to apply AgentConfig.frontend_direct_answer."""
+        self._direct_answer = bool(value)
+
     @property
     def input_format(self) -> FrontendInputFormat:
         return FrontendInputFormat.API_MODEL

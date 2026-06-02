@@ -88,7 +88,8 @@ class MCPToolAdapter(BaseTool):
         """
         # Validate request
         self.validate_request(request)
-        
+
+        client = None
         try:
             # Get client for server
             client = await self._server_manager.get_client(self._server_name)
@@ -140,6 +141,14 @@ class MCPToolAdapter(BaseTool):
                 output={},
                 error_message=f"MCP tool invocation failed: {e}",
             )
+        finally:
+            # per_call clients are ephemeral and not tracked by the manager, so stop them
+            # here to avoid leaking a subprocess on every invocation.
+            if client is not None and self._server_manager.is_per_call(self._server_name):
+                try:
+                    await client.stop()
+                except Exception:
+                    pass
     
     def _extract_structured_output(self, output: dict) -> None:
         """

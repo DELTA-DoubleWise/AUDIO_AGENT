@@ -2,7 +2,6 @@
 
 from audio_agent.core.state import AgentState
 from audio_agent.core.schemas import (
-    FrontendInput,
     FrontendOutput,
     EvidenceItem,
     PlannerInput,
@@ -29,7 +28,6 @@ from audio_agent.core.constants import AgentStatus
 
 __all__ = [
     "AgentState",
-    "FrontendInput",
     "FrontendOutput",
     "EvidenceItem",
     "PlannerInput",

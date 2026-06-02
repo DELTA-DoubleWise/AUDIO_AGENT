@@ -81,7 +81,7 @@ class ToolExecutor:
                 result = await tool.invoke(request)
             else:
                 # Sync tool - run in thread pool to avoid blocking
-                loop = asyncio.get_event_loop()
+                loop = asyncio.get_running_loop()
                 result = await loop.run_in_executor(
                     None,  # Uses default executor
                     tool.invoke,

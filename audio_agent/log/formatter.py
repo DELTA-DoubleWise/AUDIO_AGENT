@@ -216,7 +216,7 @@ def format_tool_call_history(tool_history: list[Any]) -> str:
             import json
             try:
                 lines.append(json.dumps(args, indent=2, default=str))
-            except:
+            except Exception:
                 lines.append(str(args))
             lines.append("```")
             lines.append("")
@@ -248,7 +248,7 @@ def format_tool_call_history(tool_history: list[Any]) -> str:
                         else:
                             display_output[key] = value
                     lines.append(json.dumps(display_output, indent=2, default=str))
-                except:
+                except Exception:
                     lines.append(str(output))
                 lines.append("```")
         

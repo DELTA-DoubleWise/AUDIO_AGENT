@@ -49,8 +49,14 @@ class DefaultEvidenceFuser(BaseEvidenceFuser):
         output = tool_result.output
         content = self._format_output(output)
         
-        # Determine confidence
-        confidence = output.get("confidence", 0.5) if isinstance(output.get("confidence"), (int, float)) else 0.5
+        # Determine confidence (exclude bool, which is an int subclass, so a tool
+        # returning confidence=True does not silently become 1.0).
+        raw_confidence = output.get("confidence")
+        confidence = (
+            float(raw_confidence)
+            if isinstance(raw_confidence, (int, float)) and not isinstance(raw_confidence, bool)
+            else 0.5
+        )
         
         return [
             EvidenceItem(

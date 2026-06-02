@@ -456,7 +456,6 @@ All prompts are externalized as markdown files in `audio_agent/prompts/`. This a
 | `decide_system.md` | Planner decision system prompt | None |
 | `decide_user.md` | Planner decision user instruction | `{question}`, `{frontend_caption}`, `{initial_plan}`, `{evidence_log}`, `{tool_call_history}`, `{available_tools}`, `{step_count}`, `{max_steps}` |
 | `decide_rules.md` | Planner decision rules (numbered list) | None |
-| `disabled_audio_output_decision_guidance.md` | Archived decision-stage audio-output guidance, not loaded by default | None |
 | `format_check_system.md` | Format check: system prompt for format validation | None |
 | `format_check_user.md` | Format check: user instruction template | `{question}`, `{expected_format}`, `{proposed_answer}`, `{is_audio_output_task}` |
 | `evidence_summary_system.md` | Evidence summarization system prompt | None |
@@ -674,16 +673,16 @@ validate_state_has_fields(
 12. **Format Checking**: Mandatory format validation occurs before final answer. The planner (text LLM) checks if the proposed answer follows the expected output format (from `initial_plan.expected_output_format`). This is different from answer generation:
     - Format check validates structure/format compliance only, NOT content correctness
     - Format check uses the text LLM (planner), not the audio model
-    - If format violations are found, the critique is added as evidence and planning continues
-    Configure via `AgentConfig(enable_format_check=True, max_format_checks=2)`.
+    - If format violations are found, the critique is added as evidence and planning continues, up to `max_format_checks` times; after that the best-effort answer is accepted
+    Configure via `AgentConfig(enable_format_check=True, max_format_checks=2)`. Set `enable_format_check=False` to skip the format-check node entirely.
 
-13. **AgentConfig Fields**: Some fields (`planner_name`, `frontend_name`, `fail_on_tool_error`) exist in config but are not fully wired into orchestration logic yet.
+13. **Direct-answer mode**: `AgentConfig(frontend_direct_answer=True)` (the default) makes the frontend answer the question directly and skips the initial-prompt/QoP node; set `False` for the legacy question-oriented-prompt caption. `AudioAgent` applies this setting to the frontend, so config is the single source of truth.
 
-14. **Checkpointer Support**: `build_graph_with_config()` exists but is not used by default `AudioAgent` constructor.
+14. **Checkpointer Support**: `build_graph(..., checkpointer=...)` accepts an optional LangGraph checkpointer for state persistence / resumable runs; the default `AudioAgent` constructor does not set one.
 
 15. **Conda Initialization**: Only the diarizen tool needs conda (Python 3.10). On systems where `conda` is not on `$PATH`, set `CONDA_SH=/path/to/conda/etc/profile.d/conda.sh` before running `diarizen/setup.sh` or `setup_all_tools.sh`. Every other tool uses `uv`.
 
-16. **Model Output Retry**: `BaseModelPlanner` and `BaseModelFrontend` automatically retry model calls when the output fails schema validation or JSON parsing. This handles transient API instability without failing the entire agent run. Configure via `max_retries` (default 3, can be set to 0 to disable). The retry uses exponential backoff (0.5s, 1s, 2s). `AgentConfig` exposes `max_model_output_retries` for documentation purposes; wire it into your planner/frontend constructor as needed.
+16. **Model Output Retry**: `BaseModelPlanner` and `BaseModelFrontend` automatically retry model calls when the output fails schema validation or JSON parsing. This handles transient API instability without failing the entire agent run. Configure via `max_retries` (default 3, can be set to 0 to disable). The retry uses exponential backoff. Configure via `max_retries` (default 3, set to 0 to disable) on the planner/frontend constructor.
 
 16. **Run Logging**: The framework automatically logs each run to a Markdown file in the `logs/` directory. This includes:
     - Complete AgentState with all evidence, tool calls, and planner decisions

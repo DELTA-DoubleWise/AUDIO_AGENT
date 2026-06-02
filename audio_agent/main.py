@@ -62,6 +62,11 @@ class AudioAgent:
         self.registry = registry
         self.fuser = fuser
         self.config = config or AgentConfig()
+        # Config is the single source of truth for direct-answer mode: push it onto
+        # frontends that support the mode so frontend behavior and graph wiring agree.
+        # Frontends without a settable direct_answer are QoP-only and keep the QoP node.
+        if isinstance(getattr(type(frontend), "direct_answer", None), property):
+            frontend.direct_answer = self.config.frontend_direct_answer
         self._temp_dir: str | None = None
         
         # Set up logging
@@ -259,8 +264,16 @@ class AudioAgent:
         )
         
         try:
-            # Execute the graph asynchronously
-            final_state = await self._graph.ainvoke(initial_state)
+            # Execute the graph asynchronously.
+            # Each tool round is ~3 node hops (planner -> tool -> fusion), plus the
+            # frontend/plan prelude and the summarize/final/format/answer tail. Give the
+            # recursion limit enough headroom for max_steps rounds so legitimate long runs
+            # are not aborted by LangGraph's low default (25), while still bounding any
+            # unforeseen loop.
+            recursion_limit = effective_max_steps * 5 + 25
+            final_state = await self._graph.ainvoke(
+                initial_state, config={"recursion_limit": recursion_limit}
+            )
             
             # Copy output audio if present
             final_answer = final_state.get("final_answer")

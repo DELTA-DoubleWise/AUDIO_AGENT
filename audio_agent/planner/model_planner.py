@@ -21,6 +21,7 @@ from audio_agent.core.errors import PlannerError
 from audio_agent.core.logging import get_logger
 from audio_agent.core.schemas import (
     FormatCheckResult,
+    FrontendOutput,
     InitialPlan,
     PlannerActionType,
     PlannerDecision,
@@ -544,6 +545,7 @@ class BaseModelPlanner(BasePlanner):
         cls,
         message: Any,
         available_tool_names: set[str] | None = None,
+        is_final_step: bool = False,
     ) -> PlannerDecision:
         """Convert a model response message into a ``PlannerDecision``.
 
@@ -579,6 +581,22 @@ class BaseModelPlanner(BasePlanner):
 
         raw_calls = getattr(message, "tool_calls", None) or []
         if not raw_calls:
+            if is_final_step:
+                # Final round: emit_final_answer was forced but the response carried no
+                # tool_calls (API gateway fallback, or the model ignored tool_choice).
+                # Terminate by delegating to the frontend final-answer node instead of
+                # emitting an invalid CALL_TOOL marker that would loop until the
+                # recursion limit and yield no answer.
+                logger.warning(
+                    "Planner emitted no tool_calls on the final step; "
+                    "synthesizing an ANSWER decision to terminate cleanly."
+                )
+                return PlannerDecision(
+                    action=PlannerActionType.ANSWER,
+                    rationale=rationale or "Final step reached; delegating to the frontend.",
+                    draft_answer=rationale or None,
+                    confidence=0.5,
+                )
             # No tool_calls in response. Surface as an invalid marker so
             # the next round sees the failure and can correct.
             logger.warning(
@@ -779,7 +797,7 @@ class BaseModelPlanner(BasePlanner):
             return PlannerDecision(
                 action=PlannerActionType.FAIL,
                 rationale=rationale or str(args.get("reason") or "(no reason given)"),
-                confidence=float(args.get("confidence") or 0.0),
+                confidence=0.0,  # the give_up tool schema declares no confidence field
             )
         if name == cls.ACTION_TOOL_ASK_FRONTEND:
             audio_ids = args.get("selected_audio_ids") or []
@@ -1330,7 +1348,9 @@ class BaseModelPlanner(BasePlanner):
                     f"Planner native-tools call failed during decision phase: {type(e).__name__}: {e}",
                     details={"planner": self.name, "tool_choice": tool_choice},
                 ) from e
-            return self._parse_tool_calls_to_decision(message, available_tool_names)
+            return self._parse_tool_calls_to_decision(
+                message, available_tool_names, is_final_step=is_final_step
+            )
 
         return self._call_with_retries(_call, "decide() [native tools]")
 

@@ -7,7 +7,6 @@ All routing decisions are explicit and logged.
 
 from audio_agent.core.state import AgentState
 from audio_agent.core.schemas import PlannerActionType
-from audio_agent.core.constants import AgentStatus
 from audio_agent.core.errors import GraphRoutingError
 from audio_agent.core.logging import get_logger
 
@@ -24,7 +23,6 @@ NODE_FINAL_ANSWER = "final_answer_node"
 NODE_FORMAT_CHECK = "format_check_node"
 NODE_EVIDENCE_SUMMARIZATION = "evidence_summarization_node"
 NODE_FRONTEND_FOLLOWUP = "frontend_followup_node"
-NODE_PLANNER = NODE_PLANNER_DECISION  # Backward-compatible alias
 END = "__end__"
 
 
@@ -116,23 +114,6 @@ def route_after_tool(state: AgentState) -> str:
     return NODE_EVIDENCE_FUSION
 
 
-def route_after_fusion(state: AgentState) -> str:
-    """
-    Route after evidence fusion.
-    
-    Always loops back to planner for next decision.
-    
-    Args:
-        state: Current agent state
-    
-    Returns:
-        Name of the next node
-    """
-    logger = get_logger()
-    logger.info(f"ROUTING: after fusion -> {NODE_PLANNER_DECISION}")
-    return NODE_PLANNER_DECISION
-
-
 def route_after_format_check(state: AgentState) -> str:
     """
     Route after format check based on the result.
@@ -163,11 +144,23 @@ def route_after_format_check(state: AgentState) -> str:
     if format_check_result.passed:
         logger.info(f"ROUTING: format check passed -> {NODE_ANSWER}")
         return NODE_ANSWER
-    else:
-        # Format check failed - critique was added as evidence
-        # Loop back to planner to regenerate answer with format feedback
-        logger.info(f"ROUTING: format check failed (critique added) -> {NODE_PLANNER_DECISION}")
-        return NODE_PLANNER_DECISION
+
+    # Cap the format-check retry loop: after max_format_checks failed attempts, accept the
+    # current draft (best effort) rather than looping back to the planner indefinitely.
+    config = state.get("config") or {}
+    max_format_checks = config.get("max_format_checks", 2)
+    format_check_count = state.get("format_check_count", 0)
+    if format_check_count >= max_format_checks:
+        logger.info(
+            f"ROUTING: format check failed but reached max_format_checks={max_format_checks} "
+            f"(count={format_check_count}) -> {NODE_ANSWER} (best effort)"
+        )
+        return NODE_ANSWER
+
+    # Format check failed and under the cap - critique was added as evidence.
+    # Loop back to planner to regenerate the answer with format feedback.
+    logger.info(f"ROUTING: format check failed (critique added) -> {NODE_PLANNER_DECISION}")
+    return NODE_PLANNER_DECISION
 
 
 def route_after_frontend_followup(state: AgentState) -> str:
@@ -195,19 +188,3 @@ def route_after_frontend_followup(state: AgentState) -> str:
     
     logger.info(f"ROUTING: after frontend follow-up -> {NODE_EVIDENCE_FUSION}")
     return NODE_EVIDENCE_FUSION
-
-
-def is_terminal_state(state: AgentState) -> bool:
-    """
-    Check if the agent has reached a terminal state.
-    
-    Terminal states:
-    - status == ANSWERED
-    - status == FAILED
-    - status == EXHAUSTED
-    
-    Returns:
-        True if agent should stop
-    """
-    status = state.get("status", AgentStatus.RUNNING)
-    return status in (AgentStatus.ANSWERED, AgentStatus.FAILED, AgentStatus.EXHAUSTED)
