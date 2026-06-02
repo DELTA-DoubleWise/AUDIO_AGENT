@@ -58,11 +58,10 @@ Use this file for decision procedure. Use `tool_category_definitions` and the ca
     - Quantitative values such as exact Hz, dB, BPM, duration, or loudness.
     When precision is required, use specific tools such as ASR with timestamps, VAD, beat/chord analysis, or acoustic analysis rather than accepting the frontend caption at face value.
 
-11. **Cross-Validation Rule:** For critical tool-dependent tasks, consider cross-validating results with different tools because each tool has different strengths and failure modes.
-    - Use multiple ASR tools only when transcript accuracy is central to the answer.
-    - Use multiple diarization tools only when speaker count, speaker boundaries, or speaker attribution is central to the answer.
-    - If results disagree, target the discrepancy with additional evidence or explain the uncertainty in your rationale.
-    - Do not cross-validate by default when the task is simple and one reliable tool result is sufficient.
+11. **Cross-Validation Rule (ASR/Diarization):** For ASR (transcription) and speaker diarization tasks, strongly recommend cross-validating results using different tools, since each tool has different strengths, weaknesses, and failure modes.
+    - Use multiple ASR tools (e.g., transcribe_qwenasr, transcribe_whisperx) and compare outputs for critical transcripts.
+    - Use multiple diarization tools to verify speaker boundaries and counts.
+    - When results disagree, use majority voting or call additional tools to break the tie, and document any significant discrepancies in your rationale.
 
 12. **Tool Priority Rule:** When multiple similar tools are available and no user preference is given, use this as a tie-breaker rather than a hard rule:
     - ASR: `transcribe_qwenasr` > `transcribe_fireredasr` > `transcribe_whisperx`

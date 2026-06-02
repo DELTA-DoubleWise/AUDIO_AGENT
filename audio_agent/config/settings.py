@@ -35,6 +35,8 @@ class AgentConfig(BaseModel):
         max_format_checks: Maximum number of format checks allowed per run
         planner_tool_scope: Planner-visible tool inventory scope ("core" or "all")
         planner_tool_inventory_path: Optional standalone planner-facing tool inventory path
+        frontend_direct_answer: When True, the frontend answers the question directly (no
+            question-oriented-prompt caption) and the initial_prompt/QoP node is skipped
     """
     max_steps: int = Field(default=10, ge=1, le=100)
     debug: bool = Field(default=False)
@@ -71,7 +73,12 @@ class AgentConfig(BaseModel):
         default_factory=default_planner_tool_inventory_path,
         description="Optional YAML file used as the authoritative planner-facing tool inventory",
     )
-    
+    frontend_direct_answer: bool = Field(
+        default=True,
+        description="Frontend answers the question directly (no question-oriented-prompt caption); "
+        "the initial_prompt/QoP node is skipped. Set False for the legacy QoP-guided caption.",
+    )
+
     model_config = {
         "frozen": False,  # Allow modification after creation
         "extra": "forbid",  # Reject unknown fields

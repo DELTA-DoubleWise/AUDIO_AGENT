@@ -114,7 +114,12 @@ def build_graph(
     graph = StateGraph(AgentState)
     
     # Add nodes
-    graph.add_node(NODE_INITIAL_PROMPT, initial_prompt_node_fn)
+    # In direct-answer mode the QoP is unused downstream, so the initial_prompt/QoP node is
+    # skipped (saves one planner call per question). Driven by frontend.direct_answer, which the
+    # caller sets from AgentConfig.frontend_direct_answer.
+    _direct_answer = getattr(frontend, "direct_answer", False)
+    if not _direct_answer:
+        graph.add_node(NODE_INITIAL_PROMPT, initial_prompt_node_fn)
     graph.add_node("frontend_evidence_node", frontend_node)
     graph.add_node(NODE_INITIAL_PLAN, initial_plan_node_fn)
     graph.add_node(NODE_PLANNER_DECISION, planner_decision_node_fn)
@@ -128,9 +133,12 @@ def build_graph(
     graph.add_node(NODE_FAILURE, failure_node)
     
     # Add edges
-    # START -> initial_prompt_node
-    graph.add_edge(START, NODE_INITIAL_PROMPT)
-    graph.add_edge(NODE_INITIAL_PROMPT, "frontend_evidence_node")
+    # START -> initial_prompt -> frontend  (direct-answer mode: START -> frontend, skipping QoP)
+    if _direct_answer:
+        graph.add_edge(START, "frontend_evidence_node")
+    else:
+        graph.add_edge(START, NODE_INITIAL_PROMPT)
+        graph.add_edge(NODE_INITIAL_PROMPT, "frontend_evidence_node")
     
     # frontend_evidence_node -> initial_plan_node
     graph.add_edge("frontend_evidence_node", NODE_INITIAL_PLAN)
@@ -240,7 +248,11 @@ def build_graph_with_config(
 
     graph = StateGraph(AgentState)
 
-    graph.add_node(NODE_INITIAL_PROMPT, initial_prompt_node_fn)
+    # Direct-answer mode (frontend.direct_answer ← AgentConfig.frontend_direct_answer): skip the
+    # initial_prompt/QoP node (QoP unused downstream).
+    _direct_answer = getattr(frontend, "direct_answer", False)
+    if not _direct_answer:
+        graph.add_node(NODE_INITIAL_PROMPT, initial_prompt_node_fn)
     graph.add_node("frontend_evidence_node", frontend_node)
     graph.add_node(NODE_INITIAL_PLAN, initial_plan_node_fn)
     graph.add_node(NODE_PLANNER_DECISION, planner_decision_node_fn)
@@ -253,8 +265,11 @@ def build_graph_with_config(
     graph.add_node(NODE_ANSWER, answer_node)
     graph.add_node(NODE_FAILURE, failure_node)
     
-    graph.add_edge(START, NODE_INITIAL_PROMPT)
-    graph.add_edge(NODE_INITIAL_PROMPT, "frontend_evidence_node")
+    if _direct_answer:
+        graph.add_edge(START, "frontend_evidence_node")
+    else:
+        graph.add_edge(START, NODE_INITIAL_PROMPT)
+        graph.add_edge(NODE_INITIAL_PROMPT, "frontend_evidence_node")
     graph.add_edge("frontend_evidence_node", NODE_INITIAL_PLAN)
     graph.add_edge(NODE_INITIAL_PLAN, NODE_PLANNER_DECISION)
     

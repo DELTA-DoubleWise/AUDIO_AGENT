@@ -22,6 +22,19 @@ from audio_agent.utils.audio_processing import preprocess_audio_for_api
 from audio_agent.utils.prompt_io import load_prompt
 
 
+# System prompt for direct-answer mode (AgentConfig.frontend_direct_answer): the frontend answers
+# the question directly from the audio instead of producing a question-oriented-prompt caption.
+_DIRECT_SYSTEM_PROMPT = (
+    "You are an expert audio reasoning assistant. "
+    "Listen to the provided audio carefully. The audio may contain sound events, music, speech, "
+    "or any mixture of them. "
+    "Analyze what you hear deeply and reason step by step. "
+    "After your reasoning, conclude your response with a line starting with 'Final Answer:' "
+    "followed by your chosen option. "
+    "You may write either the full option text or the letter label (A, B, C, D)."
+)
+
+
 class OpenAICompatibleFrontend(BaseModelFrontend):
     """
     Generic frontend for OpenAI-compatible APIs with audio support.
@@ -40,6 +53,7 @@ class OpenAICompatibleFrontend(BaseModelFrontend):
         temperature: Sampling temperature (0.0 to 2.0)
         max_tokens: Maximum tokens to generate
         timeout: API request timeout in seconds
+        direct_answer: If True, answer the question directly from the audio (no QoP caption)
     """
 
     def __init__(
@@ -52,6 +66,7 @@ class OpenAICompatibleFrontend(BaseModelFrontend):
         max_tokens: int = 4096,
         timeout: float = 120.0,
         max_retries: int = 3,
+        direct_answer: bool = True,
     ) -> None:
         self._model = model
         self._api_key = api_key
@@ -60,12 +75,18 @@ class OpenAICompatibleFrontend(BaseModelFrontend):
         self._temperature = temperature
         self._max_tokens = max_tokens
         self._timeout = timeout
+        self._direct_answer = direct_answer
 
         super().__init__(max_retries=max_retries)
 
     @property
     def name(self) -> str:
         return f"openai_compatible_frontend_{self._model}"
+
+    @property
+    def direct_answer(self) -> bool:
+        """Whether this frontend answers the question directly (no QoP-guided caption)."""
+        return self._direct_answer
 
     @property
     def input_format(self) -> FrontendInputFormat:
@@ -170,6 +191,41 @@ class OpenAICompatibleFrontend(BaseModelFrontend):
         # Encode audio to base64 (single audio)
         audio_path = audio_paths[0]
         audio_data_url, audio_format = self._encode_audio(audio_path)
+
+        # Direct-answer mode (AgentConfig.frontend_direct_answer): answer the question directly;
+        # the answer becomes the downstream evidence. When False, the QoP-caption path below runs.
+        if self._direct_answer:
+            direct_messages = [
+                {"role": "system", "content": _DIRECT_SYSTEM_PROMPT},
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": question},  # already includes the Options block
+                        {
+                            "type": "input_audio",
+                            "input_audio": {"data": audio_data_url, "format": audio_format},
+                        },
+                    ],
+                },
+            ]
+            return UnifiedFrontendInput(
+                system_prompt=_DIRECT_SYSTEM_PROMPT,
+                question=question,
+                audio_paths=audio_paths,
+                user_payload={
+                    "question": question,
+                    "audio": {"kind": "path", "value": audio_path},
+                    "task": "direct_answer",
+                    "output_format": "plain_text",
+                },
+                messages=direct_messages,
+                metadata={
+                    "frontend_name": self.name,
+                    "input_format": FrontendInputFormat.API_MODEL.value,
+                    "model": self._model,
+                    "direct_caption_mode": True,
+                },
+            )
 
         # Load prompts from markdown files
         system_prompt = load_prompt("frontend_system")

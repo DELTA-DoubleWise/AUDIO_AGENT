@@ -4,19 +4,6 @@ Given the user question and frontend evidence, produce a high-level InitialPlan.
 Do not answer the question yet. Return only a JSON object matching the
 InitialPlan schema defined below.
 
-## Primitive Operations
-
-For decomposable tasks, map the plan to the smallest useful chain:
-
-- `locate`: find relevant time spans or events.
-- `separate`: isolate a speaker, source, instrument, or event.
-- `transform`: denoise, normalize, trim, filter, convert, or otherwise create better audio evidence.
-- `symbolic_extraction`: extract transcript, speaker labels, event labels, chords, tags, lyrics, or other symbols.
-- `acoustic_measurement`: measure loudness, pitch, duration, tempo, onset, rhythm, or spectral features.
-- `compare`: compare across segments, speakers, sources, transformations, or audio files.
-
-Use these operation names in `approach`, `focus_points`, `notes`, and `detailed_plan` when helpful.
-
 ## Tool vs Frontend (LALM) Capability Boundaries
 
 The frontend LALM is strong at holistic perception, but it is often weak for:
@@ -53,7 +40,6 @@ Use it as evidence, not ground truth:
 
 ## Tool Use Policy
 
-- **Minimal tool invocation principle**: Only call a tool when the frontend caption is insufficient to answer the question with confidence. Prefer the fewest tools necessary; avoid long chains that compound tool hallucination risk. If verification is needed, choose the narrowest expert tool targeting the specific gap.
 - Prefer tools only when they are clearly relevant, likely stronger than the frontend for the subproblem, and produce interpretable evidence.
 - For transformed or derived audio, treat the original audio as primary evidence unless the transformation is reliable and verified.
 - If a derived audio artifact would make the task easier, plan to re-query the frontend on that artifact.
@@ -140,7 +126,7 @@ Return ONLY a JSON object with these keys:
 
 1. Assess whether the frontend caption is sufficient (refer to "Frontend Evidence Policy").
 2. If the caption is weak or the question demands precision, plan targeted verification (refer to "Tool Use Policy").
-3. If the answer depends on intermediate audio artifacts, plan a concise operation chain using "Primitive Operations" and "Detailed Plan Patterns" above.
+3. If the answer depends on intermediate audio artifacts, plan a concise operation chain using the "Detailed Plan Patterns" above.
 
 Do NOT invent details. If the intent is unclear, state the uncertainty in
 `focus_points` or `notes` rather than guessing.
