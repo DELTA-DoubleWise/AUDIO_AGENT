@@ -2,7 +2,7 @@
 Qwen2.5-Omni frontend implementation.
 
 Adapter for `Qwen/Qwen2.5-Omni-7B` (a unified omni-modal model that listens to
-audio and emits text). Modeled on `qwen3_omni_frontend.py`, with these differences:
+audio and emits text). Key characteristics:
 
 - Uses `Qwen2_5OmniForConditionalGeneration` / `Qwen2_5OmniProcessor` from
   transformers (note: underscore in the class name).
@@ -17,7 +17,7 @@ Constraints (intentionally narrow):
 Required environment:
 - transformers >= 4.45 (Qwen2.5-Omni support landed in 4.45) OR install from
   source via `pip install git+https://github.com/huggingface/transformers`.
-- qwen_omni_utils (the same package qwen3_omni_frontend uses).
+- qwen_omni_utils (multimodal preprocessing helpers).
 - torch with CUDA (the model needs a GPU).
 """
 

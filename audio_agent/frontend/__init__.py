@@ -7,11 +7,8 @@ from audio_agent.frontend.model_frontend import (
     UnifiedFrontendInput,
 )
 from audio_agent.frontend.dummy_frontend import DummyFrontend
-from audio_agent.frontend.qwen2_audio_frontend import Qwen2AudioFrontend
-from audio_agent.frontend.qwen3_omni_frontend import Qwen3OmniFrontend
 from audio_agent.frontend.openai_compatible_frontend import OpenAICompatibleFrontend
-from audio_agent.frontend.mimo_frontend import MimoFrontend
-from audio_agent.frontend.gemini_frontend import GeminiFrontend
+from audio_agent.frontend.qwen25_omni_frontend import Qwen25OmniFrontend
 
 __all__ = [
     "BaseFrontend",
@@ -19,9 +16,6 @@ __all__ = [
     "UnifiedFrontendInput",
     "FrontendInputFormat",
     "DummyFrontend",
-    "Qwen2AudioFrontend",
-    "Qwen3OmniFrontend",
     "OpenAICompatibleFrontend",
-    "MimoFrontend",
-    "GeminiFrontend",
+    "Qwen25OmniFrontend",
 ]
