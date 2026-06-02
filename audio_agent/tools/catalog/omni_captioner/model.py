@@ -349,12 +349,15 @@ class OmniCaptionerModel:
         if time_range:
             if not isinstance(time_range, dict):
                 raise ValueError("time_range must be an object with optional start/end")
-            start = float(time_range.get("start", 0.0))
-            end = float(time_range.get("end", duration))
-            if start < 0 or end <= start or end > duration:
-                raise ValueError(
-                    f"Invalid time_range: start={start}, end={end}, duration={duration}"
-                )
+            raw_start = float(time_range.get("start", 0.0))
+            raw_end = float(time_range.get("end", duration))
+            # Planners sometimes request a window past the clip end (or otherwise out of
+            # bounds). Clamp to [0, duration] and analyze the valid overlap instead of
+            # failing the tool; fall back to the full clip if nothing valid remains.
+            start = min(max(raw_start, 0.0), duration)
+            end = min(max(raw_end, 0.0), duration)
+            if end <= start:
+                start, end = 0.0, duration
             start_sample = int(round(start * sr))
             end_sample = int(round(end * sr))
             y = y[start_sample:end_sample]
