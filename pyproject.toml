@@ -34,8 +34,6 @@ api = [
     "openai>=1.0.0",
 ]
 dev = [
-    "pytest>=8.0.0",
-    "pytest-cov>=4.0.0",
     "black>=24.0.0",
     "ruff>=0.1.0",
     "mypy>=1.0.0",
@@ -51,13 +49,6 @@ audio-agent-download-models = "audio_agent.utils.model_downloader:main"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["audio_agent*"]
-
-[tool.pytest.ini_options]
-testpaths = ["audio_agent/tests"]
-python_files = ["test_*.py"]
-python_classes = ["Test*"]
-python_functions = ["test_*"]
-addopts = "-v --tb=short"
 
 [tool.black]
 line-length = 100
