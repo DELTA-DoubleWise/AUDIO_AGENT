@@ -218,9 +218,9 @@ If any check fails:
 
 ```
 PLAN
-  ↓ (生成 spec, backend_choice, build_plan)
+  ↓ (generate spec, backend_choice, build_plan)
 VALIDATE_SPEC
-  ↓ (验证上述输入是否可信且完整)
+  ↓ (verify the above inputs are credible and complete)
   ├── PASSED → BUILD_ENV
   └── FAILED → DIAGNOSE / REPLAN
 ```

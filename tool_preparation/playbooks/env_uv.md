@@ -1,102 +1,102 @@
 # UV Environment Strategy Playbook
 
-## 何时使用 UV
+## When to Use UV
 
-| 条件 | 使用 UV |
+| Condition | Use UV |
 |------|---------|
-| 纯 Python 依赖 | ✅ 推荐 |
-| 主要依赖为 PyPI 包 | ✅ 推荐 |
-| 无复杂 C++ 扩展 | ✅ 推荐 |
-| 无系统库依赖 | ✅ 推荐 |
-| 无 CUDA 编译需求 | ✅ 推荐 |
+| Pure Python dependencies | ✅ Recommended |
+| Dependencies are mainly PyPI packages | ✅ Recommended |
+| No complex C++ extensions | ✅ Recommended |
+| No system library dependencies | ✅ Recommended |
+| No CUDA compilation requirements | ✅ Recommended |
 
-## 环境创建方式
+## Environment Creation
 
 ```bash
 cd audio_agent/tools/catalog/{tool_name}
 
-# 创建环境
+# Create the environment
 uv venv --python=python3.11
 
-# 安装依赖
+# Install dependencies
 uv pip install --python .venv/bin/python -e .
 ```
 
 > **Critical**: Always use `--python .venv/bin/python` with uv pip install to ensure packages go into the venv, not the base environment.
 
-## Lock/Sync 约定
+## Lock/Sync Conventions
 
 ```bash
-# 导出精确依赖
+# Export exact dependencies
 uv pip freeze --python .venv/bin/python > requirements.lock
 
-# 从 lock 恢复
+# Restore from lock
 uv pip install --python .venv/bin/python -r requirements.lock
 ```
 
-## 常见失败和修复
+## Common Failures and Fixes
 
-### 1. 系统 PyTorch 与虚拟环境冲突
+### 1. System PyTorch conflicts with the virtual environment
 
-**症状**: `ModuleNotFoundError: No module named 'torch._utils'`
+**Symptom**: `ModuleNotFoundError: No module named 'torch._utils'`
 
-**原因**: UV 环境隔离导致无法访问系统已安装的 PyTorch
+**Cause**: UV environment isolation prevents access to the system-installed PyTorch
 
-**修复**:
+**Fix**:
 ```bash
-# 在虚拟环境中重新安装 PyTorch
+# Reinstall PyTorch inside the virtual environment
 uv pip install --python .venv/bin/python torch==2.4.0 torchaudio==2.4.0 --index-url https://download.pytorch.org/whl/cpu
 ```
 
-### 2. NumPy 版本冲突
+### 2. NumPy version conflict
 
-**症状**: `AttributeError: np.sctypes was removed in the NumPy 2.0`
+**Symptom**: `AttributeError: np.sctypes was removed in the NumPy 2.0`
 
-**原因**: NeMo 等库不支持 NumPy 2.0
+**Cause**: Libraries such as NeMo do not support NumPy 2.0
 
-**修复**:
+**Fix**:
 ```bash
 uv pip install --python .venv/bin/python numpy==1.26.4
 ```
 
-### 3. Torchvision 版本不匹配
+### 3. Torchvision version mismatch
 
-**症状**: `RuntimeError: operator torchvision::nms does not exist`
+**Symptom**: `RuntimeError: operator torchvision::nms does not exist`
 
-**修复**:
+**Fix**:
 ```bash
-# 安装与 PyTorch 匹配的 torchvision
+# Install a torchvision version that matches PyTorch
 uv pip install --python .venv/bin/python torchvision==0.19.0 --index-url https://download.pytorch.org/whl/cpu
 ```
 
 ### 4. "Multiple top-level modules discovered"
 
-**症状**:
+**Symptom**:
 ```
 error: Multiple top-level modules discovered in a flat-layout: ['server', 'test_env'].
 ```
 
-**原因**: Missing `[tool.setuptools]` section in `pyproject.toml`.
+**Cause**: Missing `[tool.setuptools]` section in `pyproject.toml`.
 
-**修复**:
+**Fix**:
 Add to `pyproject.toml`:
 ```toml
 [tool.setuptools]
 py-modules = ["server", "model"]  # Exclude test_env.py
 ```
 
-## 验证命令
+## Verification Commands
 
 ```bash
-# 验证 Python 版本
+# Verify the Python version
 .venv/bin/python --version
 
-# 验证关键包
+# Verify key packages
 .venv/bin/python -c "import torch; print(torch.__version__)"
 .venv/bin/python -c "import numpy; print(numpy.__version__)"
 ```
 
-## 参考
+## References
 
 - For complete setup.sh templates, see Section 3 below.
 - For persistent uv configuration, see project root `setup_tools_uv_persistent.sh`.

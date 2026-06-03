@@ -123,8 +123,8 @@ FAIL (new failure_type) -> DIAGNOSE again
 ```
 
 **Note**:
-- 同一 checkpoint 暴露出新的 `failure_type` 时，不视为盲重试
-- 前提是前一个 failure class 已被明确修复，新的 retry 直接针对新 failure class
+- When the same checkpoint exposes a new `failure_type`, it is not considered a blind retry
+- The precondition is that the previous failure class has been explicitly fixed, and the new retry directly targets the new failure class
 
 ---
 

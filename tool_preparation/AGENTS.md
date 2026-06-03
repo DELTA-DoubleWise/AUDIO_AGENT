@@ -1,258 +1,258 @@
 # AUDIO_AGENT Tool Onboarding Harness (Phase 1)
 
-**版本**: v1.0  
-**目标**: 将语音处理工具接入为**可复现的本地推理单元**  
-**范围**: 第一阶段聚焦环境适配、本地格式化管理、最小推理调用  
+**Version**: v1.0  
+**Goal**: Onboard speech-processing tools as **reproducible local inference units**  
+**Scope**: Phase 1 focuses on environment adaptation, local format management, and minimal inference invocation  
 
 ---
 
-## 1. 目标与范围
+## 1. Goals and Scope
 
-> **Constitution**: 所有 harness 组件与 agent 必须遵守项目级 constitution 定义的高层不变原则，详见 [`policies/constitution.md`](./policies/constitution.md)。
+> **Constitution**: All harness components and agents must comply with the high-level invariant principles defined in the project-level constitution; see [`policies/constitution.md`](./policies/constitution.md) for details.
 
-### 1.1 核心目标
+### 1.1 Core Goals
 
-本文档定义第一阶段工具接入的标准 workflow，确保：
+This document defines the standard workflow for Phase 1 tool onboarding, ensuring:
 
-- **环境可重建**: 通过规范化的 backend 选择和依赖管理
-- **推理可复现**: 通过统一的验证契约和工件保存
-- **过程可审计**: 通过结构化的 verdict 和 artifact 记录
+- **Reproducible environment**: through standardized backend selection and dependency management
+- **Reproducible inference**: through a unified validation contract and artifact persistence
+- **Auditable process**: through structured verdict and artifact records
 
-### 1.2 支持范围
+### 1.2 Scope of Support
 
-| 类型 | 支持状态 | 说明 |
+| Type | Support Status | Notes |
 |------|----------|------|
-| 本地工具 | ✅ 主要目标 | 权重在本地下载和加载 |
-| API 工具 | ✅ 支持 | 通过远程服务调用 |
-| 完整 Benchmark | ❌ 不做 | 第一阶段只做最小推理验证 |
-| 高度自动修复 | ❌ 不做 | 失败时人工介入诊断 |
+| Local tools | ✅ Primary goal | Weights downloaded and loaded locally |
+| API tools | ✅ Supported | Invoked via remote service |
+| Full Benchmark | ❌ Out of scope | Phase 1 does only minimal inference validation |
+| Heavy auto-repair | ❌ Out of scope | Manual intervention for diagnosis on failure |
 
-### 1.3 第一阶段边界
+### 1.3 Phase 1 Boundaries
 
-**做**:
-- 环境后端选择 (uv/conda/docker/api)
-- runtime identity 收敛 (display identity / runtime load identity / local dir name)
-- 最小验证 (import/load/infer/contract)
-- Wrapper 骨架生成
-- 工件归档 (spec/verdict/log)
+**In scope**:
+- Environment backend selection (uv/conda/docker/api)
+- runtime identity convergence (display identity / runtime load identity / local dir name)
+- Minimal validation (import/load/infer/contract)
+- Wrapper skeleton generation
+- Artifact archival (spec/verdict/log)
 
-**不做**:
-- 完整 multi-agent team chat
-- 自由式 planner agent
-- 大规模 benchmark/leaderboard
-- 复杂自动修复循环
+**Out of scope**:
+- Full multi-agent team chat
+- Free-form planner agent
+- Large-scale benchmark/leaderboard
+- Complex auto-repair loops
 
 ---
 
-## 2. 第一阶段 Workflow 总览
+## 2. Phase 1 Workflow Overview
 
-### 2.1 主状态机
+### 2.1 Main State Machine
 
 ```
 DISCOVER
-    ↓ (收集 repo 信息)
+    ↓ (collect repo information)
 CLASSIFY
-    ↓ (判断工具类型)
+    ↓ (determine tool type)
 PLAN
-    ↓ (生成 spec, 选择 backend)
+    ↓ (generate spec, select backend)
 VALIDATE_SPEC
-    ↓ (验证 spec 完整性与证据充分性)
+    ↓ (validate spec completeness and evidence sufficiency)
 BUILD_ENV
-    ↓ (构建隔离环境)
+    ↓ (build isolated environment)
 FETCH_WEIGHTS
-    ↓ (获取/验证权重)
+    ↓ (fetch/validate weights)
 VALIDATE_IMPORT
-    ↓ (验证可导入)
+    ↓ (validate importability)
 VALIDATE_LOAD
-    ↓ (验证可加载)
+    ↓ (validate loadability)
 VALIDATE_INFER
-    ↓ (验证可推理)
+    ↓ (validate inference capability)
 VALIDATE_CONTRACT
-    ↓ (验证输出满足 io_contract)
+    ↓ (validate output satisfies io_contract)
 GENERATE_WRAPPER
-    ↓ (生成统一 wrapper)
+    ↓ (generate unified wrapper)
 SAVE_ARTIFACTS
-    ↓ (保存所有工件)
+    ↓ (save all artifacts)
 DONE
 ```
 
-### 2.2 失败处理状态机
+### 2.2 Failure-Handling State Machine
 
 ```
 FAIL
     ↓
-DIAGNOSE (Evaluator Agent 分类失败)
+DIAGNOSE (Evaluator Agent classifies the failure)
     ↓
-REPLAN (Builder Agent 建议修复)
+REPLAN (Builder Agent proposes a fix)
     ↓
-RETRY_FROM_CHECKPOINT (回到失败前状态)
+RETRY_FROM_CHECKPOINT (return to the pre-failure state)
 ```
 
-**最大重试次数**: 3 次，超过则标记为 FAILED 并退出
+**Maximum retries**: 3; exceeding this marks the run as FAILED and exits
 
 ---
 
-## 3. 角色分工
+## 3. Role Responsibilities
 
-第一阶段定义三个角色，明确各自职责边界。
+Phase 1 defines three roles with clearly delineated responsibility boundaries.
 
 ### 3.1 Harness Controller
 
-**性质**: 固定流程主控，非 LLM Agent
+**Nature**: Fixed-flow orchestrator, not an LLM Agent
 
-**职责**:
-- 推进状态机执行
-- 调用 shell 命令并捕获日志
-- 保存工件到指定路径
-- 判定验证结果 (PASS/FAIL)
-- 在 BUILD_ENV 前检查 runtime identity、preflight 与 build plan 是否已收敛
+**Responsibilities**:
+- Advance state-machine execution
+- Invoke shell commands and capture logs
+- Save artifacts to designated paths
+- Determine validation results (PASS/FAIL)
+- Before BUILD_ENV, check whether runtime identity, preflight, and build plan have converged
 
-**不介入**:
-- 不决定 backend 选择
-- 不诊断失败原因
-- 不生成 wrapper 代码
+**Does not engage in**:
+- Deciding backend selection
+- Diagnosing failure causes
+- Generating wrapper code
 
 ### 3.2 Builder Agent
 
-**介入节点**:
-- **PLAN**: 推荐 backend 选择
-- **BUILD_ENV**: 提供构建策略建议
-- **GENERATE_WRAPPER**: 识别推理入口候选
+**Engagement points**:
+- **PLAN**: Recommend backend selection
+- **BUILD_ENV**: Provide build-strategy suggestions
+- **GENERATE_WRAPPER**: Identify inference-entrypoint candidates
 
-**输入**:
-- repo 扫描结果
-- 依赖文件 (requirements.txt, environment.yml 等)
-- 失败日志
+**Inputs**:
+- repo scan results
+- dependency files (requirements.txt, environment.yml, etc.)
+- failure logs
 
-**输出**:
+**Outputs**:
 - backend_choice.json
 - build_plan.json
 - wrapper_skeleton.py
 
-**约束**:
-- 只提供建议，不直接执行
-- 所有建议必须有理由记录
+**Constraints**:
+- Provides suggestions only; does not execute directly
+- Every suggestion must have a recorded rationale
 
 ### 3.3 Evaluator Agent
 
-**介入节点**:
-- **DIAGNOSE**: 解释测试日志
-- **FAIL**: 分类失败类型
-- **REPLAN**: 建议 retry 策略
+**Engagement points**:
+- **DIAGNOSE**: Interpret test logs
+- **FAIL**: Classify the failure type
+- **REPLAN**: Suggest a retry strategy
 
-**输入**:
+**Inputs**:
 - validation.log
 - build.log
 - failure taxonomy
 
-**输出**:
+**Outputs**:
 - failure_classification.json
 - retry_recommendation.json
 
-**约束**:
-- 必须引用 failure_taxonomy 中的标准类别
-- 必须评估 retryable 可能性
+**Constraints**:
+- Must reference standard categories from failure_taxonomy
+- Must assess retryable likelihood
 
-### 3.4 第一阶段 Agent 边界
+### 3.4 Phase 1 Agent Boundaries
 
-**不允许 Agent 直接替代**:
-- 主流程状态推进
-- shell 执行与日志保存
-- 工件归档
-- contract test 判定
+**Agents are not allowed to directly replace**:
+- Main-flow state advancement
+- shell execution and log persistence
+- Artifact archival
+- contract test determination
 
 ---
 
-## 4. 标准输入输出
+## 4. Standard Inputs and Outputs
 
-### 4.1 工件分类
+### 4.1 Artifact Classification
 
-每次工具接入必须产生的工件按重要性分为三类：
+The artifacts that every tool onboarding must produce are grouped into three classes by importance:
 
-#### Required Artifacts (每次必须)
+#### Required Artifacts (mandatory every time)
 
-| 工件 | 路径 | 说明 |
+| Artifact | Path | Notes |
 |------|------|------|
-| `model.spec.yaml` | `audio_agent/tools/catalog/{tool}/model.spec.yaml` | 工具规范 (可选但强烈推荐) |
-| `backend_choice.json` | `audio_agent/tools/catalog/{tool}/artifacts/backend_choice.json` | 后端选择记录 |
-| `build.log` | `audio_agent/tools/catalog/{tool}/artifacts/build.log` | 构建日志 |
-| `validation.log` | `audio_agent/tools/catalog/{tool}/artifacts/validation.log` | 验证日志 |
-| `verdict.json` | `audio_agent/tools/catalog/{tool}/artifacts/verdict.json` | 最终判定 |
-| `wrapper` | `audio_agent/tools/catalog/{tool}/model.py`, `audio_agent/tools/catalog/{tool}/server.py`, `audio_agent/tools/catalog/{tool}/__init__.py` | 工具 wrapper 文件集 |
-| `artifact_manifest.json` | `audio_agent/tools/catalog/{tool}/artifacts/artifact_manifest.json` | 工件清单 |
+| `model.spec.yaml` | `audio_agent/tools/catalog/{tool}/model.spec.yaml` | Tool spec (optional but strongly recommended) |
+| `backend_choice.json` | `audio_agent/tools/catalog/{tool}/artifacts/backend_choice.json` | Backend selection record |
+| `build.log` | `audio_agent/tools/catalog/{tool}/artifacts/build.log` | Build log |
+| `validation.log` | `audio_agent/tools/catalog/{tool}/artifacts/validation.log` | Validation log |
+| `verdict.json` | `audio_agent/tools/catalog/{tool}/artifacts/verdict.json` | Final verdict |
+| `wrapper` | `audio_agent/tools/catalog/{tool}/model.py`, `audio_agent/tools/catalog/{tool}/server.py`, `audio_agent/tools/catalog/{tool}/__init__.py` | Tool wrapper file set |
+| `artifact_manifest.json` | `audio_agent/tools/catalog/{tool}/artifacts/artifact_manifest.json` | Artifact manifest |
 
-#### Conditional Artifacts (满足条件时必须有)
+#### Conditional Artifacts (mandatory when the condition is met)
 
-| 工件 | 路径 | 条件 |
+| Artifact | Path | Condition |
 |------|------|------|
-| `spec_validation.json` | `artifacts/spec_validation.json` | VALIDATE_SPEC 执行 |
-| `preflight_summary.json` | `artifacts/preflight_summary.json` | preflight 执行 |
+| `spec_validation.json` | `artifacts/spec_validation.json` | VALIDATE_SPEC executed |
+| `preflight_summary.json` | `artifacts/preflight_summary.json` | preflight executed |
 | `weights_manifest.json` | `artifacts/weights_manifest.json` | weights.required == true |
-| `failure_classification.json` | `artifacts/failure_classification.json` | DIAGNOSE 执行 |
-| `retry_recommendation.json` | `artifacts/retry_recommendation.json` | REPLAN 执行 |
-| `escalation.json` | `artifacts/escalation.json` | 人工升级触发 |
-| `patch_report.json` | `artifacts/patch_report.json` | upstream/config patch 应用 |
+| `failure_classification.json` | `artifacts/failure_classification.json` | DIAGNOSE executed |
+| `retry_recommendation.json` | `artifacts/retry_recommendation.json` | REPLAN executed |
+| `escalation.json` | `artifacts/escalation.json` | Manual escalation triggered |
+| `patch_report.json` | `artifacts/patch_report.json` | upstream/config patch applied |
 | `uv.lock` | `uv.lock` | backend == 'uv' |
 
-#### Optional Artifacts (可选)
+#### Optional Artifacts (optional)
 
-| 工件 | 路径 | 说明 |
+| Artifact | Path | Notes |
 |------|------|------|
-| `performance_notes.md` | `artifacts/performance_notes.md` | 性能说明 |
-| `wrapper_notes.md` | `artifacts/wrapper_notes.md` | wrapper 实现备注 |
-| `diagnostic_outputs/` | `artifacts/diagnostic_outputs/` | 额外诊断输出 |
+| `performance_notes.md` | `artifacts/performance_notes.md` | Performance notes |
+| `wrapper_notes.md` | `artifacts/wrapper_notes.md` | wrapper implementation notes |
+| `diagnostic_outputs/` | `artifacts/diagnostic_outputs/` | Additional diagnostic outputs |
 
-### 4.2 模板位置
+### 4.2 Template Locations
 
 ```
 templates/
-├── model.spec.yaml          # 工具规范模板
-├── verdict.json             # 判定结果模板
-└── artifact_manifest.json   # 工件清单模板
+├── model.spec.yaml          # Tool spec template
+├── verdict.json             # Verdict result template
+└── artifact_manifest.json   # Artifact manifest template
 ```
 
-### 4.3 子文档索引
+### 4.3 Sub-document Index
 
-| 主题 | 文档路径 |
+| Topic | Document Path |
 |------|----------|
-| UV 环境策略 | `playbooks/env_uv.md` |
-| 失败分类体系 (含 API 工具) | `playbooks/failure_taxonomy.md` |
-| 验证契约 (spec + runtime gates) | `contracts/spec_validation.md` |
+| UV environment strategy | `playbooks/env_uv.md` |
+| Failure taxonomy (incl. API tools) | `playbooks/failure_taxonomy.md` |
+| Validation contract (spec + runtime gates) | `contracts/spec_validation.md` |
 
 ---
 
-## 5. Backend Routing 规则
+## 5. Backend Routing Rules
 
-第一阶段采用 rule-based backend 选择，每次选择必须记录理由。
+Phase 1 uses rule-based backend selection; every selection must record a rationale.
 
-### 5.1 决策规则
+### 5.1 Decision Rules
 
 ```
-1. 如果是 API-only 工具
+1. If it is an API-only tool
    → api backend
    
-2. 如果 repo 有 Dockerfile 且依赖复杂
+2. If the repo has a Dockerfile and complex dependencies
    → docker backend
    
-3. 如果 repo 有 environment.yml / conda 明确信号
+3. If the repo has a clear environment.yml / conda signal
    → conda backend
    
-4. 如果 repo 只有 pyproject.toml / requirements.txt 且主要是纯 Python
+4. If the repo has only pyproject.toml / requirements.txt and is mostly pure Python
    → uv backend
    
-5. 如果涉及 CUDA 编译、自定义 C++/k2/复杂子模块
-   → docker backend 优先
+5. If it involves CUDA compilation, custom C++/k2, or complex submodules
+   → prefer docker backend
    
-6. 如果宿主机污染风险高
-   → docker backend 优先
+6. If the host-machine pollution risk is high
+   → prefer docker backend
 
-7. 如果 phase-1 目标是 Python-only minimal callable path，且轻量 backend 可满足
-   → 不因 preferred_backend 或 requires_gpu 提示而放弃 uv/conda
+7. If the phase-1 goal is a Python-only minimal callable path and a lightweight backend suffices
+   → do not abandon uv/conda merely because of a preferred_backend or requires_gpu hint
 ```
 
-### 5.2 记录要求
+### 5.2 Recording Requirements
 
-每次 backend 选择必须生成 `backend_choice.json`:
+Every backend selection must produce a `backend_choice.json`:
 
 ```json
 {
@@ -267,180 +267,180 @@ templates/
 
 ---
 
-## 6. 成功标准
+## 6. Success Criteria
 
-第一阶段接入成功的**最低标准**:
+The **minimum criteria** for a successful Phase 1 onboarding:
 
-| 验证项 | 标准 | 工件 |
+| Validation Item | Criterion | Artifact |
 |--------|------|------|
-| 环境可重建 | 删除 .venv 后可重新构建 | build.log |
-| 工具能 import | `from model import X` 或 `import package` 无报错 | validation.log |
-| 工具能 load | 模型对象可实例化并加载权重 | validation.log |
-| 能跑通最小推理 | 给定测试样本输出结果 | validation.log |
-| 输出满足契约 | 类型正确、非空、必要字段存在 | validation.log |
-| 工件已保存 | spec/verdict/log/wrapper 都存在 | artifact_manifest.json |
+| Reproducible environment | Can rebuild after deleting .venv | build.log |
+| Tool can import | `from model import X` or `import package` raises no error | validation.log |
+| Tool can load | Model object can be instantiated and weights loaded | validation.log |
+| Minimal inference runs end-to-end | Produces a result for a given test sample | validation.log |
+| Output satisfies the contract | Correct type, non-empty, required fields present | validation.log |
+| Artifacts saved | spec/verdict/log/wrapper all exist | artifact_manifest.json |
 
 ---
 
-## 7. 状态定义
+## 7. State Definitions
 
 ### 7.1 DISCOVER
 
-**输入**: repo URL / local repo, 初始工具信息  
-**动作**: 扫描 repo 文件结构，收集 README、requirements、environment.yml 等；收敛 runtime identity（display identity / runtime load identity / local dir name）  
-**输出**: repo_summary.json
+**Input**: repo URL / local repo, initial tool information  
+**Actions**: Scan the repo file structure, collecting README, requirements, environment.yml, etc.; converge the runtime identity (display identity / runtime load identity / local dir name)  
+**Output**: repo_summary.json
 
-**后续**: 可执行 [预检清单](./playbooks/preflight_checklist.md) 生成 `preflight_summary.json`
-  - host preflight: GPU/driver、磁盘、docker、系统工具
-  - runtime preflight: package manager、Python、TMPDIR/extract 风险、CUDA 初始化风险
+**Follow-up**: May run the [preflight checklist](./playbooks/preflight_checklist.md) to generate `preflight_summary.json`
+  - host preflight: GPU/driver, disk, docker, system tools
+  - runtime preflight: package manager, Python, TMPDIR/extract risk, CUDA initialization risk
 
 ### 7.2 CLASSIFY
 
-**动作**: 判断工具类型 (local/api)，判断任务类型，判断环境复杂度，确认 runtime family 与最小 callable path  
-**输出**: classification.json
+**Actions**: Determine the tool type (local/api), determine the task type, determine the environment complexity, and confirm the runtime family and minimal callable path  
+**Output**: classification.json
 
 ### 7.3 PLAN
 
-**动作**:
-- Builder Agent 选择 backend
-- 生成 model.spec.yaml
-- 生成 build_plan.json
-- 明确 runtime load identity、fixture 选择、CPU fallback / GPU 限制（若适用）
+**Actions**:
+- Builder Agent selects the backend
+- Generate model.spec.yaml
+- Generate build_plan.json
+- Specify runtime load identity, fixture selection, CPU fallback / GPU constraints (if applicable)
 
-**输出**:
+**Outputs**:
 - model.spec.yaml
 - backend_choice.json
 - build_plan.json
 
 ### 7.4 VALIDATE_SPEC
 
-**动作**:
-- 检查 `model.spec.yaml` 是否完整
-- 检查关键字段是否有 evidence 支撑
-- 检查 `backend_choice.json` 是否记录冲突与理由
-- 检查 `build_plan.json` 是否可执行
-- 检查 fixture 是否可用
-- 检查 `io_contract` 是否足以支持后续 contract test
-- 检查 preflight 结果是否与 backend 选择相容
-- 检查 runtime identity 是否已收敛
-- 检查大权重 restore/extract 的临时目录策略是否明确
-- 检查 GPU 风险是否已记录为 requirement、warning 或 fallback plan
+**Actions**:
+- Check whether `model.spec.yaml` is complete
+- Check whether key fields are backed by evidence
+- Check whether `backend_choice.json` records conflicts and rationale
+- Check whether `build_plan.json` is executable
+- Check whether the fixture is available
+- Check whether `io_contract` is sufficient to support the subsequent contract test
+- Check whether the preflight results are compatible with the backend selection
+- Check whether the runtime identity has converged
+- Check whether the temp-directory strategy for large-weight restore/extract is explicit
+- Check whether GPU risk has been recorded as a requirement, warning, or fallback plan
 
-**输出**:
+**Output**:
 - spec_validation.json
 
-**失败**:
-- 进入 DIAGNOSE / REPLAN
-- **不允许**直接进入 BUILD_ENV
+**Failure**:
+- Enter DIAGNOSE / REPLAN
+- **Not allowed** to enter BUILD_ENV directly
 
-**参考**: [Spec Validation 契约](./contracts/spec_validation.md)
+**Reference**: [Spec Validation contract](./contracts/spec_validation.md)
 
 ### 7.5 BUILD_ENV
 
-**动作**: 使用选定 backend 构建隔离环境，按 build plan 设置 cache/tmp/runtime 路径  
-**输出**: environment ready / failure  
-**工件**: build.log
+**Actions**: Build an isolated environment using the selected backend, setting cache/tmp/runtime paths per the build plan  
+**Output**: environment ready / failure  
+**Artifact**: build.log
 
 ### 7.5 FETCH_WEIGHTS
 
-**动作**: 获取或验证权重，记录路径和校验信息  
-**输出**: weights ready / failure
+**Actions**: Fetch or validate weights, recording the path and checksum information  
+**Output**: weights ready / failure
 
 ### 7.6 VALIDATE_IMPORT
 
-**动作**: 运行 import test  
-**输出**: import result  
-**失败**: 进入 DIAGNOSE (python_dependency_missing)
+**Actions**: Run the import test  
+**Output**: import result  
+**Failure**: Enter DIAGNOSE (python_dependency_missing)
 
 ### 7.7 VALIDATE_LOAD
 
-**动作**: 运行 load test  
-**输出**: load result  
-**失败**: 进入 DIAGNOSE (missing_weights / cuda_version_mismatch / config_not_set)
+**Actions**: Run the load test  
+**Output**: load result  
+**Failure**: Enter DIAGNOSE (missing_weights / cuda_version_mismatch / config_not_set)
 
 ### 7.8 VALIDATE_INFER
 
-**动作**: 运行最小推理测试  
-**输出**: infer result  
-**失败**: 进入 DIAGNOSE (wrong_entrypoint / runtime_backend_incompatible)
+**Actions**: Run the minimal inference test  
+**Output**: infer result  
+**Failure**: Enter DIAGNOSE (wrong_entrypoint / runtime_backend_incompatible)
 
 ### 7.9 VALIDATE_CONTRACT
 
-**动作**:
-- 验证输出是否满足 `model.spec.yaml.io_contract`
-- 检查 required_fields 是否存在
-- 检查 nonempty_fields 是否非空
-- 检查 primary_field 是否有效
-- 检查 JSON serializability（若要求）
+**Actions**:
+- Validate whether the output satisfies `model.spec.yaml.io_contract`
+- Check whether required_fields are present
+- Check whether nonempty_fields are non-empty
+- Check whether primary_field is valid
+- Check JSON serializability (if required)
 
-**输出**: contract validation result（记录到 `validation.log`）
+**Output**: contract validation result (recorded to `validation.log`)
 
-**失败**:
-- 进入 DIAGNOSE (wrong_entrypoint / wrapper_contract_mismatch / io_contract_incomplete)
+**Failure**:
+- Enter DIAGNOSE (wrong_entrypoint / wrapper_contract_mismatch / io_contract_incomplete)
 
-**说明**:
-- 第一阶段的 runtime validation 验证对象是 **repo-native entrypoint / minimal callable path**
-- wrapper 在 contract 验证通过后生成，用于接入 Audio Agent Framework
-- 若 runtime path 已通过，wrapper smoke 仅验证 tool-local wrapper，不要求顶层 `audio_agent` 包 extras 完整可用
+**Notes**:
+- In Phase 1, the runtime validation target is the **repo-native entrypoint / minimal callable path**
+- The wrapper is generated after the contract validation passes, for integration into the Audio Agent Framework
+- If the runtime path has passed, the wrapper smoke validates only the tool-local wrapper and does not require the top-level `audio_agent` package extras to be fully available
 
 ### 7.10 GENERATE_WRAPPER
 
-**动作**: 生成统一 wrapper skeleton，填写最小调用逻辑  
-**输出**: wrapper 文件集
-  - `model.py`: 核心模型包装类 (推荐但非强制)
-  - `server.py`: MCP 服务器实现
-  - `__init__.py`: 包导出声明
-  - `config.yaml`: MCP 工具配置
+**Actions**: Generate the unified wrapper skeleton and fill in the minimal invocation logic  
+**Output**: wrapper file set
+  - `model.py`: Core model wrapper class (recommended but not mandatory)
+  - `server.py`: MCP server implementation
+  - `__init__.py`: Package export declaration
+  - `config.yaml`: MCP tool configuration
 
-**参考**: 真实脚手架见 `audio_agent/tools/catalog/_template/`（`server.py` / `config.yaml` / `__init__.py` 等），可 `cp -r _template <tool>` 作为起点
+**Reference**: For the actual scaffold see `audio_agent/tools/catalog/_template/` (`server.py` / `config.yaml` / `__init__.py`, etc.); you can `cp -r _template <tool>` as a starting point
 
-**约束**:
-- wrapper 应复用已验证通过的 repo-native path
-- wrapper smoke 若执行，应避免被无关全局依赖阻塞
+**Constraints**:
+- The wrapper should reuse the validated repo-native path
+- If the wrapper smoke runs, it should avoid being blocked by unrelated global dependencies
 
 ### 7.11 SAVE_ARTIFACTS
 
-**动作**: 保存 spec snapshot、log、lockfile、verdict、wrapper  
-**输出**: artifact_manifest.json
+**Actions**: Save the spec snapshot, log, lockfile, verdict, and wrapper  
+**Output**: artifact_manifest.json
 
 ### 7.12 DIAGNOSE / REPLAN
 
-**动作**:
-- Evaluator Agent 结合 failure taxonomy 分类失败
-- Builder Agent 给出 retry 建议
+**Actions**:
+- The Evaluator Agent classifies the failure using the failure taxonomy
+- The Builder Agent provides retry suggestions
 
-**输出**:
+**Outputs**:
 - failure_classification.json
 - retry_recommendation.json
-- 决定：RETRY_FROM_CHECKPOINT / FAIL_STOP
+- Decision: RETRY_FROM_CHECKPOINT / FAIL_STOP
 
-**约束**: 重试必须遵守 [重试与升级政策](./policies/retry_and_escalation.md)，禁止盲重试
+**Constraints**: Retries must comply with the [retry and escalation policy](./policies/retry_and_escalation.md); blind retries are prohibited
 
 ---
 
-## 8. 文档索引
+## 8. Document Index
 
-### 8.1 Constitution (高层不变原则)
+### 8.1 Constitution (high-level invariant principles)
 
-- [项目 Constitution](./policies/constitution.md) - 所有组件必须遵守的 10 条核心规则
+- [Project Constitution](./policies/constitution.md) - the 10 core rules all components must comply with
 
-### 8.2 Policies (决策政策)
+### 8.2 Policies (decision policies)
 
-- [证据优先级政策](./policies/evidence_priority.md) - 多源冲突时的判断依据
-- [重试与升级政策](./policies/retry_and_escalation.md) - 失败处理与人工介入规则
+- [Evidence priority policy](./policies/evidence_priority.md) - basis for judgment when multiple sources conflict
+- [Retry and escalation policy](./policies/retry_and_escalation.md) - failure handling and manual-intervention rules
 
-### 8.3 Playbooks (执行手册)
+### 8.3 Playbooks (execution handbooks)
 
-- [预检清单](./playbooks/preflight_checklist.md) - BUILD_ENV 前的环境检查
-- [UV 环境策略](./playbooks/env_uv.md)
-- [失败分类体系](./playbooks/failure_taxonomy.md) - 含 API 工具策略
+- [Preflight checklist](./playbooks/preflight_checklist.md) - environment checks before BUILD_ENV
+- [UV environment strategy](./playbooks/env_uv.md)
+- [Failure taxonomy](./playbooks/failure_taxonomy.md) - includes API tool strategy
 
-### 8.4 Contracts (验证契约)
+### 8.4 Contracts (validation contracts)
 
-- [Spec Validation 契约](./contracts/spec_validation.md) - spec 前置验证 + runtime 验证 gates
-- [Fixture 政策](./contracts/fixture_policy.md) - 测试样本规范
+- [Spec Validation contract](./contracts/spec_validation.md) - spec pre-validation + runtime validation gates
+- [Fixture policy](./contracts/fixture_policy.md) - test sample specification
 
-### 8.5 Templates (模板文件)
+### 8.5 Templates (template files)
 
 - [model.spec.yaml](./templates/model.spec.yaml)
 - [verdict.json](./templates/verdict.json)
@@ -448,33 +448,33 @@ templates/
 
 ---
 
-## 9. 第一阶段约束重申
+## 9. Phase 1 Constraints Restated
 
-**不实现**:
-- 完整 multi-agent team chat
-- 自由式 planner agent
-- 大规模 benchmark/leaderboard
-- 复杂自动修复循环
-- 过于庞大的 spec schema
+**Not implemented**:
+- Full multi-agent team chat
+- Free-form planner agent
+- Large-scale benchmark/leaderboard
+- Complex auto-repair loops
+- An overly large spec schema
 
-**允许**:
-- Agent + 人工共同完成
-- 半自动化流程
-- 失败时人工介入
+**Allowed**:
+- Agent + human collaboration
+- Semi-automated workflows
+- Manual intervention on failure
 
-**必须**:
-- 流程、状态、失败点透明
-- 所有工件可复查
-- 环境可重建
+**Required**:
+- Transparent process, states, and failure points
+- All artifacts reviewable
+- Reproducible environment
 
 ---
 
-## 附录: 变更日志
+## Appendix: Changelog
 
 ### v1.0 (2024-03-30)
 
-- 从 SURE-EVAL harness 适配到 Audio Agent Framework
-- 更新路径为 `audio_agent/tools/catalog/`
-- 明确 `model.spec.yaml` 为可选但推荐
-- 明确 `model.py` 为推荐但非强制
-- 集成 persistent uv 和 model_downloader 约定
+- Adapted from the SURE-EVAL harness to the Audio Agent Framework
+- Updated paths to `audio_agent/tools/catalog/`
+- Clarified that `model.spec.yaml` is optional but recommended
+- Clarified that `model.py` is recommended but not mandatory
+- Integrated the persistent uv and model_downloader conventions

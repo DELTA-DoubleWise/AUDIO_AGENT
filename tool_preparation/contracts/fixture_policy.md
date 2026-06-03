@@ -23,41 +23,41 @@ Do not treat this document as prescribing fixed file paths for all tools.
 
 ### Fixtures Are Not Arbitrary Audio
 
-Fixture **不是任意音频文件**，必须满足：
-- **Task-specific**: 音频内容必须匹配任务语义（ASR 用语音、VAD 用含语音的音频）
-- **Format-compliant**: 采样率、通道数、编码格式符合模型预期
-- **Deterministic**: 相同输入产生可预期的输出
+A fixture **is not an arbitrary audio file**; it must satisfy:
+- **Task-specific**: audio content must match the task semantics (ASR uses speech, VAD uses audio containing speech)
+- **Format-compliant**: sample rate, channel count, and encoding format match the model's expectations
+- **Deterministic**: the same input produces a predictable output
 
-**禁止行为**:
-- ❌ 使用随机生成的噪声作为 fixture
-- ❌ 使用与任务无关的音频（如用音乐测试 ASR）
-- ❌ 使用模型不支持的语言/格式
+**Prohibited behaviors**:
+- ❌ Using randomly generated noise as a fixture
+- ❌ Using audio unrelated to the task (e.g., testing ASR with music)
+- ❌ Using a language/format the model does not support
 
 ### Fixture Selection Priority
 
-1. **Task-specific fixture**（优先）
-   - `tests/fixtures/{task_type}/` 下的专用 fixture
-   - 如 ASR 模型优先使用 `shared/asr/en_16k_10s.wav`
+1. **Task-specific fixture** (preferred)
+   - Dedicated fixtures under `tests/fixtures/{task_type}/`
+   - For example, ASR models prefer `shared/asr/en_16k_10s.wav`
 
-2. **Shared fallback**（显式记录）
-   - 当 task-specific 不可用时，使用 `shared/` 下的通用 fixture
-   - 必须在 `validation.log` 中记录: `"fixture_source": "shared"`
+2. **Shared fallback** (explicitly recorded)
+   - When a task-specific fixture is unavailable, use a general fixture under `shared/`
+   - Must be recorded in `validation.log`: `"fixture_source": "shared"`
 
-3. **Tool-specific**（当契约要求时）
-   - 若 `io_contract` 指定了特定格式/语言，必须创建对应 fixture
+3. **Tool-specific** (when the contract requires it)
+   - If `io_contract` specifies a particular format/language, a corresponding fixture must be created
 
-### Fixture Mismatch 处理
+### Handling Fixture Mismatch
 
-Fixture mismatch **不应直接判定为 integration failure**：
-- 先尝试使用 shared fallback
-- 若 fallback 可用，记录为 `"fixture_source": "shared"`
-- 仅在无可用 fixture 时，才标记为 `"fixture_missing"` 并申请 waiver
+A fixture mismatch **should not be immediately judged an integration failure**:
+- First try using the shared fallback
+- If the fallback is usable, record it as `"fixture_source": "shared"`
+- Only when no fixture is available, mark it as `"fixture_missing"` and request a waiver
 
-### Semantic Narrowing 规则
+### Semantic Narrowing Rules
 
-- 如果 runtime identity 已被证据解析为更窄目标（例如 multilingual 输入被解析为 English-only checkpoint），fixture 可随之收敛
-- 如果 runtime identity 未变化，fixture fallback 必须保持原始任务语义，不得借 fallback 隐式缩小验证目标
-- 任何语义收敛都必须记录在 `model.spec.yaml` 和 `spec_validation.json`
+- If the runtime identity has already been resolved by evidence to a narrower target (e.g., a multilingual input resolved to an English-only checkpoint), the fixture may narrow accordingly
+- If the runtime identity has not changed, the fixture fallback must preserve the original task semantics and must not implicitly narrow the validation target via the fallback
+- Any semantic narrowing must be recorded in `model.spec.yaml` and `spec_validation.json`
 
 ---
 
