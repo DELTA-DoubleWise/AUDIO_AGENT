@@ -45,7 +45,7 @@ Pass several files for multi-audio tasks such as speaker verification: `--audio 
 
 ## Extending the framework
 
-**Add a new tool.** Tools are MCP servers under `audio_agent/tools/catalog/<tool>/`. The recommended path is the **Harness-First Agent Workflow** in [`tool_preparation/`](./tool_preparation/README.md): hand an agent that guide plus a `TOOL_INPUT` spec, and it selects a backend, builds an isolated environment, validates import/load/infer/contract, and generates the wrapper. For manual setup, copy `audio_agent/tools/catalog/_template/` and adapt `server.py` / `config.yaml` / `setup.sh`.
+**Add a new tool.** Tools are MCP servers under `audio_agent/tools/catalog/<tool>/`. The recommended path is the **Harness-First Agent Workflow** in [`tool_preparation/`](./tool_preparation/README.md): point an agent at that guide with a `TOOL_INPUT` spec, and it selects a backend, builds an isolated environment, validates import/load/infer/contract, and generates the wrapper. For manual setup, copy `audio_agent/tools/catalog/_template/` and adapt `server.py` / `config.yaml` / `setup.sh`.
 
 **Add a frontend (LALM).** For any OpenAI-compatible audio API, use the built-in `OpenAICompatibleFrontend`:
 

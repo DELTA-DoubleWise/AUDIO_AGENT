@@ -107,3 +107,8 @@ models
 
 # Local scratch space for sample renders, debug dumps, etc.
 temp/
+
+# Paper manuscript + local analysis artifacts (the paper is published on arXiv)
+paper/
+benchmark_meta/
+reasoning_quality_evaluation/

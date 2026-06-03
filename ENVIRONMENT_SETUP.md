@@ -1,7 +1,7 @@
 # Environment Setup
 
 Canonical bootstrap sequence that takes a fresh `git clone` all the way to a
-working `demo_run_api_full.py`.
+working `demo_run.py`.
 
 ## 0. Prerequisites
 
@@ -78,7 +78,6 @@ The default registry covers:
 | fireredvad | FireRedTeam/FireRedVAD | ~200MB |
 | whisperx (diarization) | pyannote/speaker-diarization-3.1 + segmentation-3.0 | ~150MB (HF token) |
 | (local frontend, optional) | Qwen/Qwen2.5-Omni-7B | ~21GB |
-| (local frontend, optional) | Qwen/Qwen3-Omni-30B-A3B-Instruct | ~60GB |
 
 `wespeaker` and `tempo_cnn` auto-download their weights on first use; nothing to
 pre-stage.
@@ -94,7 +93,7 @@ Single targeted demo (any tool, run on a GPU allocation if the tool loads a
 local model):
 ```bash
 export DASHSCOPE_API_KEY="sk-..."
-python -m audio_agent.examples.demo_run_api_full \
+python -m audio_agent.examples.demo_run \
   --audio path/to/clip.wav \
   --question "Use the transcribe_qwenasr tool to transcribe this audio." \
   --max-steps 5
