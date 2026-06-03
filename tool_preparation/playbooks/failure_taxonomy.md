@@ -212,3 +212,25 @@ Prefer the following repair order:
 └── RuntimeError / AttributeError (运行时)
     └── runtime_backend_incompatible
 ```
+
+---
+
+## API Tools
+
+API-backed tools (DashScope / OpenAI / Gemini) skip local weights and GPU; they need a key, a base URL, and a healthcheck instead. Configure in `config.yaml`:
+
+```yaml
+api:
+  base_url: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+  api_key_env: "DASHSCOPE_API_KEY"
+  timeout: 120
+  retry: 3
+```
+
+Common API failures and their classes:
+
+| Symptom | Class | Fix |
+|---------|-------|-----|
+| `401 Unauthorized` | `config_not_set` | API key missing/invalid — check the `api_key_env` variable is set |
+| `ReadTimeout` | `runtime_backend_incompatible` | Raise `timeout`, or shorten the request audio |
+| `429 Too Many Requests` | (retryable) | Exponential backoff (`sleep(2 ** attempt)`), bounded by the retry-and-escalation policy |

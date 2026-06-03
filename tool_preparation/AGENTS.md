@@ -208,7 +208,6 @@ RETRY_FROM_CHECKPOINT (回到失败前状态)
 templates/
 ├── model.spec.yaml          # 工具规范模板
 ├── verdict.json             # 判定结果模板
-├── spec_validation.json     # Spec validation 模板
 └── artifact_manifest.json   # 工件清单模板
 ```
 
@@ -217,10 +216,8 @@ templates/
 | 主题 | 文档路径 |
 |------|----------|
 | UV 环境策略 | `playbooks/env_uv.md` |
-| 失败分类体系 | `playbooks/failure_taxonomy.md` |
-| API 工具策略 | `playbooks/model_api.md` |
-| Model Spec 规范 | `specs/model_spec_template.md` |
-| 验证契约 | `contracts/minimal_validation.md` |
+| 失败分类体系 (含 API 工具) | `playbooks/failure_taxonomy.md` |
+| 验证契约 (spec + runtime gates) | `contracts/spec_validation.md` |
 
 ---
 
@@ -395,7 +392,7 @@ templates/
   - `__init__.py`: 包导出声明
   - `config.yaml`: MCP 工具配置
 
-**参考**: [Wrapper 契约](./specs/wrapper_contract.md) 定义各文件职责与最小接口
+**参考**: 真实脚手架见 `audio_agent/tools/catalog/_template/`（`server.py` / `config.yaml` / `__init__.py` 等），可 `cp -r _template <tool>` 作为起点
 
 **约束**:
 - wrapper 应复用已验证通过的 repo-native path
@@ -436,24 +433,16 @@ templates/
 
 - [预检清单](./playbooks/preflight_checklist.md) - BUILD_ENV 前的环境检查
 - [UV 环境策略](./playbooks/env_uv.md)
-- [API 工具策略](./playbooks/model_api.md)
-- [失败分类体系](./playbooks/failure_taxonomy.md)
+- [失败分类体系](./playbooks/failure_taxonomy.md) - 含 API 工具策略
 
-### 8.4 Specs (规范定义)
+### 8.4 Contracts (验证契约)
 
-- [Wrapper 契约](./specs/wrapper_contract.md) - model.py/server.py/__init__.py/config.yaml 职责边界
-- [Model Spec 模板说明](./specs/model_spec_template.md)
-
-### 8.5 Contracts (验证契约)
-
-- [Spec Validation 契约](./contracts/spec_validation.md) - spec 前置验证规范
+- [Spec Validation 契约](./contracts/spec_validation.md) - spec 前置验证 + runtime 验证 gates
 - [Fixture 政策](./contracts/fixture_policy.md) - 测试样本规范
-- [最小验证契约](./contracts/minimal_validation.md)
 
-### 8.6 Templates (模板文件)
+### 8.5 Templates (模板文件)
 
 - [model.spec.yaml](./templates/model.spec.yaml)
-- [spec_validation.json](./templates/spec_validation.json)
 - [verdict.json](./templates/verdict.json)
 - [artifact_manifest.json](./templates/artifact_manifest.json)
 

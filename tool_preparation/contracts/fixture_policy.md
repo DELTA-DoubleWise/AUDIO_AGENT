@@ -252,9 +252,9 @@ If tool-specific fixture not available:
 
 ---
 
-## Integration with minimal_validation.md
+## Integration with Validation
 
-The test code examples in `minimal_validation.md` use placeholder paths like `"path/to/tool_specific_fixture"`.
+The runtime validation gates (see `spec_validation.md`) reference fixtures by placeholder paths like `"path/to/tool_specific_fixture"`.
 
 **Actual implementation** must:
 - Resolve fixture path from `model.spec.yaml`

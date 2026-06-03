@@ -226,3 +226,18 @@ VALIDATE_SPEC
 ```
 
 **Key principle**: VALIDATE_SPEC is the "paper validation" gate. If the plan itself is flawed, don't waste time building an environment that cannot succeed.
+
+---
+
+## Runtime Validation Gates
+
+After VALIDATE_SPEC passes and the environment is built, the runtime is checked through four sequential gates. Each gate maps a failure to a `failure_taxonomy` class (consumed by DIAGNOSE / retry policy):
+
+| Gate | Pass criterion | Failure class on error |
+|------|----------------|------------------------|
+| **Import** | The package imports without error (`import pkg`) | `python_dependency_missing` |
+| **Load** | The model instantiates and weights load | `missing_weights`, `cuda_version_mismatch`, `config_not_set` |
+| **Infer** | Minimal inference on the fixture produces output | `wrong_entrypoint`, `runtime_backend_incompatible` |
+| **Contract** | Output satisfies `io_contract`: `required_fields` present, `nonempty_fields` non-empty, `primary_field` valid, JSON-serializable if required | `wrong_entrypoint`, `wrapper_contract_mismatch`, `io_contract_incomplete` |
+
+Results are recorded in `validation.log` and summarized in `verdict.json`.

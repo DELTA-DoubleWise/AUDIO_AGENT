@@ -29,13 +29,10 @@ cd ${REPO_ROOT}
 1. AUDIO_AGENT/tool_preparation/AGENTS.md
 2. AUDIO_AGENT/tool_preparation/policies/constitution.md
 3. AUDIO_AGENT/tool_preparation/policies/evidence_priority.md
-4. AUDIO_AGENT/tool_preparation/policies/backend_selection.md
-5. AUDIO_AGENT/tool_preparation/policies/retry_and_escalation.md
-6. AUDIO_AGENT/tool_preparation/playbooks/env_uv.md
-7. AUDIO_AGENT/tool_preparation/contracts/spec_validation.md
-8. AUDIO_AGENT/tool_preparation/contracts/minimal_validation.md
-9. AUDIO_AGENT/tool_preparation/specs/wrapper_contract.md
-10. AUDIO_AGENT/tool_preparation/contracts/fixture_policy.md
+4. AUDIO_AGENT/tool_preparation/policies/retry_and_escalation.md
+5. AUDIO_AGENT/tool_preparation/playbooks/env_uv.md
+6. AUDIO_AGENT/tool_preparation/contracts/spec_validation.md
+7. AUDIO_AGENT/tool_preparation/contracts/fixture_policy.md
 
 你的目标：
 - 针对给定工具，完成第一阶段端到端接入
@@ -115,6 +112,78 @@ io_contract:
   primary_field: text|segments|labels
   required_fields: [field1, field2]
   nonempty_fields: [field1]
+  json_serializable: true
+```
+
+**Example — local model (WhisperX):**
+
+```yaml
+tool_id: m-bain/whisperX
+tool_name: WhisperX
+task_type: asr
+deployment_type: local
+
+repo:
+  url: https://github.com/m-bain/whisperX
+  commit: null
+
+weights:
+  source: huggingface
+  local_path: null
+  required: true
+
+environment_hint:
+  preferred_backend: uv
+  python_version: "3.11"
+  requires_gpu: true
+  system_packages: [ffmpeg]
+
+entrypoints:
+  import_test: "import whisperx"
+  load_test: "import whisperx; model = whisperx.load_model('tiny', 'cpu')"
+  infer_test: "result = model.transcribe('tests/fixtures/shared/asr/en_16k.wav')"
+
+fixture:
+  audio: tests/fixtures/shared/asr/en_16k.wav
+  task_specific: false
+  fallback_allowed: true
+
+io_contract:
+  input_type: audio_path
+  output_type: json
+  primary_field: segments
+  required_fields: [segments]
+  nonempty_fields: [segments]
+  json_serializable: true
+```
+
+**Example — API-only model (Qwen3-Omni):**
+
+```yaml
+tool_id: qwen3-omni-flash
+tool_name: Qwen3OmniAPI
+task_type: omni
+deployment_type: api
+
+weights:
+  source: api
+  required: false
+
+environment_hint:
+  preferred_backend: api
+  requires_gpu: false
+
+entrypoints:
+  import_test: "import openai"
+  load_test: "client = openai.OpenAI(api_key=os.environ['DASHSCOPE_API_KEY'])"
+  infer_test: "client.chat.completions.create(model='qwen3-omni-flash', messages=[...])"
+
+io_contract:
+  input_type: audio_path
+  output_type: text
+  primary_field: text
+  required_fields: [text]
+  nonempty_fields: [text]
   json_serializable: true
 ```
 
@@ -259,8 +328,7 @@ asyncio.run(test())
 ## See Also
 
 - [AGENTS.md](./AGENTS.md) - Master onboarding workflow
-- [Policies](./policies/) - Constitution, evidence priority, backend selection
-- [Playbooks](./playbooks/) - Environment strategies, failure taxonomy
-- [Specs](./specs/) - Wrapper contract, model spec template
-- [Contracts](./contracts/) - Validation contracts
+- [Policies](./policies/) - Constitution, evidence priority, retry & escalation
+- [Playbooks](./playbooks/) - Environment strategy, failure taxonomy (+ API tools), preflight checklist
+- [Contracts](./contracts/) - Spec + runtime validation, fixture policy
 - [Templates](./templates/) - model.spec.yaml, verdict.json, artifact_manifest.json
